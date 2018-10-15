@@ -1,0 +1,30 @@
+Tweakable parameters:
+
+    *   #create / s
+    *   #sync / s
+    *   N parents (unit)
+    *   #TXs / unit
+
+
+
+Packages (code layout and modularization):
+
+    *   Network environment
+    *   Threshold coin
+    *   Cryptographic primitives
+    *   Poset (data structure)
+
+    *   Sync
+    *   Create + update
+    *   SNAP
+    *   BTS
+
+
+Read, research, think:
+
+    *   networking library
+    *   concurrency library
+    *   testing environment
+    *   TX model
+    *   adversary model
+    *   threshold coin
