@@ -17,7 +17,7 @@ Packages (code layout and modularization):
     *   Sync
     *   Create + update
     *   SNAP
-    *   BTS
+    *   BTS (propose + decide)
 
 
 Read, research, think:
@@ -28,3 +28,5 @@ Read, research, think:
     *   TX model
     *   adversary model
     *   threshold coin
+    *   gossip algorithm
+    *   development plan & checkpoints
