@@ -1,4 +1,4 @@
-class Abstract_threshold_coin:
+class AbstractThresholdCoin:
 
     def __init__(self, dealer_id, n, k, validation_keys):
         """
