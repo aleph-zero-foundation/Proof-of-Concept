@@ -4,7 +4,8 @@
 class Unit(object):
     '''This class is the building block for the poset'''
 
-    __slots__ = ['creator_id', 'parents', 'txs', 'signature', 'coinshares', 'level']
+    __slots__ = ['creator_id', 'parents', 'txs', 'signature', 'coinshares',
+                 'level', 'floor', 'ceil', 'height']
 
     def __init__(self, creator_id, parents, txs, signature=None, coinshares=None, level=None):
         '''

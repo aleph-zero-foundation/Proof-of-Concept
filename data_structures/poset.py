@@ -63,60 +63,95 @@ class Poset:
         TODO This method should be probably a part of a process class which we don't have right now.
         '''
 
-        return -1
+        pass
 
     def level(self, unit):
         '''
         Calculates the level in the poset of the unit.
         '''
 
-        return -1
+        pass
 
     def choose_coinshares(self, unit):
         '''
         Implements threshold_coin algorithm from the paper.
         '''
 
-        return []
+        pass
 
     def check_primeness(self, unit):
         '''
         Check if the unit is prime.
         '''
 
-        return false
+        pass
 
     def rand_maximal(self):
         '''
         Returns a randomly chosen maximal unit in the poset.
         '''
 
-        return None
+        pass
 
     def my_maximal(self):
         '''
         Returns a randomly chosen maximal unit that is above a last created unit by this process.
         '''
 
-        return None
+        pass
 
     def prime_units(self):
         '''
         Returns a set of all prime units.
         '''
 
-        return None
+        pass
 
     def timing_units(self):
         '''
         Returns a set of all timing units.
         '''
 
-        return None
+        pass
 
     def diff(self, other):
         '''
         Returns a set of units that are in this poset and that are not in the other poset.
         '''
 
-        return None
+        pass
+
+    def less_then(self, U, V):
+        '''
+        Checks if U < V.
+        '''
+
+        pass
+
+    def greater_than(self, U, V):
+        '''
+        Checks if U > V.
+        '''
+
+        pass
+
+    def high_above(self, U, V):
+        '''
+        Check if U >> V.
+        '''
+
+        pass
+
+    def high_below(self, U, V):
+        '''
+        Checks if U << V.
+        '''
+
+        pass
+
+    def unit_by_height(self, process_id, height):
+        '''
+        Returns a unit or a list of units created by a given process of a given height.
+        '''
+
+        pass
