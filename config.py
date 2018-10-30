@@ -1,2 +1,3 @@
 N_PARENTS = 2
+N_CREATE = 2
 SIGNING_FUNCTION = None  # TODO pick one!
