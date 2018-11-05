@@ -27,6 +27,19 @@ class Poset:
         '''
         self.units[unit.hash()] = unit
 
+    def check_compliance(self, unit):
+        '''
+        Checks if unit follows the rules, i.e.:
+            - parent diversity rule
+            - anti-fork rules
+            - has correct signature
+            - its parents are in the Poset
+            - is it prime
+        '''
+
+        pass
+
+
     def create_unit(self, txs):
         '''
         Creates a new unit and stores thx in it. Correctness of the txs is checked by a thread listening for new transactions.
