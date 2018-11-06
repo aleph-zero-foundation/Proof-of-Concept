@@ -89,6 +89,9 @@ class Poset:
         
         if U is self.genesis_unit:
             return 0
+            
+        if U.level is not None:
+            return U.level
         
         # let m be the max level of U's parents
         m = max([V.level for V in U.parents])
@@ -122,12 +125,16 @@ class Poset:
 
         pass
 
-    def check_primeness(self, unit):
+    def check_primeness(self, U):
         '''
         Check if the unit is prime.
         '''
-
-        pass
+        if (U is self.genesis_unit):
+            return True
+        
+        # U is prime iff its self_predecessor level is strictly smaller
+        return self.level(U) > self.level(U.self_predecessor)
+        
 
     def rand_maximal(self):
         '''
@@ -178,6 +185,7 @@ class Poset:
         Checks if there exists a path (possibly U = V) from U to V going only through units created by process_id.
         Assumes that U.creator_id = V.creator_id = process_id
         '''
+        assert (U.creator_id == process_id and V.creator_id == process_id) , "expected a unit created by process_id"
         if U.height > V.height:
             return False
         
