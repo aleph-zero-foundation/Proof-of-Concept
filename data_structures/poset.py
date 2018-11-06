@@ -133,34 +133,68 @@ class Poset:
         '''
 
         pass
-
-    def less_then(self, U, V):
+        
+    def less_than_within_process(self, U, V, process_id):
         '''
-        Checks if U < V.
+        Checks if there exists a path (possibly U = V) from U to V going only through units created by process_id.
         '''
-
         pass
+
+    def less_than(self, U, V):
+        '''
+        Checks if U <= V.
+        '''
+        proc_U = U.creator_id
+        proc_V = V.creator_id
+        
+        for W in V.floor[proc_U]:
+            if less_than_within_process(U, V, proc_U):
+                return True
+                
+        return False
 
     def greater_than(self, U, V):
         '''
-        Checks if U > V.
+        Checks if U >= V.
         '''
+        return less_than(V,U)
 
-        pass
 
     def high_above(self, U, V):
         '''
         Check if U >> V.
         '''
+        return high_below(V,U)
 
-        pass
 
     def high_below(self, U, V):
         '''
         Checks if U << V.
         '''
+        processes_in_support = 0
+        
+        for process_id in range(N_processes):
+            in_support = False
+            # Because process_id could be potentially forking, we need to check 
+            # if there exist U_ceil in U.ceil[process_id] and V_floor in V.floor[process_id]
+            # such that U_ceil <= V_floor. 
+            # In the case when process_id is non-forking, U' and V' are unique and the loops below are trivial.
+            for U_ceil in U.ceil[process_id]:
+                # for efficiency: if answer is true already, terminate loop
+                if in_support:
+                    break
+                for V_floor in V.floor[process_id]:
+                    if less_than_within_process(U_ceil, V_floor, process_id):
+                        in_support = True
+                        break
 
-        pass
+            if in_support:
+                processes_in_support += 1
+        
+        # TODO: should be >=(2/3)N OR >=(2/3)N + 1?
+        # same as processes_in_support>=2/3 N_procesees but avoids floating point division
+        return 3*processes_in_support>=2*N_processes
+           
 
     def unit_by_height(self, process_id, height):
         '''
