@@ -82,7 +82,7 @@ class Poset:
         '''
         Updates floor of the unit U by merging and taking maximums of floors of parents.
         '''
-
+        # TODO: check whether we do copy() all where we should
         floor = parents[0].floor.deepcopy()
         for parent, process_id in product(parents[1:], range(self.n_processes)):
             if not parent.floor[process_id]:
@@ -172,12 +172,14 @@ class Poset:
 
         if U is self.genesis_unit:
             return 0
+            
+        if U.level is not None:
+            return U.level
 
         # let m be the max level of U's parents
         parents = [self.units[parent_hash] for parent_hash in U.parents]
         m = max([V.level for V in parents])
         # now, the level of U is either m or (m+1)
-        # TODO: continue...
 
         # need to count all processes that produced a unit V of level m such that U'<<U
         # we can limit ourselves to prime units V
@@ -254,15 +256,15 @@ class Poset:
 
         pass
 
-    def less_than_within_process(self, U, V, process_id):
+    def less_than_within_process(self, U, V):
         '''
         Checks if there exists a path (possibly U = V) from U to V going only through units created by process_id.
         Assumes that U.creator_id = V.creator_id = process_id
         '''
-        assert (U.creator_id == process_id and V.creator_id == process_id) , "expected a unit created by process_id"
+        assert (U.creator_id == V.creator_id and U.creator_id is not None) , "expected two processes created by the same process"
         if U.height > V.height:
             return False
-
+        process_id = U.creator_id
         # if process_id is non-forking or at least U is below the process_id's forking level then clearly U has a path to V
         if (self.forking_height[process_id] is None) or U.height <= self.forking_height[process_id]:
             return True
@@ -328,7 +330,7 @@ class Poset:
             if in_support:
                 processes_in_support += 1
 
-        # same as processes_in_support>=2/3 N_procesees but avoids floating point division
+        # same as processes_in_support>=2/3 n_procesees but avoids floating point division
         return 3*processes_in_support >= 2*self.n_processes
 
 
