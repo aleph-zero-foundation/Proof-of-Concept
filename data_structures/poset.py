@@ -3,29 +3,134 @@
 import config
 
 from unit import Unit
+from itertools import product
 
 
 class Poset:
     '''This class is the core data structure of the Aleph protocol.'''
 
-    def __init__(self, process_id, genesis_unit):
+    def __init__(self, n_processes, process_id, genesis_unit):
         '''
+        :param int n: the committee size
         :param int process_id: identification number of process whose local view is represented by this poset.
         :param unit genesis_unit: genesis unit shared by all processes
         '''
+        self.n_processes = n_processes
         self.process_id = process_id
+        self.genesis_unit = genesis_unit
+
         self.units = {genesis_unit.hash(): genesis_unit}
+        self.max_units = [genesis_unit]
+        self.max_units_per_process = [[] for _ in range(n_processes)]
+
         self.signing_fct = config.SIGNING_FUNCTION
 
-    def add_unit(self, unit):
+    def add_unit(self, U):
         '''
-        Adds a correct unit created, where correctness was checked by the sync
-        thread if this unit was created by a different node or by
-        the Poset.create_unit method.
+        Adds a unit compliant with the rules, what was chacked by check_compliance.
+        This method does the following:
+            1. adds the unit U to the poset,
+            2. sets U's self_parent, height, and floor fields,
+            3. updates ceil field of predecessors of U,
+            4. updates the lists of maximal elements in the poset.
 
-        :param unit unit: unit to be added to the poset
+        :param unit U: unit to be added to the poset
         '''
-        self.units[unit.hash()] = unit
+
+        # 1. add U to the poset
+        self.units[U.hash()] = U
+
+        # 2. set self_parent
+        if self.max_units_per_process[self.process_id]:
+            U.self_parent = self.units[self.max_units_per_process[self.process_id]]
+        else:
+            U.self_parent = None
+
+        # 2. set height
+        if U.self_parent:
+            U.height = 0
+        else:
+            U.height = U.self_parent.height + 1
+
+        # 2. set floor
+        parents = [self.units[parent_hash] for parent_hash in U.parents]
+
+        if parents[0] == self.genesis_unit:
+            U.floor = [[] for _ in range(self.n_processes)]
+        else:
+            self.update_floor(U, parents)
+
+        # 3. update ceil field of predecessors of U
+        U.ceil = [[] for _ in range(self.n_processes)]
+        parents = [self.units[parent_hash] for parent_hash in U.parents]
+        for parent in parents:
+            self.update_ceil(U, parent)
+
+        # 4. update lists of maximal elements
+        prev_max = U.self_parent
+        if prev_max in self.max_units:
+            self.max_units.remove(prev_max)
+
+        self.max_units_per_process[self.process_id] = U
+        self.max_units.append(U)
+
+    def update_floor(self, U, parents):
+        '''
+        Updates floor of the unit U by merging and taking maximums of floors of parents.
+        '''
+
+        floor = parents[0].floor
+        for parent, process_id in product(parents[1:], range(self.n_processes)):
+            if not parent.floor[process_id]:
+                continue
+            if not floor[process_id]:
+                floor[process_id] = parent.floor[process_id]
+                continue
+
+            if not self.forking_height[process_id] or self.forking_height[process_id] > U.height:
+                if self.greater_than(parent.floor[process_id], floor[process_id]):
+                    floor[process_id] = parent.floor[process_id]
+                continue
+
+            # list of elements in parent.floor[process_id] noncomparable with elements from floor[process_id]
+            # this list is is added to floor
+            forks = []
+            for V in parent.floor[process_id]:
+                # This flag checks if there is W comparable with V. If not then we add V to forks
+                found_comparable, replace_index = False, None
+                for k, W in enumerate(floor[process_id]):
+                    if V.height > W.height:
+                        if self.greater_than_within_process(V, W):
+                            found_comparable = True
+                            replace_index = k
+                            break
+                    if V.height < W.height:
+                        if self.less_than_within_process(V, W):
+                            found_comparable = True
+
+                if not found_comparable:
+                    forks.append(V)
+
+                if replace is not None:
+                    floor[process_id][replace_index] = V
+
+            floor[process_id].extend(forks)
+
+        U.floor = floor
+
+    def update_ceil(self, U, V):
+        '''
+        Adds U to the ceil of V if the list is empty or if the process that created U
+        produced forks that are not higher than U.
+        After addition, it is called recursively for parents of V.
+        '''
+
+        if not V.ceil[U.creator_id] or (self.forking_height[U.creator_id] and
+                                        self.forking_height[U.creator_id] <= U.height):
+            V.ceil.append(U)
+            parents = [self.units[parent_hash] for parent_hash in V.parents]
+            for parent in parents:
+                self.update_ceil(U, parent)
 
     def check_compliance(self, unit):
         '''
