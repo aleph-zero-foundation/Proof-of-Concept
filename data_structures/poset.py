@@ -137,8 +137,25 @@ class Poset:
     def less_than_within_process(self, U, V, process_id):
         '''
         Checks if there exists a path (possibly U = V) from U to V going only through units created by process_id.
+        Assumes that U.creator_id = V.creator_id = process_id
         '''
-        pass
+        if U.height > V.height:
+            return False
+        
+        # if process_id is non-forking or at least U is below the process_id's forking level then clearly U has a path to V
+        if (self.forking_level[process_id] is None) or U.height <= self.forking_level[process_id]:
+            return True
+            
+        # at this point we know that this is a forking situation: we need go down the tree from V until we reach U's height
+        # this will not take much time as process_id is banned for forking right after it is detected
+        
+        W = V
+        while W.height > U.height:
+            W = W.self_predecessor
+        
+        # TODO: make sure the below line does what it should
+        return (W is U)
+            
 
     def less_than(self, U, V):
         '''
@@ -148,7 +165,7 @@ class Poset:
         proc_V = V.creator_id
         
         for W in V.floor[proc_U]:
-            if less_than_within_process(U, V, proc_U):
+            if self.less_than_within_process(U, V, proc_U):
                 return True
                 
         return False
@@ -173,7 +190,7 @@ class Poset:
         '''
         processes_in_support = 0
         
-        for process_id in range(N_processes):
+        for process_id in range(self.N_processes):
             in_support = False
             # Because process_id could be potentially forking, we need to check 
             # if there exist U_ceil in U.ceil[process_id] and V_floor in V.floor[process_id]
@@ -184,7 +201,7 @@ class Poset:
                 if in_support:
                     break
                 for V_floor in V.floor[process_id]:
-                    if less_than_within_process(U_ceil, V_floor, process_id):
+                    if self.less_than_within_process(U_ceil, V_floor, process_id):
                         in_support = True
                         break
 
