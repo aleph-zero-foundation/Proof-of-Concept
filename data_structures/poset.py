@@ -1,9 +1,9 @@
 '''This modul implements a poset - a core data structure.'''
 
-import config
+from itertools import product
 
 from unit import Unit
-from itertools import product
+import config
 
 
 class Poset:
@@ -22,9 +22,10 @@ class Poset:
         self.units = {genesis_unit.hash(): genesis_unit}
         self.max_units = [genesis_unit]
         self.max_units_per_process = [[] for _ in range(n_processes)]
+        self.forking_height = [None for _ in range(n_processes)]
 
         self.signing_fct = config.SIGNING_FUNCTION
-        
+
         self.level_reached = 0
         self.prime_units_by_level = {0: [genesis_unit]}
 
@@ -82,7 +83,7 @@ class Poset:
         Updates floor of the unit U by merging and taking maximums of floors of parents.
         '''
 
-        floor = parents[0].floor
+        floor = parents[0].floor.deepcopy()
         for parent, process_id in product(parents[1:], range(self.n_processes)):
             if not parent.floor[process_id]:
                 continue
@@ -102,19 +103,18 @@ class Poset:
                 # This flag checks if there is W comparable with V. If not then we add V to forks
                 found_comparable, replace_index = False, None
                 for k, W in enumerate(floor[process_id]):
-                    if V.height > W.height:
-                        if self.greater_than_within_process(V, W):
-                            found_comparable = True
-                            replace_index = k
-                            break
-                    if V.height < W.height:
-                        if self.less_than_within_process(V, W):
-                            found_comparable = True
+                    if V.height > W.height and self.greater_than_within_process(V, W):
+                        found_comparable = True
+                        replace_index = k
+                        break
+                    if V.height < W.height and self.less_than_within_process(V, W):
+                        found_comparable = True
+                        break
 
                 if not found_comparable:
                     forks.append(V)
 
-                if replace is not None:
+                if replace_index is not None:
                     floor[process_id][replace_index] = V
 
             floor[process_id].extend(forks)
@@ -147,7 +147,6 @@ class Poset:
 
         pass
 
-
     def create_unit(self, txs):
         '''
         Creates a new unit and stores thx in it. Correctness of the txs is checked by a thread listening for new transactions.
@@ -155,28 +154,7 @@ class Poset:
         :param list txs: list of correct transactions
         '''
 
-        # Pick parents for a new unit
-        parents = [self.my_maximal()]
-        for _ in range(config.N_PARENTS-1):  # TODO add a declaration of the number of parents a every unit
-            parent = self.rand_maximal()
-            if parent not in parents:
-                parents.append(parent)
-
-        # Create the new unit, the fields level, coinshares, and signature are filled next
-        new_unit = Unit(self.process_id, parents, txs, [])
-
-        # Calculate the level of the new unit
-        new_unit.level = self.level(new_unit)
-
-        # If the new unit is a prime unit, add coin shares to it
-        if self.check_primeness(new_unit):
-            new_unit.coinshares = self.choose_coinshares(parents)
-
-        # All fields are filled, sign the unit
-        new_unit.signature = self.sign(new_unit)
-
-        # Add the new unit to the poset
-        self.add_unit(new_unit)
+        pass
 
     def sign(self, unit):
         '''
@@ -191,37 +169,29 @@ class Poset:
         Calculates the level in the poset of the unit U.
         '''
         # TODO: so far this is a rather naive implementation -- loops over all prime units at level just below U
-        
+
         if U is self.genesis_unit:
             return 0
-            
-        if U.level is not None:
-            return U.level
-        
+
         # let m be the max level of U's parents
-        m = max([V.level for V in U.parents])
+        parents = [self.units[parent_hash] for parent_hash in U.parents]
+        m = max([V.level for V in parents])
         # now, the level of U is either m or (m+1)
         # TODO: continue...
-        
+
         # need to count all processes that produced a unit V of level m such that U'<<U
         # we can limit ourselves to prime units V
         processes_high_below = 0
-        
+
         for V in self.get_prime_units_by_level(m):
-            if self.high_below(V,U):
+            if self.high_below(V, U):
                 processes_high_below += 1
-        
+
         # same as (...)>=2/3*(...) but avoids floating point division
-        if 3*processes_high_below>=2*N_processes:
+        if 3*processes_high_below >= 2*self.n_processes:
             return m+1
         else:
             return m
-            
-        
-        
-        
-
-        
 
     def choose_coinshares(self, unit):
         '''
@@ -254,7 +224,7 @@ class Poset:
         '''
 
         pass
-        
+
     def get_prime_units_by_level(self, level):
         '''
         Returns the set of all prime units at a given level.
@@ -262,8 +232,7 @@ class Poset:
         # TODO: this is a naive implementation
         # TODO: make sure that at creation of a prime unit it is added to the dict self.prime_units_by_level
         return self.prime_units_by_level[level]
-           
-        
+
     def get_prime_units(self):
         '''
         Returns the set of all prime units.
@@ -284,7 +253,7 @@ class Poset:
         '''
 
         pass
-        
+
     def less_than_within_process(self, U, V, process_id):
         '''
         Checks if there exists a path (possibly U = V) from U to V going only through units created by process_id.
@@ -293,21 +262,21 @@ class Poset:
         assert (U.creator_id == process_id and V.creator_id == process_id) , "expected a unit created by process_id"
         if U.height > V.height:
             return False
-        
+
         # if process_id is non-forking or at least U is below the process_id's forking level then clearly U has a path to V
         if (self.forking_height[process_id] is None) or U.height <= self.forking_height[process_id]:
             return True
-            
+
         # at this point we know that this is a forking situation: we need go down the tree from V until we reach U's height
         # this will not take much time as process_id is banned for forking right after it is detected
-        
+
         W = V
         while W.height > U.height:
             W = W.self_predecessor
-        
+
         # TODO: make sure the below line does what it should
         return (W is U)
-            
+
 
     def less_than(self, U, V):
         '''
@@ -315,25 +284,24 @@ class Poset:
         '''
         proc_U = U.creator_id
         proc_V = V.creator_id
-        
+
         for W in V.floor[proc_U]:
             if self.less_than_within_process(U, V, proc_U):
                 return True
-                
+
         return False
 
     def greater_than(self, U, V):
         '''
         Checks if U >= V.
         '''
-        return less_than(V,U)
-
+        return self.less_than(V, U)
 
     def high_above(self, U, V):
         '''
         Checks if U >> V.
         '''
-        return high_below(V,U)
+        return self.high_below(V, U)
 
 
     def high_below(self, U, V):
@@ -341,12 +309,12 @@ class Poset:
         Checks if U << V.
         '''
         processes_in_support = 0
-        
-        for process_id in range(self.N_processes):
+
+        for process_id in range(self.n_processes):
             in_support = False
-            # Because process_id could be potentially forking, we need to check 
+            # Because process_id could be potentially forking, we need to check
             # if there exist U_ceil in U.ceil[process_id] and V_floor in V.floor[process_id]
-            # such that U_ceil <= V_floor. 
+            # such that U_ceil <= V_floor.
             # In the case when process_id is non-forking, U' and V' are unique and the loops below are trivial.
             for U_ceil in U.ceil[process_id]:
                 # for efficiency: if answer is true already, terminate loop
@@ -359,11 +327,10 @@ class Poset:
 
             if in_support:
                 processes_in_support += 1
-        
-        
+
         # same as processes_in_support>=2/3 N_procesees but avoids floating point division
-        return 3*processes_in_support>=2*N_processes
-           
+        return 3*processes_in_support >= 2*self.n_processes
+
 
     def unit_by_height(self, process_id, height):
         '''
