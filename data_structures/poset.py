@@ -182,7 +182,7 @@ class Poset:
             return False
         
         # if process_id is non-forking or at least U is below the process_id's forking level then clearly U has a path to V
-        if (self.forking_level[process_id] is None) or U.height <= self.forking_level[process_id]:
+        if (self.forking_height[process_id] is None) or U.height <= self.forking_height[process_id]:
             return True
             
         # at this point we know that this is a forking situation: we need go down the tree from V until we reach U's height
