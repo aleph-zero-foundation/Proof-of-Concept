@@ -16,6 +16,9 @@ class Poset:
         self.process_id = process_id
         self.units = {genesis_unit.hash(): genesis_unit}
         self.signing_fct = config.SIGNING_FUNCTION
+        
+        self.level_reached = 0
+        self.prime_units_by_level = {0: [genesis_unit]}
 
     def add_unit(self, unit):
         '''
@@ -78,12 +81,39 @@ class Poset:
 
         pass
 
-    def level(self, unit):
+    def level(self, U):
         '''
-        Calculates the level in the poset of the unit.
+        Calculates the level in the poset of the unit U.
         '''
+        # TODO: so far this is a rather naive implementation -- loops over all prime units at level just below U
+        
+        if U is self.genesis_unit:
+            return 0
+        
+        # let m be the max level of U's parents
+        m = max([V.level for V in U.parents])
+        # now, the level of U is either m or (m+1)
+        # TODO: continue...
+        
+        # need to count all processes that produced a unit V of level m such that U'<<U
+        # we can limit ourselves to prime units V
+        processes_high_below = 0
+        
+        for V in self.get_prime_units_by_level(m):
+            if self.high_below(V,U):
+                processes_high_below += 1
+        
+        # same as (...)>=2/3*(...) but avoids floating point division
+        if 3*processes_high_below>=2*N_processes:
+            return m+1
+        else:
+            return m
+            
+        
+        
+        
 
-        pass
+        
 
     def choose_coinshares(self, unit):
         '''
@@ -112,10 +142,19 @@ class Poset:
         '''
 
         pass
-
-    def prime_units(self):
+        
+    def get_prime_units_by_level(self, level):
         '''
-        Returns a set of all prime units.
+        Returns the set of all prime units at a given level.
+        '''
+        # TODO: this is a naive implementation
+        # TODO: make sure that at creation of a prime unit it is added to the dict self.prime_units_by_level
+        return self.prime_units_by_level[level]
+           
+        
+    def get_prime_units(self):
+        '''
+        Returns the set of all prime units.
         '''
 
         pass
@@ -179,7 +218,7 @@ class Poset:
 
     def high_above(self, U, V):
         '''
-        Check if U >> V.
+        Checks if U >> V.
         '''
         return high_below(V,U)
 
@@ -208,7 +247,7 @@ class Poset:
             if in_support:
                 processes_in_support += 1
         
-        # TODO: should be >=(2/3)N OR >=(2/3)N + 1?
+        
         # same as processes_in_support>=2/3 N_procesees but avoids floating point division
         return 3*processes_in_support>=2*N_processes
            
