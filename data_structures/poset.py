@@ -11,7 +11,7 @@ class Poset:
 
     def __init__(self, n_processes, process_id, genesis_unit):
         '''
-        :param int n: the committee size
+        :param int n_processes: the committee size
         :param int process_id: identification number of process whose local view is represented by this poset.
         :param unit genesis_unit: genesis unit shared by all processes
         '''
@@ -28,6 +28,9 @@ class Poset:
 
         self.level_reached = 0
         self.prime_units_by_level = {0: [genesis_unit]}
+        
+        # For every unit U maintain a list of processes that can be proved forking by looking at the lower-cone of U
+        self.known_forkers_by_unit = {genesis_unit.hash(): []}
 
     def add_unit(self, U):
         '''
@@ -37,6 +40,7 @@ class Poset:
             2. sets U's self_parent, height, and floor fields,
             3. updates ceil field of predecessors of U,
             4. updates the lists of maximal elements in the poset.
+            5. adds an entry to known_forkers_by_unit
 
         :param unit U: unit to be added to the poset
         '''
@@ -58,8 +62,8 @@ class Poset:
 
         # 2. set floor
         parents = [self.units[parent_hash] for parent_hash in U.parents]
-
-        if parents[0] == self.genesis_unit:
+        
+        if len(parents)==1 and parents[0] is self.genesis_unit:
             U.floor = [[] for _ in range(self.n_processes)]
         else:
             self.update_floor(U, parents)
@@ -77,6 +81,17 @@ class Poset:
 
         self.max_units_per_process[self.process_id] = U
         self.max_units.append(U)
+        
+        
+        # 5. add an entry to known_forkers_by_unit
+        forkers = []
+        # process_id is known forking if U.floor[process_id] has more than one element
+        for process_id in range(self.n_processes):
+            if len(U.floor[process_id]):
+                forkers.append(process_id)
+        
+        self.known_forkers_by_unit[U.hash()] = forkers
+                
 
     def update_floor(self, U, parents):
         '''
@@ -110,6 +125,29 @@ class Poset:
             floor[process_id].extend(forks)
 
         U.floor = floor
+        
+    def check_forking_evidence(self, parents, process_id):
+        '''
+        Checks whether the list of units (parents) contains evidence that process_id is forking.
+        :param list parents: list of units to be checked for evidence of process_id forking
+        :param int process_id: the identification number of process to be verified
+        '''
+        known_process_maximal_units = []
+        
+        for V in parents:
+            if len(V.floor[process_id]) > 1:
+                return False
+            known_process_maximal_units.extend(V.floor[process_id])
+        
+        # Check if all pairs of maximal process_id's units are comparable within process_id
+        for V in known_process_maximal_units:
+            for W in known_process_maximal_units:
+                if not (self.greater_than_within_process(V, W) or self.greater_than_within_process(W, V)):
+                    # we have found a pair (V,W) of incomparable units created by process_id
+                    return False
+                    
+        return True
+
 
     def update_ceil(self, U, V):
         '''
@@ -125,18 +163,110 @@ class Poset:
             for parent in parents:
                 self.update_ceil(U, parent)
 
+                
+    def get_known_forkers(self, U):
+        '''
+        Finds all processes that can be proved forking given evidence in the lower-cone of unit U.
+        :param unit U: unit whose lower-cone should be considered for forking attempts
+        '''
+        
+        # TODO: the implementation of this function might be important for efficiency as a whole
+        # TODO: the current version maintains a data structure that makes this function fast and easy to implement
+        # TODO: make sure this data structure is properly updated when new units are added!
+        # NOTE: this implementation assumes that U has been already added to the poset (data structure has been updated)
+        
+        assert (U.hash() in self.known_forkers_by_unit.keys()), "Unit U has not been yet added to known_forkers_by_unit"
+        
+        return self.known_forkers_by_unit[U.hash()]
+
+
+    
     def check_compliance(self, U):
         '''
-        Checks if unit follows the rules, i.e.:
-            - parent diversity rule
-            - anti-fork rules
-            - has correct signature
-            - its parents are in the Poset
-            - is it prime
+        Checks if the unit U is correct and follows the rules of creating units, i.e.:
+            1. Parents of U are in the poset.
+            2. Has correct signature.
+            3. Satisfies anti-fork policy.
+            4. Satisfies parent diversity rule.
         :param unit U: unit whose compliance is being tested
         '''
-
-        pass
+        # TODO: there might have been other compliance rules that have been forgotten...
+        
+        # 1. Parents of U are in the poset.
+        if not self.check_parents_exist(U):
+            return False
+            
+        # 2. Has correct signature.
+        if not self.check_signature_correct(U):
+            return False
+            
+        # 3. Satisfies anti-fork policy.    
+        if not self.check_anti_fork(U):
+            return False
+            
+        # 4. Satisfies parent diversity rule.
+        if not self.check_parent_diversity(U):
+            return False
+            
+        return True
+        
+    def check_anti_fork(self, U):
+        '''
+        Checks if the unit U respects the anti-forking policy, i.e.:
+        The following situations A), B) are not allowed:
+        A)
+            - There exists a process j, s.t. (one of U's parents was created by j) OR (U was created by j)
+            AND
+            - U has as one of the parents a unit that has evidence that j is forking.
+        B) 
+            - The creator of U is the process j
+            AND
+            - The parents of U (combined) have evidence that j is forking
+            
+        :param unit U: unit that is checked for respecting anti-forking policy
+        '''
+        # Check for situation A)
+        forkers_known_by_parents = []
+        for V_hash in U.parents:
+            forkers_known_by_parents.extend(self.known_forkers_by_unit[V_hash])
+        
+        if U.creator_id in forkers_known_by_parents:
+            return False
+            
+        for V_hash in U.parents:
+            V = self.units[V_hash]
+            if V.creator_id in forkers_known_by_parents:
+                return False
+        
+        # Check for situation B)
+        if check_forking_evidence([self.units[V_hash] for V_hash in U.parents], U.creator_id):
+            return False
+        
+        return True
+        
+        
+    def check_signature_correct(self, U):
+        '''
+        Checks if the signature of a unit U is correct.
+        :param unit U: unit whose signature is checked
+        '''
+        
+        #TODO: temporarily returns just True
+        #TODO: need to complete this code once the signature method is decided on
+        
+        return True
+        
+    def check_parents_exist(self, U):
+        '''
+        Checks if unit U's parents already exist in the poset
+        :param unit U: unit whose parents are being checked
+        '''
+        
+        for V_hash in U.parents:
+            if V_hash not in self.units.keys():
+                return False
+        
+        return True
         
     def check_parent_diversity(self, U):
         '''
