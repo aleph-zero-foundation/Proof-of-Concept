@@ -97,7 +97,7 @@ class Poset:
                         found_comparable = True
                         replace_index = k
                         break
-                    if V.height < W.height and self.less_than_within_process(V, W):
+                    if V.height <= W.height and self.less_than_within_process(V, W):
                         found_comparable = True
                         break
 
@@ -125,7 +125,7 @@ class Poset:
             for parent in parents:
                 self.update_ceil(U, parent)
 
-    def check_compliance(self, unit):
+    def check_compliance(self, U):
         '''
         Checks if unit follows the rules, i.e.:
             - parent diversity rule
@@ -133,6 +133,7 @@ class Poset:
             - has correct signature
             - its parents are in the Poset
             - is it prime
+        :param unit U: unit whose compliance is being tested
         '''
 
         pass
@@ -157,6 +158,7 @@ class Poset:
     def level(self, U):
         '''
         Calculates the level in the poset of the unit U.
+        :param unit U: the unit whose level is being requested
         '''
         # TODO: so far this is a rather naive implementation -- loops over all prime units at level just below U
 
@@ -195,6 +197,7 @@ class Poset:
     def check_primeness(self, U):
         '''
         Check if the unit is prime.
+        :param unit U: the unit to be checked for being prime
         '''
         if (U is self.genesis_unit):
             return True
@@ -220,6 +223,7 @@ class Poset:
     def get_prime_units_by_level(self, level):
         '''
         Returns the set of all prime units at a given level.
+        :param int level: the requested level of units
         '''
         # TODO: this is a naive implementation
         # TODO: make sure that at creation of a prime unit it is added to the dict self.prime_units_by_level
@@ -248,8 +252,10 @@ class Poset:
 
     def less_than_within_process(self, U, V):
         '''
-        Checks if there exists a path (possibly U = V) from U to V going only through units created by process_id.
+        Checks if there exists a path (possibly U = V) from U to V going only through units created by their creator process.
         Assumes that U.creator_id = V.creator_id = process_id
+        :param unit U: first unit to be tested
+        :param unit V: second unit to be tested
         '''
         assert (U.creator_id == V.creator_id and U.creator_id is not None) , "expected two processes created by the same process"
         if U.height > V.height:
@@ -268,11 +274,22 @@ class Poset:
 
         # TODO: make sure the below line does what it should
         return (W is U)
+        
+    def greater_than_within_process(self, U, V):
+        '''
+        Checks if there exists a path (possibly U = V) from V to U going only through units created by their creator process.
+        Assumes that U.creator_id = V.creator_id = process_id
+        :param unit U: first unit to be tested
+        :param unit V: second unit to be tested
+        '''
+        return less_than_within_process(self, V, U):
 
 
     def less_than(self, U, V):
         '''
         Checks if U <= V.
+        :param unit U: first unit to be tested
+        :param unit V: second unit to be tested
         '''
         proc_U = U.creator_id
         proc_V = V.creator_id
@@ -286,12 +303,16 @@ class Poset:
     def greater_than(self, U, V):
         '''
         Checks if U >= V.
+        :param unit U: first unit to be tested
+        :param unit V: second unit to be tested
         '''
         return self.less_than(V, U)
 
     def high_above(self, U, V):
         '''
         Checks if U >> V.
+        :param unit U: first unit to be tested
+        :param unit V: second unit to be tested
         '''
         return self.high_below(V, U)
 
@@ -299,6 +320,8 @@ class Poset:
     def high_below(self, U, V):
         '''
         Checks if U << V.
+        :param unit U: first unit to be tested
+        :param unit V: second unit to be tested
         '''
         processes_in_support = 0
 
