@@ -137,6 +137,62 @@ class Poset:
         '''
 
         pass
+        
+    def check_parent_diversity(self, U):
+        '''
+        Checks if unit U satisfies the parrent diversity rule:
+        Let j be the creator process of unit U,
+        if U wants to use a process i as a parent for U and:
+        - previously it created a unit U_1 at height h_1 with parent i,
+        - unit U has height h_2 with h_1<h_2.
+        then consider the set P of all processes that were used as parents 
+        of nodes created by j at height h, s.t. h_1 <= h < h_2,  
+        (i can be used as a part for P) iff (|P|>=n_processes/3)
+        Note that j is not counted in P.
+        :param unit U: unit whose parent diversity is being tested
+        '''
+        # TODO: make sure U.self_predecessor is correctly set when invoking this method
+        # Special case: U's only parent is the genesis_unit
+        if len(U.parents)==1 and self.units[U.parents[0]] is self.genesis_unit:
+            return True
+            
+        proposed_parent_processes = [self.units[V_hash].creator_id for V_hash in U.parents]
+        # in case U's creator is among parent processes we can ignore it
+        if U.creator_id in proposed_parent_processes:
+            proposed_parent_processes.remove(U.creator_id)
+        # bitmap for checking whether a given process was among parents
+        was_parent_process = [False for _ in range(self.n_processes)]
+        # counter for maintaining sum(was_parent_process)
+        n_parent_processes = 0
+        
+        W = U.self_predecessor
+        # traverse the poset down from U, through self_predecessor
+        while True:
+            # W's only parent is the genesis unit -> STOP
+            if len(W.parents)==1 and self.units[W.parents[0]] is self.genesis_unit:
+                break
+            # flag for whether at the current level there is any occurence of a parent process proposed by U
+            proposed_parent_process_occurence = False
+            
+            for V_hash in W.parents:
+                V = self.units[V_hash]
+                if V.creator_id != U.creator_id:
+                    if V.creator_id in proposed_parent_processes:
+                        # V's creator is among proposed parent processes
+                        proposed_parent_process_occurence = True
+                    
+                    if not was_parent_process[V.creator_id]:
+                        was_parent_process[V.creator_id] = True
+                        n_parent_processes += 1
+                        
+            if n_parent_processes*3 >= self.n_procesees:
+                break
+            
+            if proposed_parent_process_occurence:
+                # a proposed parent process repeated too early!
+                return False
+                
+        return True
 
     def create_unit(self, txs):
         '''
