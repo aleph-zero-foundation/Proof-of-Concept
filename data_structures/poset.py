@@ -277,7 +277,7 @@ class Poset:
         - unit U has height h_2 with h_1<h_2.
         then consider the set P of all processes that were used as parents 
         of nodes created by j at height h, s.t. h_1 <= h < h_2,  
-        (i can be used as a part for P) iff (|P|>=n_processes/3)
+        (i can be used as a parent for U) iff (|P|>=n_processes/3)
         Note that j is not counted in P.
         :param unit U: unit whose parent diversity is being tested
         '''
