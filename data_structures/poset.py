@@ -1,4 +1,4 @@
-'''This modul implements a poset - a core data structure.'''
+'''This module implements a poset - a core data structure.'''
 
 from itertools import product
 
@@ -82,22 +82,12 @@ class Poset:
         '''
         Updates floor of the unit U by merging and taking maximums of floors of parents.
         '''
-        # TODO: check whether we do copy() all where we should
-        floor = parents[0].floor.deepcopy()
-        for parent, process_id in product(parents[1:], range(self.n_processes)):
-            if not parent.floor[process_id]:
-                continue
-            if not floor[process_id]:
-                floor[process_id] = parent.floor[process_id]
-                continue
-
-            if not self.forking_height[process_id] or self.forking_height[process_id] > U.height:
-                if self.greater_than(parent.floor[process_id], floor[process_id]):
-                    floor[process_id] = parent.floor[process_id]
-                continue
-
+        floor = [[] for _ in range(self.n_processes)]
+        # the floor of U w.r.t. to its creator process is just [U]
+        floor[U.creator_id] = [U]
+        for parent, process_id in product(parents, range(self.n_processes)):
             # list of elements in parent.floor[process_id] noncomparable with elements from floor[process_id]
-            # this list is is added to floor
+            # this list is then added to floor
             forks = []
             for V in parent.floor[process_id]:
                 # This flag checks if there is W comparable with V. If not then we add V to forks
