@@ -155,7 +155,9 @@ class Poset:
         produced forks that are not higher than U.
         After addition, it is called recursively for parents of V.
         '''
-
+        
+        # TODO: at some point we should change it to a version with an explicit stack
+        # TODO: Python has some strange recursion depth limits
         if not V.ceil[U.creator_id] or (self.forking_height[U.creator_id] and
                                         self.forking_height[U.creator_id] <= U.height):
             V.ceil.append(U)
