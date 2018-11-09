@@ -249,6 +249,10 @@ class Poset:
         # 3. Satisfies anti-fork policy.    
         if not self.check_anti_fork(U):
             return False
+        
+        # At this point we know that U has a well-defined self_predecessor
+        # We can set it -- needed for subsequent checks
+        self.set_self_predecessor(U)
             
         # 4. Satisfies parent diversity rule.
         if not self.check_parent_diversity(U):
@@ -263,6 +267,7 @@ class Poset:
             
         return True
         
+        
     def check_growth(self, U):
         '''
         Checks if the unit U , created by process j, respects the "growth" rule.
@@ -274,7 +279,11 @@ class Poset:
         :returns: Boolean value, True if U respects the rule, False otherwise.
         '''
         
-        # TODO: make sure U.self_predecessor is correctly set when invoking this method
+        if len(U.parents) == 1:
+            # U links directly to the genesis_unit
+            return True
+        
+        # U.self_predecessor should be correctly set when invoking this method
         assert (U.self_predecessor is not None), "The self_predecessor field has not been filled for U"
         
         
@@ -317,6 +326,11 @@ class Poset:
         :param unit U: unit that is checked for respecting anti-forking policy
         :returns: Boolean value, True if U respects the policy, False otherwise.
         '''
+        
+        if len(U.parents) == 1:
+            # U links directly to the genesis_unit
+            return True
+        
         # Check for situation A)
         forkers_known_by_parents = []
         for V_hash in U.parents:
@@ -335,6 +349,28 @@ class Poset:
             return False
         
         return True
+        
+        
+    def update_self_predecessor(self, U):
+        '''
+        Computes the self_predecessor of a unit U and fills in the appropriate field in U.
+        :param unit U: unit whose self_predecessor is being computed
+        '''
+        
+        if len(U.parents) == 1:
+            # U links directly to the genesis_unit
+            U.self_predecessor = None
+            return
+        
+        parents = [self.units[V_hash] for V_hash in U.parents]
+        combined_floors = self.combine_floors(parents, process_id)
+        
+        assert len(combined_floors) >= 1, "The unit U has no candidate for self_predecessor among parents."
+            
+        assert len(combined_floors) <= 1, "The unit tries to validate its own fork, this should have been checked earlier."
+        
+        U.self_predecessor = combined_floors[0]
+        
         
         
     def check_signature_correct(self, U):
