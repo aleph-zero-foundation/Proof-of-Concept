@@ -108,11 +108,11 @@ class Poset:
                 # This flag checks if there is W comparable with V. If not then we add V to forks
                 found_comparable, replace_index = False, None
                 for k, W in enumerate(floor[process_id]):
-                    if V.height > W.height and self.greater_than_within_process(V, W):
+                    if V.height > W.height and self.greater_than_or_equal_within_process(V, W):
                         found_comparable = True
                         replace_index = k
                         break
-                    if V.height <= W.height and self.less_than_within_process(V, W):
+                    if V.height <= W.height and self.less_than_or_equal_within_process(V, W):
                         found_comparable = True
                         break
 
@@ -126,27 +126,28 @@ class Poset:
 
         U.floor = floor
         
-    def check_forking_evidence(self, parents, process_id):
+    def find_forking_evidence(self, parents, process_id):
         '''
         Checks whether the list of units (parents) contains evidence that process_id is forking.
         :param list parents: list of units to be checked for evidence of process_id forking
         :param int process_id: the identification number of process to be verified
+        :returns: Boolean value, True if forking evidence is present, False otherwise.
         '''
         known_process_maximal_units = []
         
         for V in parents:
             if len(V.floor[process_id]) > 1:
-                return False
+                return True
             known_process_maximal_units.extend(V.floor[process_id])
         
         # Check if all pairs of maximal process_id's units are comparable within process_id
         for V in known_process_maximal_units:
             for W in known_process_maximal_units:
-                if not (self.greater_than_within_process(V, W) or self.greater_than_within_process(W, V)):
+                if not (self.greater_than_or_equal_within_process(V, W) or self.greater_than_or_equal_within_process(W, V)):
                     # we have found a pair (V,W) of incomparable units created by process_id
-                    return False
+                    return True
                     
-        return True
+        return False
 
 
     def update_ceil(self, U, V):
@@ -190,6 +191,8 @@ class Poset:
             2. Has correct signature.
             3. Satisfies anti-fork policy.
             4. Satisfies parent diversity rule.
+            5. Check "grow" rule.
+            6. The coinshares are OK, i.e., U contains exactly the coinshares it is supposed to contain.
         :param unit U: unit whose compliance is being tested
         '''
         # TODO: there might have been other compliance rules that have been forgotten...
@@ -210,6 +213,12 @@ class Poset:
         if not self.check_parent_diversity(U):
             return False
             
+        # 5. Check "grow" rule.
+        # TODO: implementation missing
+            
+        # 6. Coinshares are OK.
+        # TODO: implementation missing
+            
         return True
         
     def check_anti_fork(self, U):
@@ -226,6 +235,7 @@ class Poset:
             - The parents of U (combined) have evidence that j is forking
             
         :param unit U: unit that is checked for respecting anti-forking policy
+        :returns: Boolean value, True if U respects the policy, False otherwise.
         '''
         # Check for situation A)
         forkers_known_by_parents = []
@@ -241,7 +251,7 @@ class Poset:
                 return False
         
         # Check for situation B)
-        if check_forking_evidence([self.units[V_hash] for V_hash in U.parents], U.creator_id):
+        if find_forking_evidence([self.units[V_hash] for V_hash in U.parents], U.creator_id):
             return False
         
         return True
@@ -332,6 +342,9 @@ class Poset:
 
         :param list txs: list of correct transactions
         '''
+        
+        # NOTE: perhaps we (as an honest process) should always try to create a unit that 
+        # NOTE: gives evidence of another process forking
 
         pass
 
@@ -438,7 +451,7 @@ class Poset:
 
         pass
 
-    def less_than_within_process(self, U, V):
+    def less_than_or_equal_within_process(self, U, V):
         '''
         Checks if there exists a path (possibly U = V) from U to V going only through units created by their creator process.
         Assumes that U.creator_id = V.creator_id = process_id
@@ -463,17 +476,17 @@ class Poset:
         # TODO: make sure the below line does what it should
         return (W is U)
         
-    def greater_than_within_process(self, U, V):
+    def greater_than_or_equal_within_process(self, U, V):
         '''
         Checks if there exists a path (possibly U = V) from V to U going only through units created by their creator process.
         Assumes that U.creator_id = V.creator_id = process_id
         :param unit U: first unit to be tested
         :param unit V: second unit to be tested
         '''
-        return less_than_within_process(self, V, U):
+        return less_than_or_equal_within_process(self, V, U):
 
 
-    def less_than(self, U, V):
+    def less_than_or_equal(self, U, V):
         '''
         Checks if U <= V.
         :param unit U: first unit to be tested
@@ -483,18 +496,18 @@ class Poset:
         proc_V = V.creator_id
 
         for W in V.floor[proc_U]:
-            if self.less_than_within_process(U, V, proc_U):
+            if self.less_than_or_equal_within_process(U, V, proc_U):
                 return True
 
         return False
 
-    def greater_than(self, U, V):
+    def greater_than_or_equal(self, U, V):
         '''
         Checks if U >= V.
         :param unit U: first unit to be tested
         :param unit V: second unit to be tested
         '''
-        return self.less_than(V, U)
+        return self.less_than_or_equal(V, U)
 
     def high_above(self, U, V):
         '''
@@ -524,7 +537,7 @@ class Poset:
                 if in_support:
                     break
                 for V_floor in V.floor[process_id]:
-                    if self.less_than_within_process(U_ceil, V_floor, process_id):
+                    if self.less_than_or_equal_within_process(U_ceil, V_floor, process_id):
                         in_support = True
                         break
 
