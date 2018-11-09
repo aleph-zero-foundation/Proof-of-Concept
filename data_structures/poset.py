@@ -37,7 +37,7 @@ class Poset:
         Adds a unit compliant with the rules, what was chacked by check_compliance.
         This method does the following:
             1. adds the unit U to the poset,
-            2. sets U's self_parent, height, and floor fields,
+            2. sets U's self_predecessor, height, and floor fields,
             3. updates ceil field of predecessors of U,
             4. updates the lists of maximal elements in the poset.
             5. adds an entry to known_forkers_by_unit
@@ -48,17 +48,17 @@ class Poset:
         # 1. add U to the poset
         self.units[U.hash()] = U
 
-        # 2. set self_parent
+        # 2. set self_predecessor
         if self.max_units_per_process[self.process_id]:
-            U.self_parent = self.units[self.max_units_per_process[self.process_id]]
+            U.self_predecessor = self.units[self.max_units_per_process[self.process_id]]
         else:
-            U.self_parent = None
+            U.self_predecessor = None
 
         # 2. set height
-        if U.self_parent:
+        if U.self_predecessor is None:
             U.height = 0
         else:
-            U.height = U.self_parent.height + 1
+            U.height = U.self_predecessor.height + 1
 
         # 2. set floor
         parents = [self.units[parent_hash] for parent_hash in U.parents]
@@ -75,7 +75,7 @@ class Poset:
             self.update_ceil(U, parent)
 
         # 4. update lists of maximal elements
-        prev_max = U.self_parent
+        prev_max = U.self_predecessor
         if prev_max in self.max_units:
             self.max_units.remove(prev_max)
 
@@ -178,7 +178,7 @@ class Poset:
         # TODO: make sure this data structure is properly updated when new units are added!
         # NOTE: this implementation assumes that U has been already added to the poset (data structure has been updated)
         
-        assert (U.hash() in self.known_forkers_by_unit.keys()), "Unit U has not been yet added to known_forkers_by_unit"
+        assert (U.hash() in self.known_forkers_by_unit.keys()), "Unit U has not yet been added to known_forkers_by_unit"
         
         return self.known_forkers_by_unit[U.hash()]
 
