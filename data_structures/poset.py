@@ -151,6 +151,30 @@ class Poset:
                     return True
                     
         return False
+        
+    def find_maximum_within_process(self, units_list, process_id):
+        '''
+        Finds a unit U in units_list that is the greater_than_or_equal (within process_id) 
+        to all units in units_list.
+        :param list units_list: list of units created by process_id
+        :param int process_id: the identification number of a process
+        :returns: unit U that is the maximum of units_list or None if there are several incomparable maximal units.
+        '''
+        
+        maximum_unit = None
+        
+        for U in units_list:
+            assert (U.creator_id == process_id), "Expected a list of units created by process_id"
+            if maximum_unit is None:
+                maximum_unit = U
+                continue
+            if self.greater_than_or_equal_within_process(U, maximum_unit):
+                maximum_unit = U
+                continue
+            if not self.greater_than_or_equal_within_process(maximum_unit, U)
+                return None
+                    
+        return maximum_unit
 
 
     def update_ceil(self, U, V):
@@ -232,8 +256,49 @@ class Poset:
         Let U_previous be the highest ancestor of U, created by j
         that has as a parent a unit V_previous created by i. 
         Then, we force V_previous < V  (strictly less than).
+        :returns: Boolean value, True if U respects the rule, False otherwise.
         '''
-        pass
+        
+        predecessors_of_U = []
+        for V_hash in U.parents:
+            V = self.units[V_hash]
+            # if U's creator forked already, then he is not allowed to create such a unit
+            # this is also checked in check_anti-fork
+            if V.floor[U.creator_id] > 1:
+                return False
+            predecessors_of_U.extend(V.floor[U.creator_id])
+        
+        if len(predecessors_of_U) == 0:
+            # TODO: be careful here, this might have happened because U is linking directly to genesis
+            return False
+        
+        # This is the self_predecessor of U
+        U_self_predecessor = self.find_maximum_within_process(predecessors_of_U)
+        if U_self_predecessor is None:
+            # U's creator is a forker!
+            return False
+        
+        for V_hash in U.parents:
+            V = self.units[V_hash]
+            if V.creator_id == U.creator_id:
+                continue
+            floor_predecessor = U_self_predecessor.floor[V.creator_id]
+            if len(floor_predecessor) == 0:
+                # this means that the creator of U never linked to V.creator_id before
+                pass
+            else if len(floor_predecessor) == 1:
+                V_previous = floor_predecessor[0]
+                if not self.less_than_within_process(V_predecessor, V):
+                    return False
+            else:
+                # this means that the creator of V is known to be forking!
+                # this is not allowed by a different rule, yet still we return False
+                return False
+        
+        return True
+                    
+                
+        
         
     def check_anti_fork(self, U):
         '''
@@ -489,6 +554,19 @@ class Poset:
 
         # TODO: make sure the below line does what it should
         return (W is U)
+        
+    def less_than_within_process(self, U, V):
+        '''
+        Checks if there exists a path from U to V going only through units created by their creator process.
+        It is not allowed that U == V.
+        Assumes that U.creator_id = V.creator_id = process_id
+        :param unit U: first unit to be tested
+        :param unit V: second unit to be tested
+        '''
+        assert (U.creator_id == V.creator_id and U.creator_id is not None) , "expected two processes created by the same process"
+        if U is V:
+            return False
+        return less_than_or_equal_within_process(U,V)
         
     def greater_than_or_equal_within_process(self, U, V):
         '''
