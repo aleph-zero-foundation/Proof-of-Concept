@@ -44,6 +44,7 @@ class Poset:
 
         :param unit U: unit to be added to the poset
         '''
+
         # calculate the set of parents from hashes
         parents = [self.units[parent_hash] for parent_hash in U.parents]
 
@@ -240,7 +241,7 @@ class Poset:
     def check_compliance(self, U):
         '''
         Checks if the unit U is correct and follows the rules of creating units, i.e.:
-            1. Parents of U are in the poset.
+            1. Parents of U are correct (exist in the poset, etc.)
             2. Has correct signature.
             3. Satisfies anti-fork policy.
             4. Satisfies parent diversity rule.
@@ -250,8 +251,8 @@ class Poset:
         '''
         # TODO: there might have been other compliance rules that have been forgotten...
         
-        # 1. Parents of U are in the poset.
-        if not self.check_parents_exist(U):
+        # 1. Parents of U are correct.
+        if not self.check_parent_correctness(U):
             return False
             
         # 2. Has correct signature.
@@ -365,16 +366,32 @@ class Poset:
         
         return True
         
-    def check_parents_exist(self, U):
+    def check_parent_correctness(self, U):
         '''
-        Checks if unit U's parents already exist in the poset
+        Checks whether U has correct parents:
+        1. Parents of U exist in the poset
+        2. U has at least 1 parent, and if there is only one then it is the genesis_unit
+        3. If U has >=2 parents then all parents are created by pairwise different processes.
         :param unit U: unit whose parents are being checked
         '''
-        
+        # 1. Parents of U exist in the poset
         for V_hash in U.parents:
             if V_hash not in self.units.keys():
                 return False
+                
+        # 2. U has at least 1 parent...
+        if len(U.parents) == 0:
+            return False
+            
+        if len(U.parents) == 1 and self.units[U.parents[0]] is not self.genesis_unit:
+            return False
         
+        # 3. If U has parents created by pairwise different processes.
+        if len(U.parents) >= 2:
+            parent_processes = set(U.parents)
+            if len(parent_processes) < len(U.parents):
+                return False
+                
         return True
         
     def check_parent_diversity(self, U):
@@ -433,18 +450,20 @@ class Poset:
                 
         return True
 
-    def create_unit(self, txs):
+    def create_unit(self, parents, txs):
         '''
         Creates a new unit and stores thx in it. Correctness of the txs is checked by a thread listening for new transactions.
-
+        :param list parents: list of hashes of parent units
         :param list txs: list of correct transactions
+        :returns: the new-created unit
         '''
-        
         
         # NOTE: perhaps we (as an honest process) should always try (if possible)
         # NOTE: to create a unit that  gives evidence of another process forking
+        
+        U = Unit(self.process_id, parents, txs)
+        return U
 
-        pass
 
     def sign(self, unit):
         '''
