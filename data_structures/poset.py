@@ -115,7 +115,7 @@ class Poset:
                 # the floor of U w.r.t. to its creator process is just [U]
                 floor[process_id] = [U]
             else:
-                floor[process_id] = combine_floors(parents, U.creator_id)
+                floor[process_id] = self.combine_floors(parents, U.creator_id)
 
         U.floor = floor
         
@@ -128,21 +128,10 @@ class Poset:
         :param int process_id: the identification number of process to be verified
         :returns: Boolean value, True if forking evidence is present, False otherwise.
         '''
-        known_process_maximal_units = []
+        # compute the set of all maximal (w.r.t. process_id) units n lower-cones of parents
+        combined_floors = self.combine_floors(parents, process_id)
         
-        for V in parents:
-            if len(V.floor[process_id]) > 1:
-                return True
-            known_process_maximal_units.extend(V.floor[process_id])
-        
-        # Check if all pairs of maximal process_id's units are comparable within process_id
-        for V in known_process_maximal_units:
-            for W in known_process_maximal_units:
-                if not (self.greater_than_or_equal_within_process(V, W) or self.greater_than_or_equal_within_process(W, V)):
-                    # we have found a pair (V,W) of incomparable units created by process_id
-                    return True
-                    
-        return False
+        return len(combined_floors) > 1
         
     def combine_floors(self, units_list, process_id):
         '''
@@ -227,8 +216,6 @@ class Poset:
         :param unit U: unit whose lower-cone should be considered for forking attempts
         '''
         
-        # TODO: the implementation of this function might be important for efficiency as a whole
-        # TODO: the current version maintains a data structure that makes this function fast and easy to implement
         # TODO: make sure this data structure is properly updated when new units are added!
         # NOTE: this implementation assumes that U has been already added to the poset (data structure has been updated)
         
@@ -287,15 +274,10 @@ class Poset:
         :returns: Boolean value, True if U respects the rule, False otherwise.
         '''
         
-        combined_floors = combine_floors([self.units[V_hash] for V_hash in U.parents], U.creator_id)
+        # TODO: make sure U.self_predecessor is correctly set when invoking this method
+        assert (U.self_predecessor is not None), "The self_predecessor field has not been filled for U"
         
-        if len(combined_floors) == 0:
-            # TODO: be careful here, this might have happened because U is linking directly to genesis
-            return False
-            
-        assert len(combined_floors) == 1, "The unit tries to validate its own fork, this should have been checked earlier."
         
-        U_self_predecessor = combined_floors[0]   
         
         for V_hash in U.parents:
             V = self.units[V_hash]
@@ -309,7 +291,7 @@ class Poset:
                 # this means that the creator of U never linked to V.creator_id before
                 pass
                 
-            else if len(floor_predecessor) == 1:
+            elif len(floor_predecessor) == 1:
                 V_previous = floor_predecessor[0]
                 if not self.less_than_within_process(V_predecessor, V):
                     return False
@@ -407,10 +389,13 @@ class Poset:
         Note that j is not counted in P.
         :param unit U: unit whose parent diversity is being tested
         '''
-        # TODO: make sure U.self_predecessor is correctly set when invoking this method
+        
         # Special case: U's only parent is the genesis_unit
-        if len(U.parents)==1 and self.units[U.parents[0]] is self.genesis_unit:
+        if len(U.parents)==1:
             return True
+            
+        # TODO: make sure U.self_predecessor is correctly set when invoking this method
+        assert (U.self_predecessor is not None), "The self_predecessor field has not been filled for U"
             
         proposed_parent_processes = [self.units[V_hash].creator_id for V_hash in U.parents]
         # in case U's creator is among parent processes we can ignore it
