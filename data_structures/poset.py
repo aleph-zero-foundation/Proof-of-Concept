@@ -49,6 +49,9 @@ class Poset:
         self.units[U.hash()] = U
 
         # 2. set self_predecessor
+        # TODO: need to be careful here, perhaps correction required
+        # TODO: cannot simply mark the highest known unit as the predecessor, because of forking
+        # TODO: there might be multiple of them
         if self.max_units_per_process[self.process_id]:
             U.self_predecessor = self.units[self.max_units_per_process[self.process_id]]
         else:
@@ -191,7 +194,7 @@ class Poset:
             2. Has correct signature.
             3. Satisfies anti-fork policy.
             4. Satisfies parent diversity rule.
-            5. Check "grow" rule.
+            5. Check "growth" rule.
             6. The coinshares are OK, i.e., U contains exactly the coinshares it is supposed to contain.
         :param unit U: unit whose compliance is being tested
         '''
@@ -213,13 +216,24 @@ class Poset:
         if not self.check_parent_diversity(U):
             return False
             
-        # 5. Check "grow" rule.
-        # TODO: implementation missing
+        # 5. Check "growth" rule.
+        if not self.check_growth(U):
+            return False
             
         # 6. Coinshares are OK.
         # TODO: implementation missing
             
         return True
+        
+    def check_growth(self, U):
+        '''
+        Checks if the unit U , created by process j, respects the "growth" rule.
+        Suppose U wants to use a unit V as its parent and let i (not equal to j) be the creator of V.
+        Let U_previous be the highest ancestor of U, created by j
+        that has as a parent a unit V_previous created by i. 
+        Then, we force V_previous < V  (strictly less than).
+        '''
+        pass
         
     def check_anti_fork(self, U):
         '''
