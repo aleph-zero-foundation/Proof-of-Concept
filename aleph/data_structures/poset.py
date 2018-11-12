@@ -73,6 +73,7 @@ class Poset:
         if len(U.parents) == 1:
             # U links directly to the genesis unit
             U.floor = [[] for _ in range(self.n_processes)]
+            U.floor[U.creator_id] = [U]
         else:
             self.update_floor(U, U.parents)
 
@@ -113,7 +114,6 @@ class Poset:
                 floor[process_id] = [U]
             else:
                 floor[process_id] = self.combine_floors(parents, U.creator_id)
-
         U.floor = floor
 
     def find_forking_evidence(self, parents, process_id):
@@ -199,8 +199,9 @@ class Poset:
             return
         if not V.ceil[U.creator_id] or (self.forking_height[U.creator_id] and
                                         self.forking_height[U.creator_id] <= U.height):
+            # TODO: make sure the below line is correct...
             V.ceil.append(U)
-            for parent in U.parents:
+            for parent in V.parents:
                 self.update_ceil(U, parent)
 
     def get_known_forkers(self, U):
