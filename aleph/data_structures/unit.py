@@ -1,5 +1,5 @@
 '''This module implements unit - a basic building block of Aleph protocol.'''
-import hashlib 
+import hashlib
 
 class Unit(object):
     '''This class is the building block for the poset'''
@@ -29,7 +29,7 @@ class Unit(object):
         '''
         # TODO: this is only a temporary implementation!
         # TODO: need to be updated at some point!
-        
+
         if self.hash_value is not None:
             return self.hash_value
         
@@ -38,11 +38,6 @@ class Unit(object):
         combined_string += str(self.creator_id)
         combined_string += str([V.hash() for V in self.parents])
         combined_string += str([str(tx) for tx in self.txs])
-            
+
         self.hash_value = hashlib.sha512(combined_string.encode())
         return self.hash_value
-        
-        
-        
-
-
