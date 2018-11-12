@@ -2,14 +2,15 @@
 
 from itertools import product
 
-from unit import Unit
-import config
+from .unit import Unit
+from ..crypto.signatures.keys import PrivateKey, PublicKey
+from .. import config
 
 
 class Poset:
     '''This class is the core data structure of the Aleph protocol.'''
 
-    def __init__(self, n_processes, process_id, genesis_unit):
+    def __init__(self, n_processes, process_id, genesis_unit, secret_key, public_key):
         '''
         :param int n_processes: the committee size
         :param int process_id: identification number of process whose local view is represented by this poset.
@@ -24,7 +25,8 @@ class Poset:
         self.max_units_per_process = [[] for _ in range(n_processes)]
         self.forking_height = [None for _ in range(n_processes)]
 
-        self.signing_fct = config.SIGNING_FUNCTION
+        self.secret_key = secret_key
+        self.public_key = public_key
 
         self.level_reached = 0
         self.prime_units_by_level = {0: [genesis_unit]}
@@ -470,13 +472,14 @@ class Poset:
         U = Unit(self.process_id, parents, txs)
         return U
 
-    def sign(self, unit):
+    def sign_unit(self, U):
         '''
         Signs the unit.
         TODO This method should be probably a part of a process class which we don't have right now.
         '''
 
-        pass
+        message = str([U.creator_id, U.parents, U.txs, U.coinshares]).encode()
+        U.signature = self.secret_key.sign(message)
 
     def level(self, U):
         '''
@@ -617,7 +620,7 @@ class Poset:
         :param unit U: first unit to be tested
         :param unit V: second unit to be tested
         '''
-        return less_than_or_equal_within_process(self, V, U):
+        return less_than_or_equal_within_process(self, V, U)
 
 
     def less_than_or_equal(self, U, V):
@@ -630,7 +633,7 @@ class Poset:
         proc_V = V.creator_id
 
         for W in V.floor[proc_U]:
-            if self.less_than_or_equal_within_process(U, V, proc_U):
+            if self.less_than_or_equal_within_process(U, V):
                 return True
 
         return False
@@ -670,7 +673,7 @@ class Poset:
                 if in_support:
                     break
                 for V_floor in V.floor[process_id]:
-                    if self.less_than_or_equal_within_process(U_ceil, V_floor, process_id):
+                    if self.less_than_or_equal_within_process(U_ceil, V_floor):
                         in_support = True
                         break
 
