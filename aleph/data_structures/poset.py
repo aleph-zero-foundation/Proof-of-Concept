@@ -63,7 +63,7 @@ class Poset:
             # It should uniquely exist
             combined_floors = self.combine_floors(parents, U.creator_id)
             assert (len(combined_floors) != 0), "Unit U has no candidates for predecessors."
-            assert (len(combined_floors) > 1), "Unit U has more than one candidate for predecessor."
+            assert (len(combined_floors) <= 1), "Unit U has more than one candidate for predecessor."
             U.self_predecessor = combined_floors[0]
 
         # 2. set height
@@ -245,7 +245,7 @@ class Poset:
 
         # At this point we know that U has a well-defined self_predecessor
         # We can set it -- needed for subsequent checks
-        self.set_self_predecessor(U)
+        self.update_self_predecessor(U)
 
         # 4. Satisfies parent diversity rule.
         if not self.check_parent_diversity(U):
