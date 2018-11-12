@@ -195,6 +195,8 @@ class Poset:
 
         # TODO: at some point we should change it to a version with an explicit stack
         # TODO: Python has some strange recursion depth limits
+        if V is self.genesis_unit:
+            return
         if not V.ceil[U.creator_id] or (self.forking_height[U.creator_id] and
                                         self.forking_height[U.creator_id] <= U.height):
             V.ceil.append(U)
