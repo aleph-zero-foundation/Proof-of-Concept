@@ -47,9 +47,6 @@ class Poset:
         :param unit U: unit to be added to the poset
         '''
 
-        # calculate the set of parents from hashes
-        parents = [self.units[parent_hash] for parent_hash in U.parents]
-
         # 1. add U to the poset
         self.units[U.hash()] = U
 
@@ -61,7 +58,7 @@ class Poset:
         else:
             # Find the maximum unit of U in the union of lower-cones of its parents
             # It should uniquely exist
-            combined_floors = self.combine_floors(parents, U.creator_id)
+            combined_floors = self.combine_floors(U.parents, U.creator_id)
             assert (len(combined_floors) != 0), "Unit U has no candidates for predecessors."
             assert (len(combined_floors) <= 1), "Unit U has more than one candidate for predecessor."
             U.self_predecessor = combined_floors[0]
@@ -73,16 +70,16 @@ class Poset:
             U.height = U.self_predecessor.height + 1
 
         # 2. set floor
-        if len(parents)==1:
+        if len(U.parents)==1:
             # U links directly to the genesis unit
             U.floor = [[] for _ in range(self.n_processes)]
         else:
-            self.update_floor(U, parents)
+            self.update_floor(U, U.parents)
 
         # 3. update ceil field of predecessors of U
         U.ceil = [[] for _ in range(self.n_processes)]
         U.ceil[U.creator_id] = [U]
-        for parent in parents:
+        for parent in U.parents:
             self.update_ceil(U, parent)
 
         # 4. update lists of maximal elements
@@ -201,8 +198,7 @@ class Poset:
         if not V.ceil[U.creator_id] or (self.forking_height[U.creator_id] and
                                         self.forking_height[U.creator_id] <= U.height):
             V.ceil.append(U)
-            parents = [self.units[parent_hash] for parent_hash in V.parents]
-            for parent in parents:
+            for parent in U.parents:
                 self.update_ceil(U, parent)
 
     def get_known_forkers(self, U):
@@ -278,8 +274,7 @@ class Poset:
         # U.self_predecessor should be correctly set when invoking this method
         assert (U.self_predecessor is not None), "The self_predecessor field has not been filled for U"
 
-        for V_hash in U.parents:
-            V = self.units[V_hash]
+        for V in U.parents:
             if V.creator_id == U.creator_id:
                 continue
             floor_predecessor = U_self_predecessor.floor[V.creator_id]
@@ -320,19 +315,18 @@ class Poset:
 
         # Check for situation A)
         forkers_known_by_parents = []
-        for V_hash in U.parents:
-            forkers_known_by_parents.extend(self.known_forkers_by_unit[V_hash])
+        for V in U.parents:
+            forkers_known_by_parents.extend(self.known_forkers_by_unit[V.hash()])
 
         if U.creator_id in forkers_known_by_parents:
             return False
 
-        for V_hash in U.parents:
-            V = self.units[V_hash]
+        for V in U.parents:
             if V.creator_id in forkers_known_by_parents:
                 return False
 
         # Check for situation B)
-        if find_forking_evidence([self.units[V_hash] for V_hash in U.parents], U.creator_id):
+        if find_forking_evidence(U.parents, U.creator_id):
             return False
 
         return True
@@ -349,8 +343,7 @@ class Poset:
             U.self_predecessor = None
             return
 
-        parents = [self.units[V_hash] for V_hash in U.parents]
-        combined_floors = self.combine_floors(parents, process_id)
+        combined_floors = self.combine_floors(U.parents, process_id)
 
         assert len(combined_floors) >= 1, "The unit U has no candidate for self_predecessor among parents."
 
@@ -380,20 +373,20 @@ class Poset:
         :param unit U: unit whose parents are being checked
         '''
         # 1. Parents of U exist in the poset
-        for V_hash in U.parents:
-            if V_hash not in self.units.keys():
+        for V in U.parents:
+            if V.hash() not in self.units.keys():
                 return False
 
         # 2. U has at least 1 parent...
         if len(U.parents) == 0:
             return False
 
-        if len(U.parents) == 1 and self.units[U.parents[0]] is not self.genesis_unit:
+        if len(U.parents) == 1 and U.parents[0] is not self.genesis_unit:
             return False
 
         # 3. If U has parents created by pairwise different processes.
         if len(U.parents) >= 2:
-            parent_processes = set(U.parents)
+            parent_processes = set([V.creator_id for V in U.parents])
             if len(parent_processes) < len(U.parents):
                 return False
 
@@ -420,7 +413,7 @@ class Poset:
         # TODO: make sure U.self_predecessor is correctly set when invoking this method
         assert (U.self_predecessor is not None), "The self_predecessor field has not been filled for U"
 
-        proposed_parent_processes = [self.units[V_hash].creator_id for V_hash in U.parents]
+        proposed_parent_processes = [V.creator_id for V in U.parents]
         # in case U's creator is among parent processes we can ignore it
         if U.creator_id in proposed_parent_processes:
             proposed_parent_processes.remove(U.creator_id)
@@ -433,13 +426,12 @@ class Poset:
         # traverse the poset down from U, through self_predecessor
         while True:
             # W's only parent is the genesis unit -> STOP
-            if len(W.parents)==1 and self.units[W.parents[0]] is self.genesis_unit:
+            if len(W.parents)==1 and W.parents[0] is self.genesis_unit:
                 break
             # flag for whether at the current level there is any occurence of a parent process proposed by U
             proposed_parent_process_occurence = False
 
-            for V_hash in W.parents:
-                V = self.units[V_hash]
+            for V in W.parents:
                 if V.creator_id != U.creator_id:
                     if V.creator_id in proposed_parent_processes:
                         # V's creator is among proposed parent processes
@@ -495,8 +487,7 @@ class Poset:
             return U.level
 
         # let m be the max level of U's parents
-        parents = [self.units[parent_hash] for parent_hash in U.parents]
-        m = max([V.level for V in parents])
+        m = max([V.level for V in U.parents])
         # now, the level of U is either m or (m+1)
 
         # need to count all processes that produced a unit V of level m such that U'<<U
