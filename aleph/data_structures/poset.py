@@ -59,7 +59,7 @@ class Poset:
             # Find the maximum unit of U in the union of lower-cones of its parents
             # It should uniquely exist
             combined_floors = self.combine_floors(U.parents, U.creator_id)
-            assert (len(combined_floors) != 0), "Unit U has no candidates for predecessors."
+            assert (len(combined_floors) >= 1), "Unit U has no candidates for predecessors."
             assert (len(combined_floors) <= 1), "Unit U has more than one candidate for predecessor."
             U.self_predecessor = combined_floors[0]
 
@@ -70,7 +70,7 @@ class Poset:
             U.height = U.self_predecessor.height + 1
 
         # 2. set floor
-        if len(U.parents)==1:
+        if len(U.parents) == 1:
             # U links directly to the genesis unit
             U.floor = [[] for _ in range(self.n_processes)]
         else:
