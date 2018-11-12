@@ -1,5 +1,5 @@
 '''This module implements unit - a basic building block of Aleph protocol.'''
-
+import hashlib 
 
 class Unit(object):
     '''This class is the building block for the poset'''
@@ -26,6 +26,19 @@ class Unit(object):
         '''
         Hashing function used to hide addressing differences among the committee
         '''
-        pass
+        # TODO: this is only a temporary implementation!
+        # TODO: need to be updated at some point!
+        
+        # create a string containing all the essential data in the unit and compute its sha512
+        combined_string = ''
+        combined_string += str(self.creator_id)
+        combined_string += str(self.parents)
+        for tx in self.txs:
+            combined_string += str(tx)
+            
+        return hashlib.sha512(combined_string)
+        
+        
+        
 
 
