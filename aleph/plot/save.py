@@ -1,6 +1,3 @@
-from aleph.data_structures import Poset
-
-
 def topsort(poset):
     for unit in poset.units.values():
         unit.children = 0
