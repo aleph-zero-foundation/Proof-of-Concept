@@ -88,7 +88,7 @@ class Poset:
         if prev_max in self.max_units:
             self.max_units.remove(prev_max)
 
-        self.max_units_per_process[self.process_id] = U
+        self.max_units_per_process[U.creator_id] = U
         self.max_units.append(U)
 
 
