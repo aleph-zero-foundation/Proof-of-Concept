@@ -1,6 +1,13 @@
 from aleph.data_structures import Unit, Poset
 
 def load(file_name):
+    '''
+    Loads a poset from a file and returns a Poset instance along with a dictionary mapping 
+    unit names to units in the returned poset.
+    :param string file_name: the path to the file with a poset
+    :returns: a pair (poset, name_mapping) where poset is the resulting Poset instance 
+    and name_mapping is a dictionary unit_name -> Unit 
+    '''
     poset_from_file = None
     with open(file_name) as poset_file:
         lines = poset_file.readlines()
@@ -30,7 +37,7 @@ def load(file_name):
         poset_from_file.add_unit(U)
         unit_dict[unit_name] = U
 
-    return poset_from_file
+    return poset_from_file, unit_dict
 
 
 
