@@ -1,15 +1,15 @@
 def topsort(poset):
-    for unit in poset.units.values():
-        unit.children = 0
+    for U in poset.Us.values():
+        U.children = 0
 
-    for unit in poset.units.values():
-        for parent in unit.parents:
+    for U in poset.Us.values():
+        for parent in U.parents:
             parent.children += 1
 
     childless = []
-    for unit in poset.units.values():
-        if unit.children == 0:
-            childless.append(unit)
+    for U in poset.Us.values():
+        if U.children == 0:
+            childless.append(U)
 
     ret = []
     while childless:
@@ -25,21 +25,17 @@ def topsort(poset):
 
 def save(poset, filename, genesis='G'):
     toporder = topsort(poset)
-    assert toporder[-1] is poset.genesis_unit, "Genesis unit is not last in topological order"
+    assert toporder[-1] is poset.genesis_U, "Genesis U is not last in topological order"
 
-    for i,unit in enumerate(toporder):
-        unit.name = i
+    for i, U in enumerate(toporder):
+        U.name = i
     toporder[-1].name = genesis
 
     with open(filename, 'w') as f:
         f.write('{} {}\n'. format(poset.n_processes, genesis))
-        for unit in toporder:
-            s = '{} {}'.format(unit.name, unit.creator_id)
-            for parent in unit.parents:
-                s += ' {}'.format(parent.name)
-            s += '\n'
-            f.write(s)
-
-
-
-
+        for U in toporder:
+            line = '{} {}'.format(U.name, U.creator_id)
+            for parent in U.parents:
+                line += ' {}'.format(parent.name)
+            line += '\n'
+            f.write(line)
