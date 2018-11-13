@@ -23,21 +23,42 @@ class Unit(object):
         self.level = level
         self.hash_value = None
 
+
     def hash(self):
         '''
         Hashing function used to hide addressing differences among the committee
         '''
         # TODO: this is only a temporary implementation!
         # TODO: need to be updated at some point!
+        # TODO: should coinshares be hashed?
+        # TODO: should order of parents (or txs) influence the hash value?
 
         if self.hash_value is not None:
             return self.hash_value
-        
+
         # create a string containing all the essential data in the unit and compute its sha512
         combined_string = ''
         combined_string += str(self.creator_id)
-        combined_string += str([V.hash() for V in self.parents])
+        combined_string += str(self.parents_hashes())
         combined_string += str([str(tx) for tx in self.txs])
 
-        self.hash_value = hashlib.sha512(combined_string.encode())
+        self.hash_value = hashlib.sha512(combined_string.encode()).hexdigest()
         return self.hash_value
+
+
+    def parents_hashes(self):
+        return sorted([V.hash() for V in self.parents])
+
+
+    def __hash__(self):
+        return hash(self.hash())
+
+
+    def __eq__(self, other):
+        return (isinstance(other, Unit) and self.creator_id == other.creator_id and
+               self.parents_hashes() == other.parents_hashes() and
+               set(map(str, self.txs)) == set(map(str, other.txs)))
+
+
+
+
