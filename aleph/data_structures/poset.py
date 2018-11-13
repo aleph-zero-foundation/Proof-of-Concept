@@ -146,11 +146,11 @@ class Poset:
                 # This flag checks if there is W comparable with V. If not then we add V to forks
                 found_comparable, replace_index = False, None
                 for k, W in enumerate(forks):
-                    if V.height > W.height and self.greater_than_or_equal_within_process(V, W):
+                    if V.height > W.height and self.above_within_process(V, W):
                         found_comparable = True
                         replace_index = k
                         break
-                    if V.height <= W.height and self.less_than_or_equal_within_process(V, W):
+                    if V.height <= W.height and self.below_within_process(V, W):
                         found_comparable = True
                         break
 
@@ -164,7 +164,7 @@ class Poset:
 
     def find_maximum_within_process(self, units_list, process_id):
         '''
-        Finds a unit U in units_list that is greater_than_or_equal (within process_id)
+        Finds a unit U in units_list that is above (within process_id)
         to all units in units_list.
         :param list units_list: list of units created by process_id
         :param int process_id: the identification number of a process
@@ -181,10 +181,10 @@ class Poset:
             if maximum_unit is None:
                 maximum_unit = U
                 continue
-            if self.greater_than_or_equal_within_process(U, maximum_unit):
+            if self.above_within_process(U, maximum_unit):
                 maximum_unit = U
                 continue
-            if not self.greater_than_or_equal_within_process(maximum_unit, U):
+            if not self.above_within_process(maximum_unit, U):
                 return None
 
         return maximum_unit
@@ -293,7 +293,7 @@ class Poset:
 
             elif len(floor_predecessor) == 1:
                 V_previous = floor_predecessor[0]
-                if not self.less_than_within_process(V_predecessor, V):
+                if not self.strictly_below_within_process(V_predecessor, V):
                     return False
 
         return True
@@ -572,7 +572,7 @@ class Poset:
 
         pass
 
-    def less_than_or_equal_within_process(self, U, V):
+    def below_within_process(self, U, V):
         '''
         Checks if there exists a path (possibly U = V) from U to V going only through units created by their creator process.
         Assumes that U.creator_id = V.creator_id = process_id
@@ -597,7 +597,7 @@ class Poset:
         # TODO: make sure the below line does what it should
         return (W is U)
 
-    def less_than_within_process(self, U, V):
+    def strictly_below_within_process(self, U, V):
         '''
         Checks if there exists a path from U to V going only through units created by their creator process.
         It is not allowed that U == V.
@@ -608,19 +608,19 @@ class Poset:
         assert (U.creator_id == V.creator_id and U.creator_id is not None) , "expected two processes created by the same process"
         if U is V:
             return False
-        return less_than_or_equal_within_process(U,V)
+        return below_within_process(U,V)
 
-    def greater_than_or_equal_within_process(self, U, V):
+    def above_within_process(self, U, V):
         '''
         Checks if there exists a path (possibly U = V) from V to U going only through units created by their creator process.
         Assumes that U.creator_id = V.creator_id = process_id
         :param unit U: first unit to be tested
         :param unit V: second unit to be tested
         '''
-        return less_than_or_equal_within_process(self, V, U)
+        return below_within_process(self, V, U)
 
 
-    def less_than_or_equal(self, U, V):
+    def below(self, U, V):
         '''
         Checks if U <= V.
         :param unit U: first unit to be tested
@@ -630,18 +630,18 @@ class Poset:
         proc_V = V.creator_id
 
         for W in V.floor[proc_U]:
-            if self.less_than_or_equal_within_process(U, V):
+            if self.below_within_process(U, V):
                 return True
 
         return False
 
-    def greater_than_or_equal(self, U, V):
+    def above(self, U, V):
         '''
         Checks if U >= V.
         :param unit U: first unit to be tested
         :param unit V: second unit to be tested
         '''
-        return self.less_than_or_equal(V, U)
+        return self.below(V, U)
 
     def high_above(self, U, V):
         '''
@@ -670,7 +670,7 @@ class Poset:
                 if in_support:
                     break
                 for V_floor in V.floor[process_id]:
-                    if self.less_than_or_equal_within_process(U_ceil, V_floor):
+                    if self.below_within_process(U_ceil, V_floor):
                         in_support = True
                         break
 
