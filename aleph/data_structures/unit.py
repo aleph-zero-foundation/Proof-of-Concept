@@ -55,9 +55,9 @@ class Unit(object):
 
 
     def __eq__(self, other):
-        return (self.creator_id == other.creator_id) and
-               (self.parents_hashes() == other.parents_hashes()) and
-               (set(map(str, self.txs)) == set(map(str, other.txs)))
+        return (isinstance(other, Unit) and self.creator_id == other.creator_id and
+               self.parents_hashes() == other.parents_hashes() and
+               set(map(str, self.txs)) == set(map(str, other.txs)))
 
 
 
