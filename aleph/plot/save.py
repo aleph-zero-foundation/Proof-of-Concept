@@ -1,13 +1,13 @@
 def topsort(poset):
-    for U in poset.Us.values():
+    for U in poset.units.values():
         U.children = 0
 
-    for U in poset.Us.values():
+    for U in poset.units.values():
         for parent in U.parents:
             parent.children += 1
 
     childless = []
-    for U in poset.Us.values():
+    for U in poset.units.values():
         if U.children == 0:
             childless.append(U)
 
@@ -25,7 +25,7 @@ def topsort(poset):
 
 def save(poset, filename, genesis='G'):
     toporder = topsort(poset)
-    assert toporder[-1] is poset.genesis_U, "Genesis U is not last in topological order"
+    assert toporder[-1] is poset.genesis_unit, "Genesis U is not last in topological order"
 
     for i, U in enumerate(toporder):
         U.name = i
