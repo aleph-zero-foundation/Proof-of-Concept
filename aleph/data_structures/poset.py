@@ -58,7 +58,7 @@ class Poset:
         else:
             # Find the maximum unit of U in the union of lower-cones of its parents
             # It should uniquely exist
-            combined_floors = self.combine_floors(U.parents, U.creator_id)
+            combined_floors = self.combine_floors_per_process(U.parents, U.creator_id)
             assert (len(combined_floors) >= 1), "Unit U has no candidates for predecessors."
             assert (len(combined_floors) <= 1), "Unit U has more than one candidate for predecessor."
             U.self_predecessor = combined_floors[0]
@@ -113,7 +113,7 @@ class Poset:
                 # the floor of U w.r.t. its creator process is just [U]
                 floor[process_id] = [U]
             else:
-                floor[process_id] = self.combine_floors(parents, U.creator_id)
+                floor[process_id] = self.combine_floors_per_process(parents, U.creator_id)
         U.floor = floor
 
     def find_forking_evidence(self, parents, process_id):
@@ -124,11 +124,11 @@ class Poset:
         :returns: Boolean value, True if forking evidence is present, False otherwise.
         '''
         # compute the set of all maximal (w.r.t. process_id) units in lower-cones of parents
-        combined_floors = self.combine_floors(parents, process_id)
+        combined_floors = self.combine_floors_per_process(parents, process_id)
 
         return len(combined_floors) > 1
 
-    def combine_floors(self, units_list, process_id):
+    def combine_floors_per_process(self, units_list, process_id):
         '''
         Combines U.floor[process_id] for all units U in units_list.
         The result is the set of maximal elements of the union of these lists.
@@ -170,6 +170,9 @@ class Poset:
         :param int process_id: the identification number of a process
         :returns: unit U that is the maximum of units_list or None if there are several incomparable maximal units.
         '''
+        #NOTE: for efficiency reasons this returns None if there is no single "maximum"
+        #NOTE: this could be potentially confusing, but returning a set of "maximal" units instead
+        #NOTE: would add unnecessary computation whose result is anyway ignored later on
 
         maximum_unit = None
 
@@ -346,7 +349,7 @@ class Poset:
             U.self_predecessor = None
             return
 
-        combined_floors = self.combine_floors(U.parents, process_id)
+        combined_floors = self.combine_floors_per_process(U.parents, process_id)
 
         assert len(combined_floors) >= 1, "The unit U has no candidate for self_predecessor among parents."
 
