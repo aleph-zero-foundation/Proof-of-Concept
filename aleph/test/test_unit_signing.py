@@ -11,12 +11,11 @@ class TestSignatures():
         assert pk.verify_signature(signature, msg)
 
     def test_two(self):
-        genesis_unit = Unit(None,[],[])
         process_id = 0
         n_processes = 100
         sk = PrivateKey()
         pk = PublicKey(sk)
-        poset = Poset(n_processes, process_id, genesis_unit, sk, pk)
+        poset = Poset(n_processes, process_id, sk, pk)
         U = Unit(0,[],[])
         poset.sign_unit(U)
 

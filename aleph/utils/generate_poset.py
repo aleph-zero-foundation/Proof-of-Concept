@@ -21,8 +21,8 @@ def generate_random_nonforking(n_processes, n_units, file_name = None):
     Generates a random non-forking poset with n_processes processes and saves it to file_name. 
     Does not return any value.
     :param int n_processes: the number of processes in poset
-    :param int n_units: the number of units in the process beyond genesis + n_processes initial units,
-    hence the total number of units is (1 + n_processes + n_units)
+    :param int n_units: the number of units in the process beyond n_processes initial units,
+    hence the total number of units is (n_processes + n_units)
     '''
     process_heights = [0] * n_processes
     dag = {}
@@ -126,10 +126,3 @@ def generate_random_forking(n_processes, n_units, n_forkers, file_name = None):
         dag_to_file(dag, n_processes, file_name)    
     
     return dag
-    
-    
-    
-       
-    
-
-    
