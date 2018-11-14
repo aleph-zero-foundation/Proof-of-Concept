@@ -11,13 +11,15 @@ class Poset:
     '''This class is the core data structure of the Aleph protocol.'''
 
 
-    def __init__(self, n_processes, process_id, secret_key, public_key):
+    def __init__(self, n_processes, process_id, secret_key, public_key, compliance_rules=None):
         '''
         :param int n_processes: the committee size
-        :param int process_id: identification number of process whose local view is represented by this poset.
+        :param int process_id: identification number of process whose local view is represented by this poset
+        :param list compliance_rules: list of strings defining which compliance rules are followed by this poset
         '''
         self.n_processes = n_processes
         self.process_id = process_id
+        self.compliance_rules = compliance_rules
 
         self.units = {}
         self.max_units_per_process = [[] for _ in range(n_processes)]
@@ -30,7 +32,7 @@ class Poset:
         self.prime_units_by_level = {}
 
         # For every unit U maintain a list of processes that can be proved forking by looking at the lower-cone of U
-        self.known_forkers_by_unit = {}
+        #self.known_forkers_by_unit = {}
 
 
 
@@ -192,6 +194,9 @@ class Poset:
         :param unit U: unit whose compliance is being tested
         '''
         # TODO: there might have been other compliance rules that have been forgotten...
+        # TODO: should_check() with string arguments is ugly. This is a temporary solution
+
+        should_check = lambda x: (self.compliance_rules is None or x in self.compliance_rules)
 
         # 1. Parents of U are correct.
         if not self.check_parent_correctness(U):
@@ -202,7 +207,7 @@ class Poset:
             return False
 
         # 3. Satisfies anti-fork policy.
-        if not self.check_anti_fork(U):
+        if should_check('anti_fork') and not self.check_anti_fork(U):
             return False
 
         # At this point we know that U has a well-defined self_predecessor
@@ -210,11 +215,11 @@ class Poset:
         self.set_self_predecessor_and_height(U)
 
         # 4. Satisfies parent diversity rule.
-        if not self.check_parent_diversity(U):
+        if should_check('parent_diversity') and not self.check_parent_diversity(U):
             return False
 
         # 5. Check "growth" rule.
-        if not self.check_growth(U):
+        if should_check('growth') and not self.check_growth(U):
             return False
 
         # 6. Coinshares are OK.
