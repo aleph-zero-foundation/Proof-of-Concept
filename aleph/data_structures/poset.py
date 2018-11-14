@@ -1,6 +1,6 @@
 '''This module implements a poset - a core data structure.'''
 
-from itertools import product
+#from itertools import product
 
 from aleph.data_structures.unit import Unit
 from aleph.crypto.signatures.keys import PrivateKey, PublicKey
@@ -26,7 +26,7 @@ class Poset:
         self.secret_key = secret_key
         self.public_key = public_key
 
-        self.level_reached = 0
+        #self.level_reached = 0
         self.prime_units_by_level = {}
 
         # For every unit U maintain a list of processes that can be proved forking by looking at the lower-cone of U
@@ -136,6 +136,8 @@ class Poset:
 
         return forks
 
+
+
     def find_maximum_within_process(self, units_list, process_id):
         '''
         Finds a unit U in units_list that is above (within process_id)
@@ -162,6 +164,8 @@ class Poset:
                 return None
 
         return maximum_unit
+
+
 
     def update_ceil(self, U, V):
         '''
@@ -195,6 +199,8 @@ class Poset:
 #        assert (U.hash() in self.known_forkers_by_unit.keys()), "Unit U has not yet been added to known_forkers_by_unit"
 #
 #        return self.known_forkers_by_unit[U.hash()]
+
+
 
     def check_compliance(self, U):
         '''
@@ -238,6 +244,8 @@ class Poset:
 
         return True
 
+
+
     def check_growth(self, U):
         '''
         Checks if the unit U, created by process j, respects the "growth" rule.
@@ -272,6 +280,8 @@ class Poset:
                     return False
 
         return True
+
+
 
     def check_anti_fork(self, U):
         '''
@@ -315,6 +325,7 @@ class Poset:
         return True
 
 
+
     def set_self_predecessor_and_height(self, U):
         '''
         Computes the self_predecessor of a unit U and fills in the appropriate field in U.
@@ -332,7 +343,6 @@ class Poset:
 
 
 
-
     def check_signature_correct(self, U):
         '''
         Checks if the signature of a unit U is correct.
@@ -343,6 +353,8 @@ class Poset:
         #TODO: need to complete this code once the signature method is decided on
 
         return True
+
+
 
     def check_parent_correctness(self, U):
         '''
@@ -363,6 +375,8 @@ class Poset:
                 return False
 
         return True
+
+
 
     def check_parent_diversity(self, U):
         '''
@@ -422,6 +436,8 @@ class Poset:
 
         return True
 
+
+
     def create_unit(self, parents, txs):
         '''
         Creates a new unit and stores thx in it. Correctness of the txs is checked by a thread listening for new transactions.
@@ -436,6 +452,8 @@ class Poset:
         U = Unit(self.process_id, parents, txs)
         return U
 
+
+
     def sign_unit(self, U):
         '''
         Signs the unit.
@@ -444,6 +462,8 @@ class Poset:
 
         message = str([U.creator_id, U.parents, U.txs, U.coinshares]).encode()
         U.signature = self.secret_key.sign(message)
+
+
 
     def level(self, U):
         '''
@@ -476,6 +496,8 @@ class Poset:
         else:
             return m
 
+
+
     def choose_coinshares(self, unit):
         '''
         Implements threshold_coin algorithm from the paper.
@@ -483,16 +505,17 @@ class Poset:
 
         pass
 
+
+
     def check_primeness(self, U):
         '''
         Check if the unit is prime.
         :param unit U: the unit to be checked for being prime
         '''
-        if len(U.parents) == 0:
-            return True
+        # U is prime iff it's a dealing unit or its self_predecessor level is strictly smaller
+        return len(U.parents) == 0 or self.level(U) > self.level(U.self_predecessor)
 
-        # U is prime iff its self_predecessor level is strictly smaller
-        return self.level(U) > self.level(U.self_predecessor)
+
 
     def rand_maximal(self):
         '''
@@ -501,12 +524,16 @@ class Poset:
 
         pass
 
+
+
     def my_maximal(self):
         '''
         Returns a randomly chosen maximal unit that is above a last created unit by this process.
         '''
 
         pass
+
+
 
     def get_prime_units_by_level(self, level):
         '''
@@ -517,12 +544,16 @@ class Poset:
         # TODO: make sure that at creation of a prime unit it is added to the dict self.prime_units_by_level
         return self.prime_units_by_level[level]
 
+
+
     def get_prime_units(self):
         '''
         Returns the set of all prime units.
         '''
 
         pass
+
+
 
     def timing_units(self):
         '''
@@ -531,12 +562,16 @@ class Poset:
 
         pass
 
+
+
     def diff(self, other):
         '''
         Returns a set of units that are in this poset and that are not in the other poset.
         '''
 
         pass
+
+
 
     def below_within_process(self, U, V):
         '''
@@ -563,6 +598,8 @@ class Poset:
         # TODO: make sure the below line does what it should
         return (W is U)
 
+
+
     def strictly_below_within_process(self, U, V):
         '''
         Checks if there exists a path from U to V going only through units created by their creator process.
@@ -571,10 +608,9 @@ class Poset:
         :param unit U: first unit to be tested
         :param unit V: second unit to be tested
         '''
-        assert (U.creator_id == V.creator_id and U.creator_id is not None) , "expected two processes created by the same process"
-        if U is V:
-            return False
-        return below_within_process(U,V)
+        return (U is not V) and self.below_within_process(U,V)
+
+
 
     def above_within_process(self, U, V):
         '''
@@ -583,7 +619,8 @@ class Poset:
         :param unit U: first unit to be tested
         :param unit V: second unit to be tested
         '''
-        return below_within_process(self, V, U)
+        return self.below_within_process(self, V, U)
+
 
 
     def below(self, U, V):
@@ -592,14 +629,9 @@ class Poset:
         :param unit U: first unit to be tested
         :param unit V: second unit to be tested
         '''
-        proc_U = U.creator_id
-        proc_V = V.creator_id
+        return any([self.below_within_process(U, W) for W in V.floor[U.creator_id]])
 
-        for W in V.floor[proc_U]:
-            if self.below_within_process(U, V):
-                return True
 
-        return False
 
     def above(self, U, V):
         '''
@@ -609,13 +641,7 @@ class Poset:
         '''
         return self.below(V, U)
 
-    def high_above(self, U, V):
-        '''
-        Checks if U >> V.
-        :param unit U: first unit to be tested
-        :param unit V: second unit to be tested
-        '''
-        return self.high_below(V, U)
+
 
     def high_below(self, U, V):
         '''
@@ -643,8 +669,23 @@ class Poset:
             if in_support:
                 processes_in_support += 1
 
+            # This might be a little bit faster (and more Pythonic ;))
+            #if any([self.below_within_process(U_ceil, V_floor) for U_ceil in U.ceil[process_id] for V_floor in V.floor[process_id]]):
+            #    processes_in_support += 1
+
         # same as processes_in_support>=2/3 n_procesees but avoids floating point division
         return 3*processes_in_support >= 2*self.n_processes
+
+
+
+    def high_above(self, U, V):
+        '''
+        Checks if U >> V.
+        :param unit U: first unit to be tested
+        :param unit V: second unit to be tested
+        '''
+        return self.high_below(V, U)
+
 
 
     def unit_by_height(self, process_id, height):
