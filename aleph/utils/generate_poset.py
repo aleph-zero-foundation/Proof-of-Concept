@@ -1,5 +1,5 @@
 from aleph.data_structures import Unit, Poset
-from dag_utils import is_reachable, compute_maximal_from_subset, maximal_units_per_process
+from .dag_utils import is_reachable, compute_maximal_from_subset, maximal_units_per_process
 import random
 
 
@@ -133,8 +133,5 @@ def generate_random_forking(n_processes, n_units, n_forkers, file_name):
     
        
     
-    
-if __name__ == "__main__":    
-    generate_random_nonforking(10, 30, 'random_10_30.txt')
-    generate_random_forking(6,20,1,"random_forking_6_20.txt")
+
     

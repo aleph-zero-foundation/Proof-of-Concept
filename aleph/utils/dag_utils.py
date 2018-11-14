@@ -6,6 +6,7 @@ For scenarios where node creators matter, we assume that every node is represent
 as a pair (node_name, process_id), where node_name is a string name for the node
 and process_id is the id of its creator.
 '''
+
 from aleph.data_structures import Poset, Unit
     
 
