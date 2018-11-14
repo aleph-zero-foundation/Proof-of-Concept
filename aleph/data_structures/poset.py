@@ -1,6 +1,6 @@
 '''This module implements a poset - a core data structure.'''
 
-#from itertools import product
+from itertools import product
 
 from aleph.data_structures.unit import Unit
 from aleph.crypto.signatures.keys import PrivateKey, PublicKey
@@ -57,6 +57,7 @@ class Poset:
 
         self.units[U.hash()] = U
 
+        U.floor = [[] for _ in range(self.n_processes)]
         self.update_floor(U)
 
         U.ceil = [[] for _ in range(self.n_processes)]
@@ -277,26 +278,18 @@ class Poset:
         :returns: Boolean value, True if U respects the policy, False otherwise.
         '''
 
-        # REMOVE known_forkers_by_unit
-        # Forkers can be found by checking len(U.floor) > 1
-
         if len(U.parents) == 0:
             return True
 
         # Check for situation A)
-        forkers_known_by_parents = []
-        for V in U.parents:
-            forkers_known_by_parents.extend(self.known_forkers_by_unit[V.hash()])
-
-        if U.creator_id in forkers_known_by_parents:
-            return False
-
-        for V in U.parents:
-            if V.creator_id in forkers_known_by_parents:
+        parent_processes = set([V.creator_id for V in U.parents])
+        for V, proc in product(U.parents, parent_processes):
+            if self.has_forking_evidence(V, proc):
                 return False
 
         # Check for situation B)
-        if find_forking_evidence(U.parents, U.creator_id):
+        combined_floors = self.combine_floors_per_process(U.parents, U.creator_id)
+        if len(combined_floors) > 1:
             return False
 
         return True
@@ -408,16 +401,11 @@ class Poset:
         '''
         Updates floor of the unit U by merging and taking maximums of floors of parents.
         '''
-        # initialize to empty lists
-        floor = [[] for _ in range(self.n_processes)]
-
-        for process_id in range(self.n_processes):
-            if process_id == U.creator_id:
-                # the floor of U w.r.t. its creator process is just [U]
-                floor[process_id] = [U]
-            else:
-                floor[process_id] = self.combine_floors_per_process(U.parents, U.creator_id)
-        U.floor = floor
+        U.floor[U.creator_id] = [U]
+        if U.parents:
+            for process_id in range(self.n_processes):
+                if process_id != U.creator_id:
+                    U.floor[process_id] = self.combine_floors_per_process(U.parents, process_id)
 
 
 
@@ -448,6 +436,7 @@ class Poset:
         :param int process_id: identification number of a process
         :returns: list U that contains maximal elements of the union of floors of units_list w.r.t. process_id
         '''
+        assert len(units_list) > 0, "combine_floors_per_process was called on an empty unit list"
 
         # initialize forks with the longest floor from units_list
         lengths = [len(U.floor[process_id]) for U in units_list]
@@ -479,17 +468,14 @@ class Poset:
 
 
 
-    def find_forking_evidence(self, parents, process_id):
+    def has_forking_evidence(self, unit, process_id):
         '''
-        Checks whether the list of units (parents) contains evidence that process_id is forking.
-        :param list parents: list of units to be checked for evidence of process_id is forking
+        Checks if a unit has in its lower cone an evidence that process_id is forking.
+        :param unit unit: unit to be checked for evidence of process_id forking
         :param int process_id: identification number of process to be verified
-        :returns: Boolean value, True if forking evidence is present, False otherwise.
+        :returns: True if forking evidence is present, False otherwise
         '''
-        # compute the set of all maximal (w.r.t. process_id) units in lower-cones of parents
-        combined_floors = self.combine_floors_per_process(parents, process_id)
-
-        return len(combined_floors) > 1
+        return len(unit.floor[process_id]) > 1
 
 
 
