@@ -4,11 +4,9 @@ from aleph.utils import generate_poset
 
 def test_trivial_single_level_below():
     n_processes = 4
-    genesis_unit = Unit(creator_id = None, parents = [], txs = [])
-    poset = Poset(n_processes = n_processes, process_id = 0, genesis_unit = genesis_unit,
-                        secret_key = None, public_key = None)
+    poset = Poset(n_processes = n_processes, process_id = 0, secret_key = None, public_key = None)
     
-    bottom_units_per_process = [Unit(creator_id = i, parents = [genesis_unit], txs = []) for i in range(n_processes)]
+    bottom_units_per_process = [Unit(creator_id = i, parents = [], txs = []) for i in range(n_processes)]
     for i in range(n_processes):
         poset.add_unit(bottom_units_per_process[i])
     
@@ -29,5 +27,35 @@ def test_trivial_single_level_below():
     assert not poset.below(U3, U)
     
     
-dag1 = generate_poset.generate_random_nonforking(5, 5, 'example1.txt')
-dag2 = generate_poset.generate_random_forking(5, 10, 2, 'example2.txt')
+def test_small_nonforking_below():
+    n_processes = 5
+    n_units = 10
+    dag = generate_poset.generate_random_nonforking(n_processes, n_units)
+    check_all_pairs_below(dag, n_processes)
+            
+            
+def test_small_forking_below():
+    n_processes = 5
+    n_units = 10
+    n_forking = 1
+    dag = generate_poset.generate_random_forking(n_processes, n_units, n_forking)
+    check_all_pairs_below(dag, n_processes)
+    
+    
+def check_all_pairs_below(dag, n_processes):
+    '''
+    Create a poset from a dag and test U<=V for all pairs of units U,V
+    against a naive BFS-implementation from dag_utils
+    '''
+    poset, unit_dict = dag_utils.poset_from_dag(dag, n_processes)
+    
+    for nameU, U in unit_dict.items():
+        for nameV, V in unit_dict.items():
+            nodeU = (nameU, U.creator_id)
+            nodeV = (nameV, V.creator_id)
+            assert poset.below(U,V) == dag_utils.is_reachable(U,V)
+            assert poset.above(U,V) == dag_utils.is_reachable(V,U)
+    
+    
+#dag1 = generate_poset.generate_random_nonforking(5, 5, 'example1.txt')
+#dag2 = generate_poset.generate_random_forking(5, 10, 2, 'example2.txt')
