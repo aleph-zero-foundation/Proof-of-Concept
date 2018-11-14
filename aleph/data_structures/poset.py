@@ -265,7 +265,7 @@ class Poset:
         Checks if the unit U respects the anti-forking policy, i.e.:
         The following situations A), B) are not allowed:
         A)
-            - There exists a process j, s.t. (one of U's parents was created by j) OR (U was created by j)
+            - There exists a process j, s.t. one of U's parents was created by j
             AND
             - U has as one of the parents a unit that has evidence that j is forking.
         B)
@@ -449,28 +449,31 @@ class Poset:
         :returns: list U that contains maximal elements of the union of floors of units_list w.r.t. process_id
         '''
 
-        forks = []
-        for U in units_list:
-            # list of elements in parent.floor[process_id] noncomparable with elements from floor[process_id]
-            # this list is then added to floor
+        # initialize forks with the longest floor from units_list
+        lengths = [len(U.floor[process_id]) for U in units_list]
+        index = lenghts.index(max(lengths))
+        forks = units_lists[index].floor[process_id][:]
 
-            for V in U.floor[process_id]:
-                # This flag checks if there is W comparable with V. If not then we add V to forks
-                found_comparable, replace_index = False, None
-                for k, W in enumerate(forks):
-                    if V.height > W.height and self.above_within_process(V, W):
-                        found_comparable = True
-                        replace_index = k
-                        break
-                    if V.height <= W.height and self.below_within_process(V, W):
-                        found_comparable = True
-                        break
+        #gather all other floor members in one list
+        candidates = [V for i, U in enumerate(units_list) if i != index for V in U.floor[process_id]]
 
-                if not found_comparable:
-                    forks.append(V)
+        for U in candidates:
+            # This flag checks if there is W comparable with U. If not then we add U to forks
+            found_comparable, replace_index = False, None
+            for k, W in enumerate(forks):
+                if U.height > W.height and self.above_within_process(U, W):
+                    found_comparable = True
+                    replace_index = k
+                    break
+                if U.height <= W.height and self.below_within_process(U, W):
+                    found_comparable = True
+                    break
 
-                if replace_index is not None:
-                    floor[process_id][replace_index] = V
+            if not found_comparable:
+                forks.append(U)
+
+            if replace_index is not None:
+                forks[replace_index] = U
 
         return forks
 
