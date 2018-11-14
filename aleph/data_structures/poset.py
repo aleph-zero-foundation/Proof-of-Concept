@@ -440,8 +440,8 @@ class Poset:
 
         # initialize forks with the longest floor from units_list
         lengths = [len(U.floor[process_id]) for U in units_list]
-        index = lenghts.index(max(lengths))
-        forks = units_lists[index].floor[process_id][:]
+        index = lengths.index(max(lengths))
+        forks = units_list[index].floor[process_id][:]
 
         #gather all other floor members in one list
         candidates = [V for i, U in enumerate(units_list) if i != index for V in U.floor[process_id]]
