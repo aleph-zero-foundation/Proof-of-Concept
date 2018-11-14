@@ -423,20 +423,20 @@ class Poset:
 
     def update_ceil(self, U, V):
         '''
-        Adds U to the ceil of V if the list is empty or if the process that created U
-        produced forks that are not higher than U.
-        After addition, it is called recursively for parents of V.
+        Adds U to the ceil of V if U is not comparable with any unit already present in ceil V.
+        If such an addition happens, ceil is updated recursively in the lower cone of V.
         '''
-
-        # !!!! TODO: this is probably wrong!!! needs revision!
-
         # TODO: at some point we should change it to a version with an explicit stack
         # TODO: Python has some strange recursion depth limits
-        if not V.ceil[U.creator_id] or (self.forking_height[U.creator_id] <= U.height):
-            # TODO: make sure the below line is correct...
-            V.ceil.append(U)
-            for parent in V.parents:
-                self.update_ceil(U, parent)
+
+        # if U is above any of V.ceil[i] then no update is needed in V nor its lower cone
+        for W in V.ceil[U.creator_id]:
+            if self.below_within_process(W, U):
+                return
+        # U is not above any of V.ceil[i], needs to be added and propagated recursively
+        V.ceil.append(U)
+        for parent in V.parents:
+            self.update_ceil(U, parent)
 
 
 
