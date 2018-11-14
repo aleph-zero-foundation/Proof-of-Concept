@@ -50,6 +50,43 @@ def dag_to_file(dag, n_processes, file_name):
 
     
     
+def get_self_predecessor(dag, node):
+    process_id = node[1]
+    below_within_process = []
+    for dag_node, parents in dag.items():
+        if dag_node != node and is_reachable(dag_node, node):
+            below_within_process.append(dag_node)
+    
+    if len(below_within_process) == 0:
+        return None
+    else:
+        return compute_maximal_from_subset(dag, below_within_process)
+
+        
+def poset_from_dag(dag, n_processes):
+    
+    unit_dict = {}
+    poset_from_dag = Poset(n_processes = n_processes, process_id = 0,
+                            secret_key = None, public_key = None)
+                            
+    topological_list = topological_sort(dag)
+    for (unit_name, unit_creator_id) in topological_list:
+        node = (unit_name, unit_creator_id)
+        assert 0 <= unit_creator_id <= n_processes - 1, "Incorrect process id"
+        parents = dag[node]
+        assert unit_name not in unit_dict.keys(), "Duplicate unit name %s" % unit_name
+        for parent in parents:
+            assert parent[0] in unit_dict.keys(), "Parent %s of a unit %s not known" % (parent, unit_name)
+
+        U = Unit(creator_id = unit_creator_id, parents = [unit_dict[parent[0]] for parent in parents],
+                txs = [])
+        poset_from_dag.add_unit(U)
+        unit_dict[unit_name] = U
+
+    return poset_from_dag, unit_dict
+
+        
+        
 def dag_from_file(file_name):
     with open(file_name) as poset_file:
         lines = poset_file.readlines()
@@ -72,7 +109,7 @@ def dag_from_file(file_name):
         dag[(unit_name, unit_creator_id)] = dag_parents
         name_to_process_id[unit_name] = unit_creator_id
 
-    return dag
+    return dag, n_processes
 
 def is_reachable(dag, U, V):
     '''Checks whether V is reachable from U in a DAG, using BFS
