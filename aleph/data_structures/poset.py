@@ -21,7 +21,7 @@ class Poset:
 
         self.units = {}
         self.max_units_per_process = [[] for _ in range(n_processes)]
-        self.forking_height = [None] * n_processes
+        self.forking_height = [float('inf')] * n_processes
 
         self.secret_key = secret_key
         self.public_key = public_key
@@ -118,7 +118,7 @@ class Poset:
             return U.level
 
         # let m be the max level of U's parents
-        m = max([V.level for V in U.parents])
+        m = max([self.level(V) for V in U.parents])
         # now, the level of U is either m or (m+1)
 
         # need to count all processes that produced a unit V of level m such that U'<<U
@@ -130,10 +130,8 @@ class Poset:
                 processes_high_below += 1
 
         # same as (...)>=2/3*(...) but avoids floating point division
-        if 3*processes_high_below >= 2*self.n_processes:
-            return m+1
-        else:
-            return m
+        U.level = m+1 if 3*processes_high_below >= 2*self.n_processes else m
+        return U.level
 
 
 
@@ -142,7 +140,7 @@ class Poset:
         Check if the unit is prime.
         :param unit U: the unit to be checked for being prime
         '''
-        # U is prime iff it's a dealing unit or its self_predecessor level is strictly smaller
+        # U is prime iff it's a bottom unit or its self_predecessor level is strictly smaller
         return len(U.parents) == 0 or self.level(U) > self.level(U.self_predecessor)
 
 
@@ -280,7 +278,7 @@ class Poset:
         '''
 
         # REMOVE known_forkers_by_unit
-        # Forkers can be founf by checking len(U.floor) > 1
+        # Forkers can be found by checking len(U.floor) > 1
 
         if len(U.parents) == 0:
             return True
@@ -354,7 +352,7 @@ class Poset:
         :param unit U: unit whose parent diversity is being tested
         '''
 
-        # Special case: U is a dealing unit
+        # Special case: U is a bottom unit
         if len(U.parents) == 0:
             return True
 
@@ -373,7 +371,7 @@ class Poset:
         W = U.self_predecessor
         # traverse the poset down from U, through self_predecessor
         while True:
-            # W is a dealing unit -> STOP
+            # W is a bottom unit -> STOP
             if len(W.parents) == 0:
                 break
             # flag for whether at the current level there is any occurence of a parent process proposed by U
@@ -425,23 +423,20 @@ class Poset:
 
     def update_ceil(self, U, V):
         '''
-        Adds U to the ceil of V if the list is empty or if the process that created U
-        produced forks that are not higher than U.
-        After addition, it is called recursively for parents of V.
+        Adds U to the ceil of V if U is not comparable with any unit already present in ceil V.
+        If such an addition happens, ceil is updated recursively in the lower cone of V.
         '''
-
-        # !!!! TODO: this is probably wrong!!! needs revision!
-
         # TODO: at some point we should change it to a version with an explicit stack
         # TODO: Python has some strange recursion depth limits
-        if V is self.genesis_unit:
-            return
-        if not V.ceil[U.creator_id] or (self.forking_height[U.creator_id] and
-                                        self.forking_height[U.creator_id] <= U.height):
-            # TODO: make sure the below line is correct...
-            V.ceil.append(U)
-            for parent in V.parents:
-                self.update_ceil(U, parent)
+
+        # if U is above any of V.ceil[i] then no update is needed in V nor its lower cone
+        for W in V.ceil[U.creator_id]:
+            if self.below_within_process(W, U):
+                return
+        # U is not above any of V.ceil[i], needs to be added and propagated recursively
+        V.ceil.append(U)
+        for parent in V.parents:
+            self.update_ceil(U, parent)
 
 
 
@@ -513,7 +508,7 @@ class Poset:
             return False
         process_id = U.creator_id
         # if process_id is non-forking or at least U is below the process_id's forking level then clearly U has a path to V
-        if (self.forking_height[process_id] is None) or U.height <= self.forking_height[process_id]:
+        if U.height <= self.forking_height[process_id]:
             return True
 
         # at this point we know that this is a forking situation: we need go down the tree from V until we reach U's height
@@ -616,10 +611,10 @@ class Poset:
 
 
 
-
 #===============================================================================================================================
 # THE LAND OF UNUSED CODE AND WISHFUL THINKING ;)
 #===============================================================================================================================
+
 
 
 #    def find_maximum_within_process(self, units_list, process_id):
