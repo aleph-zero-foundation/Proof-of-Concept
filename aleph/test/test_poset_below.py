@@ -2,6 +2,9 @@ from aleph.data_structures import Unit, Poset
 from aleph.utils import dag_utils
 
 def test_trivial_single_level_below():
+
+    dag_utils.is_reachable(...)
+    
     n_processes = 4
     genesis_unit = Unit(creator_id = None, parents = [], txs = [])
     poset = Poset(n_processes = n_processes, process_id = 0, genesis_unit = genesis_unit,
