@@ -541,7 +541,10 @@ class Poset:
         :param unit U: first unit to be tested
         :param unit V: second unit to be tested
         '''
-        return any([self.below_within_process(U, W) for W in V.floor[U.creator_id]])
+        for W in V.floor[U.creator_id]:
+            if self.below_within_process(U, W):
+                return True
+        return False
 
 
 
