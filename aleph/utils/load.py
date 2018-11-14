@@ -14,11 +14,10 @@ def load(file_name):
 
     unit_dict = {}
     head_line = lines[0]
-    n_processes, genesis_name = head_line.split()
+    n_processes = head_line.split()
     n_processes = int(n_processes)
-    genesis_unit = Unit(creator_id = None, parents = [], txs = [])
     unit_dict[genesis_name] = genesis_unit
-    poset_from_file = Poset(n_processes = n_processes, process_id = 0, genesis_unit = genesis_unit,
+    poset_from_file = Poset(n_processes = n_processes, process_id = 0,
                             secret_key = None, public_key = None)
 
     for line in lines[1:]:

@@ -9,7 +9,70 @@ and process_id is the id of its creator.
 
 from aleph.data_structures import Poset, Unit
     
+    
+def _create_node_line(node_name, process_id, parent_names):
+    line = '%s %d ' % (node_name, process_id)
+    for name in parent_names:
+        line = line + name + ' '
+    return line    
+    
+def topological_sort(dag):
+    '''
+    slow, iterative implementation of topological sort of a dag
+    '''
+    nodes_included = set()
+    topological_list = []
+    iterations = 0
+    while len(nodes_included)<len(dag):
+        iterations += 1
+        assert iterations <= len(dag)+1, "The input dag seems to have loops or undefined nodes."
+        for node, parent_nodes in dag.items():
+            if node in nodes_included:
+                continue
+            all_parents_included = True
+            for parent_node in dag[node]:
+                if parent_node not in nodes_included:
+                    all_parents_included = False
+                    break
+            if all_parents_included:
+                topological_list.append(node)
+                nodes_included.add(node)
+    return list(topological_list)
+    
+def dag_to_file(dag, n_processes, file_name):
+    topological_list = topological_sort(dag)
+    with open(file_name, 'w') as f:
+        f.write('%d\n' % n_processes)
+        for node in topological_list:
+            parent_nodes = dag[node]
+            line = _create_node_line(node[0], node[1], [parent_node[0] for parent_node in parent_nodes])
+            f.write(line+'\n')
 
+    
+    
+def dag_from_file(file_name):
+    with open(file_name) as poset_file:
+        lines = poset_file.readlines()
+    
+    dag = {}
+    name_to_process_id = {}
+    n_processes = int(head_line)
+
+    for line in lines[1:]:
+        tokens = line.split()
+        unit_name = tokens[0]
+        unit_creator_id = int(tokens[1])
+        assert 0 <= unit_creator_id <= n_processes - 1, "Incorrect process id"
+        parents = tokens[2:]
+        assert unit_name not in name_to_process_id.keys(), "Duplicate unit name %s" % unit_name
+        for parent in parents:
+            assert parent in name_to_process_id.keys(), "Parent %s of a unit %s not known" % (parent, unit_name)
+
+        dag_parents = [(name, name_to_process_id[name]) for name in parents]
+        dag[(unit_name, unit_creator_id)] = dag_parents
+        name_to_process_id[unit_name] = unit_creator_id
+
+    return dag
 
 def is_reachable(dag, U, V):
     '''Checks whether V is reachable from U in a DAG, using BFS

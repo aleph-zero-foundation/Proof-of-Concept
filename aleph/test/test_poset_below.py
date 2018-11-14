@@ -1,9 +1,8 @@
 from aleph.data_structures import Unit, Poset
 from aleph.utils import dag_utils
+from aleph.utils import generate_poset
 
 def test_trivial_single_level_below():
-
-    dag_utils.is_reachable(...)
     
     n_processes = 4
     genesis_unit = Unit(creator_id = None, parents = [], txs = [])
@@ -29,3 +28,7 @@ def test_trivial_single_level_below():
     assert poset.below(U1, U)
     assert not poset.below(U2, U)
     assert not poset.below(U3, U)
+    
+    
+dag1 = generate_poset.generate_random_nonforking(5, 5, 'example1.txt')
+dag2 = generate_poset.generate_random_forking(5, 10, 2, 'example2.txt')
