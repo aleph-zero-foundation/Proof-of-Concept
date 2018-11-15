@@ -93,6 +93,7 @@ def dag_from_file(file_name):
     
     dag = {}
     name_to_process_id = {}
+    head_line = lines[0]
     n_processes = int(head_line)
 
     for line in lines[1:]:

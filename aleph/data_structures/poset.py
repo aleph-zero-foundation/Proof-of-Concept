@@ -449,7 +449,7 @@ class Poset:
             if self.below_within_process(W, U):
                 return
         # U is not above any of V.ceil[i], needs to be added and propagated recursively
-        V.ceil.append(U)
+        V.ceil[U.creator_id].append(U)
         for parent in V.parents:
             self.update_ceil(U, parent)
 
@@ -592,7 +592,6 @@ class Poset:
         :param unit V: second unit to be tested
         '''
         processes_in_support = 0
-
         for process_id in range(self.n_processes):
             in_support = False
             # Because process_id could be potentially forking, we need to check

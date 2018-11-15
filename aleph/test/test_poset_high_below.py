@@ -8,15 +8,14 @@ import random
 def test_small_nonforking_below():
     random.seed(123456789)
     n_processes = 5
-    n_units = 11
+    n_units = 50
     repetitions = 1
     for _ in range(repetitions):    
         dag = generate_poset.generate_random_nonforking(n_processes, n_units)
-        dag_utils.dag_to_file(dag, n_processes, 'bad_test.txt')
         check_all_pairs_high_below(dag, n_processes)
         
         
-def aatest_large_nonforking_below():
+def test_large_nonforking_below():
     random.seed(123456789)
     n_processes = 30
     n_units = 100
@@ -26,17 +25,19 @@ def aatest_large_nonforking_below():
         check_all_pairs_high_below(dag, n_processes)
     
             
-def aatest_small_forking_below():
+def test_small_forking_below():
     random.seed(123456789)
     n_processes = 5
-    n_units = 50
-    repetitions = 2
+    n_units = 11
+    repetitions = 15
     for _ in range(repetitions):
-        n_forking = random.randint(0,n_processes)
+        #n_forking = random.randint(0,n_processes)
+        n_forking = 1
         dag = generate_poset.generate_random_forking(n_processes, n_units, n_forking)
+        dag_utils.dag_to_file(dag, n_processes, 'bad_test.txt')
         check_all_pairs_high_below(dag, n_processes)
         
-def aatest_large_forking_below():
+def test_large_forking_below():
     random.seed(123456789)
     n_processes = 30
     n_units = 100
