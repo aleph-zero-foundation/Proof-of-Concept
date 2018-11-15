@@ -25,9 +25,8 @@ def plot(path):
     G = nx.DiGraph()
 
     with open(path, 'r') as f:
-        n_processes, genesis_unit = f.readline().split()
-        n_processes = int(n_processes)
-
+        n_processes = int(f.readline())
+        genesis_unit = "G"
         G.add_node(genesis_unit)
         height[genesis_unit] = -1
         creator[genesis_unit] = -1
@@ -38,6 +37,8 @@ def plot(path):
 
         for line in f:
             unit, creator_id, parents = parse_line(line)
+            if parents == []:
+                parents = ["G"]
 
             creator[unit] = creator_id
             units_per_process[creator_id].append(unit)
@@ -46,6 +47,7 @@ def plot(path):
             G.add_node(unit)
             for parent in parents:
                 G.add_edge(unit, parent)
+            
 
     # pos = graphviz_layout(G, prog='dot')
 
