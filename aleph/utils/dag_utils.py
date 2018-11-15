@@ -134,6 +134,51 @@ def is_reachable(dag, U, V):
     return False
     
     
+    
+def is_reachable_through_n_intermediate(dag, U, V, n_intermediate):
+    '''
+    Checks whether the number of differente processes that have units on some path
+    from U to V in dag is at least n_intermediate.
+    '''
+    nodes_below_V = nodes_below(dag, V)
+    nodes_above_U = nodes_below(reversed_dag(dag), U)
+    
+    processes_on_paths = []
+    
+    for node in nodes_below_V:
+        if node in nodes_above_U:
+            processes_on_paths.append(node[0])
+    
+    n_processes_on_paths = len(set(processes_on_paths))
+    return n_processes_on_paths >= n_intermediate
+    
+    
+def nodes_below(dag, V):
+    '''
+    Finds the set of all nodes U that have a path from U to V.
+    '''
+    have_path_to_V = set([])
+    node_head = set([V])
+    while node_head:
+        node  = node_head.pop()    
+        if node not in have_path_to_V:
+            have_path_to_V.add(node)
+            for parent_node in dag[node]:
+                if parent_node in have_path_to_V:
+                    continue
+                node_head.add(parent_node)
+                
+        have_path_to_V.add(node)
+    return have_path_to_V
+    
+def reversed_dag(dag):
+    rev_dag = {node : [] for node in dag.keys()}
+    for node, parents in dag.items():
+        for parent_node in parents:
+            rev_dag[parent_node].append(node)
+    return rev_dag
+    
+    
 def compute_maximal_from_subset(dag, subset):
     maximal_from_subset = []
     for U in subset:
