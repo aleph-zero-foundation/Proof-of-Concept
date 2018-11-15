@@ -1,6 +1,7 @@
 from aleph.data_structures import Unit, Poset
 from aleph.utils import dag_utils
 from aleph.utils import generate_poset
+import random
 
 def test_trivial_single_level_below():
     n_processes = 4
@@ -29,6 +30,7 @@ def test_trivial_single_level_below():
     
     
 def test_small_nonforking_below():
+    random.seed(123456789)
     n_processes = 5
     n_units = 10
     dag = generate_poset.generate_random_nonforking(n_processes, n_units)
@@ -36,10 +38,12 @@ def test_small_nonforking_below():
             
             
 def test_small_forking_below():
+    random.seed(123456789)
     n_processes = 5
-    n_units = 10
+    n_units = 9
     n_forking = 1
     dag = generate_poset.generate_random_forking(n_processes, n_units, n_forking)
+    dag_utils.dag_to_file(dag, n_processes, 'bad_test.txt')
     check_all_pairs_below(dag, n_processes)
     
     
