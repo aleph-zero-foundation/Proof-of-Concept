@@ -19,6 +19,7 @@ def test_trivial_single_level_below():
     U3 = poset.max_units_per_process[3]
     
     U = Unit(creator_id = 0, parents = [U0, U1], txs = [])
+
     poset.add_unit(U)
     assert poset.below(U0, U)
     assert poset.above(U, U0)
@@ -53,8 +54,8 @@ def check_all_pairs_below(dag, n_processes):
         for nameV, V in unit_dict.items():
             nodeU = (nameU, U.creator_id)
             nodeV = (nameV, V.creator_id)
-            assert poset.below(U,V) == dag_utils.is_reachable(U,V)
-            assert poset.above(U,V) == dag_utils.is_reachable(V,U)
+            assert poset.below(U,V) == dag_utils.is_reachable(dag, nodeU, nodeV)
+            assert poset.above(U,V) == dag_utils.is_reachable(dag, nodeV, nodeU)
     
     
 #dag1 = generate_poset.generate_random_nonforking(5, 5, 'example1.txt')

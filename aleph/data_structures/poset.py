@@ -56,6 +56,9 @@ class Poset:
         '''
 
         # TOTHINK: maybe we should do check_compliance here????
+        
+        # TODO: calling this function here is only a temporary solution for initial tests
+        self.set_self_predecessor_and_height(U)
 
         self.units[U.hash()] = U
 
@@ -536,7 +539,7 @@ class Poset:
         :param unit U: first unit to be tested
         :param unit V: second unit to be tested
         '''
-        return self.below_within_process(self, V, U)
+        return self.below_within_process(V, U)
 
 
 
