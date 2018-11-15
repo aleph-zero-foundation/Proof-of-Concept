@@ -147,7 +147,7 @@ def is_reachable_through_n_intermediate(dag, U, V, n_intermediate):
     
     for node in nodes_below_V:
         if node in nodes_above_U:
-            processes_on_paths.append(node[0])
+            processes_on_paths.append(node[1])
     
     n_processes_on_paths = len(set(processes_on_paths))
     return n_processes_on_paths >= n_intermediate
