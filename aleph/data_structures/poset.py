@@ -50,7 +50,8 @@ class Poset:
             2. sets U's self_predecessor, height, and floor fields,
             3. updates ceil field of predecessors of U,
             4. updates the lists of maximal elements in the poset.
-            5. adds an entry to known_forkers_by_unit
+            5. update forking_height
+            6. (?) adds an entry to known_forkers_by_unit
 
         :param unit U: unit to be added to the poset
         '''
@@ -69,10 +70,28 @@ class Poset:
         U.ceil[U.creator_id] = [U]
         for parent in U.parents:
             self.update_ceil(U, parent)
+            
+            
+        # 4. updates the lists of maximal elements in the poset and   
+        # 5. update forking_height
+        if len(U.parents) == 0:
+            assert self.max_units_per_process[U.creator_id] == [], "A second dealing unit is attempted to be added to the poset"
+            self.max_units_per_process[U.creator_id] = [U]
+        else:
+            if U.self_predecessor in self.max_units_per_process[U.creator_id]:
+                self.max_units_per_process[U.creator_id].remove(U.self_predecessor)
+                self.max_units_per_process[U.creator_id].append(U)
+            else:
+                # a new fork is detected
+                self.max_units_per_process[U.creator_id].append(U)
+                self.forking_height[U.creator_id] = min(self.forking_height[U.creator_id], U.height)
+            
 
-        self.max_units_per_process[U.creator_id] = U
+        
+        
+        
 
-        ## 5. add an entry to known_forkers_by_unit
+        ## 6. add an entry to known_forkers_by_unit
         #forkers = []
         # process_id is known forking if U.floor[process_id] has more than one element
         #for process_id in range(self.n_processes):
@@ -349,7 +368,7 @@ class Poset:
         then consider the set P of all processes that were used as parents
         of nodes created by j at height h, s.t. h_1 <= h < h_2,
         (i can be used as a parent for U) iff (|P|>=n_processes/3)
-        Note that j is not counted in P.
+        Note that i is not counted in P.
         :param unit U: unit whose parent diversity is being tested
         '''
 

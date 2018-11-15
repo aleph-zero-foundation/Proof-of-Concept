@@ -12,12 +12,12 @@ def test_trivial_single_level_below():
         poset.add_unit(bottom_units_per_process[i])
     
     for i in range(n_processes):
-        assert poset.max_units_per_process[i] is bottom_units_per_process[i]
+        assert poset.max_units_per_process[i][0] is bottom_units_per_process[i]
         
-    U0 = poset.max_units_per_process[0]
-    U1 = poset.max_units_per_process[1]
-    U2 = poset.max_units_per_process[2]
-    U3 = poset.max_units_per_process[3]
+    U0 = poset.max_units_per_process[0][0]
+    U1 = poset.max_units_per_process[1][0]
+    U2 = poset.max_units_per_process[2][0]
+    U3 = poset.max_units_per_process[3][0]
     
     U = Unit(creator_id = 0, parents = [U0, U1], txs = [])
 
@@ -32,7 +32,7 @@ def test_trivial_single_level_below():
 def test_small_nonforking_below():
     random.seed(123456789)
     n_processes = 5
-    n_units = 10
+    n_units = 50
     dag = generate_poset.generate_random_nonforking(n_processes, n_units)
     check_all_pairs_below(dag, n_processes)
             
