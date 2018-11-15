@@ -33,17 +33,42 @@ def test_small_nonforking_below():
     random.seed(123456789)
     n_processes = 5
     n_units = 50
-    dag = generate_poset.generate_random_nonforking(n_processes, n_units)
-    check_all_pairs_below(dag, n_processes)
-            
+    repetitions = 30
+    for _ in range(repetitions):    
+        dag = generate_poset.generate_random_nonforking(n_processes, n_units)
+        check_all_pairs_below(dag, n_processes)
+        
+        
+def test_large_nonforking_below():
+    random.seed(123456789)
+    n_processes = 100
+    n_units = 500
+    repetitions = 1
+    for _ in range(repetitions):    
+        dag = generate_poset.generate_random_nonforking(n_processes, n_units)
+        check_all_pairs_below(dag, n_processes)
+    
             
 def test_small_forking_below():
     random.seed(123456789)
-    n_processes = 10
-    n_units = 100
-    n_forking = 2
-    dag = generate_poset.generate_random_forking(n_processes, n_units, n_forking)
-    check_all_pairs_below(dag, n_processes)
+    n_processes = 5
+    n_units = 50
+    repetitions = 30
+    for _ in range(repetitions):
+        n_forking = random.randint(0,n_processes)
+        dag = generate_poset.generate_random_forking(n_processes, n_units, n_forking)
+        check_all_pairs_below(dag, n_processes)
+        
+def test_large_forking_below():
+    random.seed(123456789)
+    n_processes = 100
+    n_units = 500
+    repetitions = 1
+    for _ in range(repetitions):
+        #n_forking = random.randint(0,n_processes)
+        n_forking = 2
+        dag = generate_poset.generate_random_forking(n_processes, n_units, n_forking)
+        check_all_pairs_below(dag, n_processes)
     
     
 def check_all_pairs_below(dag, n_processes):
