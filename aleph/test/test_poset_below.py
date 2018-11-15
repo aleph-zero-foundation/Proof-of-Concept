@@ -39,11 +39,10 @@ def test_small_nonforking_below():
             
 def test_small_forking_below():
     random.seed(123456789)
-    n_processes = 5
-    n_units = 9
-    n_forking = 1
+    n_processes = 10
+    n_units = 100
+    n_forking = 2
     dag = generate_poset.generate_random_forking(n_processes, n_units, n_forking)
-    dag_utils.dag_to_file(dag, n_processes, 'bad_test.txt')
     check_all_pairs_below(dag, n_processes)
     
     
