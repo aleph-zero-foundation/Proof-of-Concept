@@ -27,9 +27,8 @@ def plot(path):
     branch = None
 
     with open(path, 'r') as f:
-        n_processes, genesis_unit = f.readline().split()
-        n_processes = int(n_processes)
-
+        n_processes = int(f.readline())
+        genesis_unit = "G"
         G.add_node(genesis_unit)
         height[genesis_unit] = -1
         creator[genesis_unit] = -1
@@ -39,7 +38,9 @@ def plot(path):
         # set x coordinates of units per process
 
         for line in f:
-            unit, creator_id, parents, self_predecessor  = parse_line(line)
+            unit, creator_id, parents = parse_line(line)
+            if parents == []:
+                parents = ["G"]
 
             creator[unit] = creator_id
             units_per_process[creator_id].append(unit)
@@ -65,6 +66,7 @@ def plot(path):
             for parent in parents:
                 G.add_edge(unit, parent)
 
+
     # pos = graphviz_layout(G, prog='dot')
 
     # find positions of units in the plot
@@ -79,7 +81,7 @@ def plot(path):
         err = 10 * np.random.rand(len(units_per_process[pid]))
         spaces = 60*np.array(heights) + err + 70
         y = dict(zip(units_per_process[pid], spaces))
-        
+
         n_branches = len(branch[pid].values())
         branch_x = np.linspace(-dx/2+5, dx/2-5, n_branches)
         for unit in units_per_process[pid]:

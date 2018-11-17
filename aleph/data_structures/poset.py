@@ -10,215 +10,199 @@ from .. import config
 class Poset:
     '''This class is the core data structure of the Aleph protocol.'''
 
-    def __init__(self, n_processes, process_id, genesis_unit, secret_key, public_key):
+
+    def __init__(self, n_processes, process_id, secret_key, public_key, compliance_rules=None):
         '''
         :param int n_processes: the committee size
-        :param int process_id: identification number of process whose local view is represented by this poset.
-        :param unit genesis_unit: genesis unit shared by all processes
+        :param int process_id: identification number of process whose local view is represented by this poset
+        :param list compliance_rules: list of strings defining which compliance rules are followed by this poset
         '''
         self.n_processes = n_processes
         self.process_id = process_id
-        self.genesis_unit = genesis_unit
+        self.compliance_rules = compliance_rules
 
-        self.units = {genesis_unit.hash(): genesis_unit}
-        self.max_units = [genesis_unit]
+        self.units = {}
         self.max_units_per_process = [[] for _ in range(n_processes)]
-        self.forking_height = [None for _ in range(n_processes)]
+        self.forking_height = [float('inf')] * n_processes
 
         self.secret_key = secret_key
         self.public_key = public_key
 
-        self.level_reached = 0
-        self.prime_units_by_level = {0: [genesis_unit]}
+        #self.level_reached = 0
+        self.prime_units_by_level = {}
 
         # For every unit U maintain a list of processes that can be proved forking by looking at the lower-cone of U
-        self.known_forkers_by_unit = {genesis_unit.hash(): []}
+        #self.known_forkers_by_unit = {}
+
+
+
+#===============================================================================================================================
+# UNITS
+#===============================================================================================================================
+
+
 
     def add_unit(self, U):
         '''
-        Adds a unit compliant with the rules, what was chacked by check_compliance.
+        Adds a unit compliant with the rules, what was checked by check_compliance.
         This method does the following:
             1. adds the unit U to the poset,
             2. sets U's self_predecessor, height, and floor fields,
             3. updates ceil field of predecessors of U,
             4. updates the lists of maximal elements in the poset.
-            5. adds an entry to known_forkers_by_unit
+            5. update forking_height
+            6. (?) adds an entry to known_forkers_by_unit
 
         :param unit U: unit to be added to the poset
         '''
 
-        # 1. add U to the poset
+        # TOTHINK: maybe we should do check_compliance here????
+        
+        # TODO: calling this function here is only a temporary solution for initial tests
+        self.set_self_predecessor_and_height(U)
+
         self.units[U.hash()] = U
 
-        # 2. set self_predecessor
+        U.floor = [[] for _ in range(self.n_processes)]
+        self.update_floor(U)
 
-        if len(U.parents) == 1:
-            # U links directly to the genesis unit
-            U.self_predecessor = None
-        else:
-            # Find the maximum unit of U in the union of lower-cones of its parents
-            # It should uniquely exist
-            combined_floors = self.combine_floors_per_process(U.parents, U.creator_id)
-            assert (len(combined_floors) >= 1), "Unit U has no candidates for predecessors."
-            assert (len(combined_floors) <= 1), "Unit U has more than one candidate for predecessor."
-            U.self_predecessor = combined_floors[0]
-
-        # 2. set height
-        if U.self_predecessor is None:
-            U.height = 0
-        else:
-            U.height = U.self_predecessor.height + 1
-
-        # 2. set floor
-        if len(U.parents) == 1:
-            # U links directly to the genesis unit
-            U.floor = [[] for _ in range(self.n_processes)]
-            U.floor[U.creator_id] = [U]
-        else:
-            self.update_floor(U, U.parents)
-
-        # 3. update ceil field of predecessors of U
         U.ceil = [[] for _ in range(self.n_processes)]
         U.ceil[U.creator_id] = [U]
         for parent in U.parents:
             self.update_ceil(U, parent)
-
-        # 4. update lists of maximal elements
-        prev_max = U.self_predecessor
-        if prev_max in self.max_units:
-            self.max_units.remove(prev_max)
-
-        self.max_units_per_process[U.creator_id] = U
-        self.max_units.append(U)
-
-
-        # 5. add an entry to known_forkers_by_unit
-        forkers = []
-        # process_id is known forking if U.floor[process_id] has more than one element
-        for process_id in range(self.n_processes):
-            if len(U.floor[process_id]) > 1:
-                forkers.append(process_id)
-
-        self.known_forkers_by_unit[U.hash()] = forkers
-
-    def update_floor(self, U, parents):
-        '''
-        Updates floor of the unit U by merging and taking maximums of floors of parents.
-        '''
-        # initialize to empty lists
-        floor = [[] for _ in range(self.n_processes)]
-
-        for process_id in range(self.n_processes):
-            if process_id == U.creator_id:
-                # the floor of U w.r.t. its creator process is just [U]
-                floor[process_id] = [U]
+            
+            
+        # 4. updates the lists of maximal elements in the poset and   
+        # 5. update forking_height
+        if len(U.parents) == 0:
+            assert self.max_units_per_process[U.creator_id] == [], "A second dealing unit is attempted to be added to the poset"
+            self.max_units_per_process[U.creator_id] = [U]
+        else:
+            if U.self_predecessor in self.max_units_per_process[U.creator_id]:
+                self.max_units_per_process[U.creator_id].remove(U.self_predecessor)
+                self.max_units_per_process[U.creator_id].append(U)
             else:
-                floor[process_id] = self.combine_floors_per_process(parents, U.creator_id)
-        U.floor = floor
+                # a new fork is detected
+                self.max_units_per_process[U.creator_id].append(U)
+                self.forking_height[U.creator_id] = min(self.forking_height[U.creator_id], U.height)
+            
 
-    def find_forking_evidence(self, parents, process_id):
+        
+        
+        
+
+        ## 6. add an entry to known_forkers_by_unit
+        #forkers = []
+        # process_id is known forking if U.floor[process_id] has more than one element
+        #for process_id in range(self.n_processes):
+        #    if len(U.floor[process_id]) > 1:
+        #        forkers.append(process_id)
+
+        #self.known_forkers_by_unit[U.hash()] = forkers
+
+
+
+    def create_unit(self, parents, txs):
         '''
-        Checks whether the list of units (parents) contains evidence that process_id is forking.
-        :param list parents: list of units to be checked for evidence of process_id is forking
-        :param int process_id: identification number of process to be verified
-        :returns: Boolean value, True if forking evidence is present, False otherwise.
-        '''
-        # compute the set of all maximal (w.r.t. process_id) units in lower-cones of parents
-        combined_floors = self.combine_floors_per_process(parents, process_id)
-
-        return len(combined_floors) > 1
-
-    def combine_floors_per_process(self, units_list, process_id):
-        '''
-        Combines U.floor[process_id] for all units U in units_list.
-        The result is the set of maximal elements of the union of these lists.
-        :param list units_list: list of units to be considered
-        :param int process_id: identification number of a process
-        :returns: list U that contains maximal elements of the union of floors of units_list w.r.t. process_id
-        '''
-
-        forks = []
-        for U in units_list:
-            # list of elements in parent.floor[process_id] noncomparable with elements from floor[process_id]
-            # this list is then added to floor
-
-            for V in U.floor[process_id]:
-                # This flag checks if there is W comparable with V. If not then we add V to forks
-                found_comparable, replace_index = False, None
-                for k, W in enumerate(forks):
-                    if V.height > W.height and self.above_within_process(V, W):
-                        found_comparable = True
-                        replace_index = k
-                        break
-                    if V.height <= W.height and self.below_within_process(V, W):
-                        found_comparable = True
-                        break
-
-                if not found_comparable:
-                    forks.append(V)
-
-                if replace_index is not None:
-                    floor[process_id][replace_index] = V
-
-        return forks
-
-    def find_maximum_within_process(self, units_list, process_id):
-        '''
-        Finds a unit U in units_list that is above (within process_id)
-        to all units in units_list.
-        :param list units_list: list of units created by process_id
-        :param int process_id: the identification number of a process
-        :returns: unit U that is the maximum of units_list or None if there are several incomparable maximal units.
-        '''
-        #NOTE: for efficiency reasons this returns None if there is no single "maximum"
-        #NOTE: this could be potentially confusing, but returning a set of "maximal" units instead
-        #NOTE: would add unnecessary computation whose result is anyway ignored later on
-
-        maximum_unit = None
-
-        for U in units_list:
-            assert (U.creator_id == process_id), "Expected a list of units created by process_id"
-            if maximum_unit is None:
-                maximum_unit = U
-                continue
-            if self.above_within_process(U, maximum_unit):
-                maximum_unit = U
-                continue
-            if not self.above_within_process(maximum_unit, U):
-                return None
-
-        return maximum_unit
-
-    def update_ceil(self, U, V):
-        '''
-        Adds U to the ceil of V if the list is empty or if the process that created U
-        produced forks that are not higher than U.
-        After addition, it is called recursively for parents of V.
+        Creates a new unit and stores thx in it. Correctness of the txs is checked by a thread listening for new transactions.
+        :param list parents: list of hashes of parent units
+        :param list txs: list of correct transactions
+        :returns: the new-created unit
         '''
 
-        # TODO: at some point we should change it to a version with an explicit stack
-        # TODO: Python has some strange recursion depth limits
-        if V is self.genesis_unit:
-            return
-        if not V.ceil[U.creator_id] or (self.forking_height[U.creator_id] and
-                                        self.forking_height[U.creator_id] <= U.height):
-            # TODO: make sure the below line is correct...
-            V.ceil.append(U)
-            for parent in V.parents:
-                self.update_ceil(U, parent)
+        # NOTE: perhaps we (as an honest process) should always try (if possible)
+        # NOTE: to create a unit that gives evidence of another process forking
 
-    def get_known_forkers(self, U):
+        U = Unit(self.process_id, parents, txs)
+        return U
+
+
+
+    def sign_unit(self, U):
         '''
-        Finds all processes that can be proved forking given evidence in the lower-cone of unit U.
-        :param unit U: unit whose lower-cone should be considered for forking attempts
+        Signs the unit.
+        TODO This method should be probably a part of a process class which we don't have right now.
         '''
 
-        # TODO: make sure this data structure is properly updated when new units are added!
-        # NOTE: this implementation assumes that U has been already added to the poset (data structure has been updated)
+        message = str([U.creator_id, U.parents, U.txs, U.coinshares]).encode()
+        U.signature = self.secret_key.sign(message)
 
-        assert (U.hash() in self.known_forkers_by_unit.keys()), "Unit U has not yet been added to known_forkers_by_unit"
 
-        return self.known_forkers_by_unit[U.hash()]
+
+    def level(self, U):
+        '''
+        Calculates the level in the poset of the unit U.
+        :param unit U: the unit whose level is being requested
+        '''
+        # TODO: so far this is a rather naive implementation -- loops over all prime units at level just below U
+
+        if len(U.parents) == 0:
+            return 0
+
+        if U.level is not None:
+            return U.level
+
+        # let m be the max level of U's parents
+        m = max([self.level(V) for V in U.parents])
+        # now, the level of U is either m or (m+1)
+
+        # need to count all processes that produced a unit V of level m such that U'<<U
+        # we can limit ourselves to prime units V
+        processes_high_below = 0
+
+        for V in self.get_prime_units_by_level(m):
+            if self.high_below(V, U):
+                processes_high_below += 1
+
+        # same as (...)>=2/3*(...) but avoids floating point division
+        U.level = m+1 if 3*processes_high_below >= 2*self.n_processes else m
+        return U.level
+
+
+
+    def check_primeness(self, U):
+        '''
+        Check if the unit is prime.
+        :param unit U: the unit to be checked for being prime
+        '''
+        # U is prime iff it's a bottom unit or its self_predecessor level is strictly smaller
+        return len(U.parents) == 0 or self.level(U) > self.level(U.self_predecessor)
+
+
+
+    def get_prime_units_by_level(self, level):
+        '''
+        Returns the set of all prime units at a given level.
+        :param int level: the requested level of units
+        '''
+        # TODO: this is a naive implementation
+        # TODO: make sure that at creation of a prime unit it is added to the dict self.prime_units_by_level
+        return self.prime_units_by_level[level]
+
+
+
+    def set_self_predecessor_and_height(self, U):
+        '''
+        Computes the self_predecessor of a unit U and fills in the appropriate field in U.
+        :param unit U: unit whose self_predecessor is being computed
+        '''
+        if len(U.parents) == 0:
+            U.self_predecessor = None
+            U.height = 0
+        else:
+            combined_floors = self.combine_floors_per_process(U.parents, U.creator_id)
+            assert (len(combined_floors) >= 1), "Unit U has no candidates for predecessors."
+            assert (len(combined_floors) <= 1), "Unit U has more than one candidate for predecessor."
+            U.self_predecessor = combined_floors[0]
+            U.height = U.self_predecessor.height + 1
+
+
+
+#===============================================================================================================================
+# COMPLIANCE
+#===============================================================================================================================
+
+
 
     def check_compliance(self, U):
         '''
@@ -232,6 +216,9 @@ class Poset:
         :param unit U: unit whose compliance is being tested
         '''
         # TODO: there might have been other compliance rules that have been forgotten...
+        # TODO: should_check() with string arguments is ugly. This is a temporary solution
+
+        should_check = lambda x: (self.compliance_rules is None or x in self.compliance_rules)
 
         # 1. Parents of U are correct.
         if not self.check_parent_correctness(U):
@@ -242,25 +229,27 @@ class Poset:
             return False
 
         # 3. Satisfies anti-fork policy.
-        if not self.check_anti_fork(U):
+        if should_check('anti_fork') and not self.check_anti_fork(U):
             return False
 
         # At this point we know that U has a well-defined self_predecessor
         # We can set it -- needed for subsequent checks
-        self.update_self_predecessor(U)
+        self.set_self_predecessor_and_height(U)
 
         # 4. Satisfies parent diversity rule.
-        if not self.check_parent_diversity(U):
+        if should_check('parent_diversity') and not self.check_parent_diversity(U):
             return False
 
         # 5. Check "growth" rule.
-        if not self.check_growth(U):
+        if should_check('growth') and not self.check_growth(U):
             return False
 
         # 6. Coinshares are OK.
         # TODO: implementation missing
 
         return True
+
+
 
     def check_growth(self, U):
         '''
@@ -273,8 +262,7 @@ class Poset:
         :returns: Boolean value, True if U respects the rule, False otherwise.
         '''
 
-        if len(U.parents) == 1:
-            # U links directly to the genesis_unit
+        if len(U.parents) == 0:
             return True
 
         # U.self_predecessor should be correctly set when invoking this method
@@ -298,12 +286,14 @@ class Poset:
 
         return True
 
+
+
     def check_anti_fork(self, U):
         '''
         Checks if the unit U respects the anti-forking policy, i.e.:
         The following situations A), B) are not allowed:
         A)
-            - There exists a process j, s.t. (one of U's parents was created by j) OR (U was created by j)
+            - There exists a process j, s.t. one of U's parents was created by j
             AND
             - U has as one of the parents a unit that has evidence that j is forking.
         B)
@@ -315,47 +305,21 @@ class Poset:
         :returns: Boolean value, True if U respects the policy, False otherwise.
         '''
 
-        if len(U.parents) == 1:
-            # U links directly to the genesis_unit
+        if len(U.parents) == 0:
             return True
 
         # Check for situation A)
-        forkers_known_by_parents = []
-        for V in U.parents:
-            forkers_known_by_parents.extend(self.known_forkers_by_unit[V.hash()])
-
-        if U.creator_id in forkers_known_by_parents:
-            return False
-
-        for V in U.parents:
-            if V.creator_id in forkers_known_by_parents:
+        parent_processes = set([V.creator_id for V in U.parents])
+        for V, proc in product(U.parents, parent_processes):
+            if self.has_forking_evidence(V, proc):
                 return False
 
         # Check for situation B)
-        if find_forking_evidence(U.parents, U.creator_id):
+        combined_floors = self.combine_floors_per_process(U.parents, U.creator_id)
+        if len(combined_floors) > 1:
             return False
 
         return True
-
-
-    def update_self_predecessor(self, U):
-        '''
-        Computes the self_predecessor of a unit U and fills in the appropriate field in U.
-        :param unit U: unit whose self_predecessor is being computed
-        '''
-
-        if len(U.parents) == 1:
-            # U links directly to the genesis_unit
-            U.self_predecessor = None
-            return
-
-        combined_floors = self.combine_floors_per_process(U.parents, process_id)
-
-        assert len(combined_floors) >= 1, "The unit U has no candidate for self_predecessor among parents."
-
-        assert len(combined_floors) <= 1, "The unit tries to validate its own fork, this should have been checked earlier."
-
-        U.self_predecessor = combined_floors[0]
 
 
 
@@ -370,12 +334,13 @@ class Poset:
 
         return True
 
+
+
     def check_parent_correctness(self, U):
         '''
         Checks whether U has correct parents:
         1. Parents of U exist in the poset
-        2. U has at least 1 parent, and if there is only one then it is the genesis_unit
-        3. If U has >=2 parents then all parents are created by pairwise different processes.
+        2. If U has >=2 parents then all parents are created by pairwise different processes.
         :param unit U: unit whose parents are being checked
         '''
         # 1. Parents of U exist in the poset
@@ -383,20 +348,15 @@ class Poset:
             if V.hash() not in self.units.keys():
                 return False
 
-        # 2. U has at least 1 parent...
-        if len(U.parents) == 0:
-            return False
-
-        if len(U.parents) == 1 and U.parents[0] is not self.genesis_unit:
-            return False
-
-        # 3. If U has parents created by pairwise different processes.
+        # 2. If U has parents created by pairwise different processes.
         if len(U.parents) >= 2:
             parent_processes = set([V.creator_id for V in U.parents])
             if len(parent_processes) < len(U.parents):
                 return False
 
         return True
+
+
 
     def check_parent_diversity(self, U):
         '''
@@ -408,12 +368,12 @@ class Poset:
         then consider the set P of all processes that were used as parents
         of nodes created by j at height h, s.t. h_1 <= h < h_2,
         (i can be used as a parent for U) iff (|P|>=n_processes/3)
-        Note that j is not counted in P.
+        Note that i is not counted in P.
         :param unit U: unit whose parent diversity is being tested
         '''
 
-        # Special case: U's only parent is the genesis_unit
-        if len(U.parents) == 1:
+        # Special case: U is a bottom unit
+        if len(U.parents) == 0:
             return True
 
         # TODO: make sure U.self_predecessor is correctly set when invoking this method
@@ -431,8 +391,8 @@ class Poset:
         W = U.self_predecessor
         # traverse the poset down from U, through self_predecessor
         while True:
-            # W's only parent is the genesis unit -> STOP
-            if len(W.parents)==1 and W.parents[0] is self.genesis_unit:
+            # W is a bottom unit -> STOP
+            if len(W.parents) == 0:
                 break
             # flag for whether at the current level there is any occurence of a parent process proposed by U
             proposed_parent_process_occurence = False
@@ -456,121 +416,101 @@ class Poset:
 
         return True
 
-    def create_unit(self, parents, txs):
+
+
+#===============================================================================================================================
+# FLOOR AND CEIL
+#===============================================================================================================================
+
+
+
+    def update_floor(self, U):
         '''
-        Creates a new unit and stores thx in it. Correctness of the txs is checked by a thread listening for new transactions.
-        :param list parents: list of hashes of parent units
-        :param list txs: list of correct transactions
-        :returns: the new-created unit
+        Updates floor of the unit U by merging and taking maximums of floors of parents.
         '''
+        U.floor[U.creator_id] = [U]
+        if U.parents:
+            for process_id in range(self.n_processes):
+                if process_id != U.creator_id:
+                    U.floor[process_id] = self.combine_floors_per_process(U.parents, process_id)
 
-        # NOTE: perhaps we (as an honest process) should always try (if possible)
-        # NOTE: to create a unit that gives evidence of another process forking
 
-        U = Unit(self.process_id, parents, txs)
-        return U
 
-    def sign_unit(self, U):
+    def update_ceil(self, U, V):
         '''
-        Signs the unit.
-        TODO This method should be probably a part of a process class which we don't have right now.
+        Adds U to the ceil of V if U is not comparable with any unit already present in ceil V.
+        If such an addition happens, ceil is updated recursively in the lower cone of V.
         '''
+        # TODO: at some point we should change it to a version with an explicit stack
+        # TODO: Python has some strange recursion depth limits
 
-        message = str([U.creator_id, U.parents, U.txs, U.coinshares]).encode()
-        U.signature = self.secret_key.sign(message)
+        # if U is above any of V.ceil[i] then no update is needed in V nor its lower cone
+        for W in V.ceil[U.creator_id]:
+            if self.below_within_process(W, U):
+                return
+        # U is not above any of V.ceil[i], needs to be added and propagated recursively
+        V.ceil[U.creator_id].append(U)
+        for parent in V.parents:
+            self.update_ceil(U, parent)
 
-    def level(self, U):
+
+
+    def combine_floors_per_process(self, units_list, process_id):
         '''
-        Calculates the level in the poset of the unit U.
-        :param unit U: the unit whose level is being requested
+        Combines U.floor[process_id] for all units U in units_list.
+        The result is the set of maximal elements of the union of these lists.
+        :param list units_list: list of units to be considered
+        :param int process_id: identification number of a process
+        :returns: list U that contains maximal elements of the union of floors of units_list w.r.t. process_id
         '''
-        # TODO: so far this is a rather naive implementation -- loops over all prime units at level just below U
+        assert len(units_list) > 0, "combine_floors_per_process was called on an empty unit list"
 
-        if U is self.genesis_unit:
-            return 0
+        # initialize forks with the longest floor from units_list
+        lengths = [len(U.floor[process_id]) for U in units_list]
+        index = lengths.index(max(lengths))
+        forks = units_list[index].floor[process_id][:]
 
-        if U.level is not None:
-            return U.level
+        #gather all other floor members in one list
+        candidates = [V for i, U in enumerate(units_list) if i != index for V in U.floor[process_id]]
 
-        # let m be the max level of U's parents
-        m = max([V.level for V in U.parents])
-        # now, the level of U is either m or (m+1)
+        for U in candidates:
+            # This flag checks if there is W comparable with U. If not then we add U to forks
+            found_comparable, replace_index = False, None
+            for k, W in enumerate(forks):
+                if U.height > W.height and self.above_within_process(U, W):
+                    found_comparable = True
+                    replace_index = k
+                    break
+                if U.height <= W.height and self.below_within_process(U, W):
+                    found_comparable = True
+                    break
 
-        # need to count all processes that produced a unit V of level m such that U'<<U
-        # we can limit ourselves to prime units V
-        processes_high_below = 0
+            if not found_comparable:
+                forks.append(U)
 
-        for V in self.get_prime_units_by_level(m):
-            if self.high_below(V, U):
-                processes_high_below += 1
+            if replace_index is not None:
+                forks[replace_index] = U
 
-        # same as (...)>=2/3*(...) but avoids floating point division
-        if 3*processes_high_below >= 2*self.n_processes:
-            return m+1
-        else:
-            return m
+        return forks
 
-    def choose_coinshares(self, unit):
+
+
+    def has_forking_evidence(self, unit, process_id):
         '''
-        Implements threshold_coin algorithm from the paper.
+        Checks if a unit has in its lower cone an evidence that process_id is forking.
+        :param unit unit: unit to be checked for evidence of process_id forking
+        :param int process_id: identification number of process to be verified
+        :returns: True if forking evidence is present, False otherwise
         '''
+        return len(unit.floor[process_id]) > 1
 
-        pass
 
-    def check_primeness(self, U):
-        '''
-        Check if the unit is prime.
-        :param unit U: the unit to be checked for being prime
-        '''
-        if (U is self.genesis_unit):
-            return True
 
-        # U is prime iff its self_predecessor level is strictly smaller
-        return self.level(U) > self.level(U.self_predecessor)
+#===============================================================================================================================
+# RELATIONS
+#===============================================================================================================================
 
-    def rand_maximal(self):
-        '''
-        Returns a randomly chosen maximal unit in the poset.
-        '''
 
-        pass
-
-    def my_maximal(self):
-        '''
-        Returns a randomly chosen maximal unit that is above a last created unit by this process.
-        '''
-
-        pass
-
-    def get_prime_units_by_level(self, level):
-        '''
-        Returns the set of all prime units at a given level.
-        :param int level: the requested level of units
-        '''
-        # TODO: this is a naive implementation
-        # TODO: make sure that at creation of a prime unit it is added to the dict self.prime_units_by_level
-        return self.prime_units_by_level[level]
-
-    def get_prime_units(self):
-        '''
-        Returns the set of all prime units.
-        '''
-
-        pass
-
-    def timing_units(self):
-        '''
-        Returns a set of all timing units.
-        '''
-
-        pass
-
-    def diff(self, other):
-        '''
-        Returns a set of units that are in this poset and that are not in the other poset.
-        '''
-
-        pass
 
     def below_within_process(self, U, V):
         '''
@@ -584,7 +524,7 @@ class Poset:
             return False
         process_id = U.creator_id
         # if process_id is non-forking or at least U is below the process_id's forking level then clearly U has a path to V
-        if (self.forking_height[process_id] is None) or U.height <= self.forking_height[process_id]:
+        if U.height < self.forking_height[process_id]:
             return True
 
         # at this point we know that this is a forking situation: we need go down the tree from V until we reach U's height
@@ -597,6 +537,8 @@ class Poset:
         # TODO: make sure the below line does what it should
         return (W is U)
 
+
+
     def strictly_below_within_process(self, U, V):
         '''
         Checks if there exists a path from U to V going only through units created by their creator process.
@@ -605,10 +547,9 @@ class Poset:
         :param unit U: first unit to be tested
         :param unit V: second unit to be tested
         '''
-        assert (U.creator_id == V.creator_id and U.creator_id is not None) , "expected two processes created by the same process"
-        if U is V:
-            return False
-        return below_within_process(U,V)
+        return (U is not V) and self.below_within_process(U,V)
+
+
 
     def above_within_process(self, U, V):
         '''
@@ -617,7 +558,8 @@ class Poset:
         :param unit U: first unit to be tested
         :param unit V: second unit to be tested
         '''
-        return below_within_process(self, V, U)
+        return self.below_within_process(V, U)
+
 
 
     def below(self, U, V):
@@ -626,14 +568,12 @@ class Poset:
         :param unit U: first unit to be tested
         :param unit V: second unit to be tested
         '''
-        proc_U = U.creator_id
-        proc_V = V.creator_id
-
-        for W in V.floor[proc_U]:
-            if self.below_within_process(U, V):
+        for W in V.floor[U.creator_id]:
+            if self.below_within_process(U, W):
                 return True
-
         return False
+
+
 
     def above(self, U, V):
         '''
@@ -643,13 +583,7 @@ class Poset:
         '''
         return self.below(V, U)
 
-    def high_above(self, U, V):
-        '''
-        Checks if U >> V.
-        :param unit U: first unit to be tested
-        :param unit V: second unit to be tested
-        '''
-        return self.high_below(V, U)
+
 
     def high_below(self, U, V):
         '''
@@ -658,7 +592,6 @@ class Poset:
         :param unit V: second unit to be tested
         '''
         processes_in_support = 0
-
         for process_id in range(self.n_processes):
             in_support = False
             # Because process_id could be potentially forking, we need to check
@@ -677,8 +610,89 @@ class Poset:
             if in_support:
                 processes_in_support += 1
 
+            # This might be a little bit faster (and more Pythonic ;))
+            #if any([self.below_within_process(U_ceil, V_floor) for U_ceil in U.ceil[process_id] for V_floor in V.floor[process_id]]):
+            #    processes_in_support += 1
+
         # same as processes_in_support>=2/3 n_procesees but avoids floating point division
         return 3*processes_in_support >= 2*self.n_processes
+
+
+
+    def high_above(self, U, V):
+        '''
+        Checks if U >> V.
+        :param unit U: first unit to be tested
+        :param unit V: second unit to be tested
+        '''
+        return self.high_below(V, U)
+
+
+
+#===============================================================================================================================
+# THE LAND OF UNUSED CODE AND WISHFUL THINKING ;)
+#===============================================================================================================================
+
+
+
+#    def find_maximum_within_process(self, units_list, process_id):
+#        '''
+#        Finds a unit U in units_list that is above (within process_id)
+#        to all units in units_list.
+#        :param list units_list: list of units created by process_id
+#        :param int process_id: the identification number of a process
+#        :returns: unit U that is the maximum of units_list or None if there are several incomparable maximal units.
+#        '''
+#        #NOTE: for efficiency reasons this returns None if there is no single "maximum"
+#        #NOTE: this could be potentially confusing, but returning a set of "maximal" units instead
+#        #NOTE: would add unnecessary computation whose result is anyway ignored later on
+#
+#        maximum_unit = None
+#
+#        for U in units_list:
+#            assert (U.creator_id == process_id), "Expected a list of units created by process_id"
+#            if maximum_unit is None:
+#                maximum_unit = U
+#                continue
+#            if self.above_within_process(U, maximum_unit):
+#                maximum_unit = U
+#                continue
+#            if not self.above_within_process(maximum_unit, U):
+#                return None
+#
+#        return maximum_unit
+
+
+#    def get_known_forkers(self, U):
+#        '''
+#        Finds all processes that can be proved forking given evidence in the lower-cone of unit U.
+#        :param unit U: unit whose lower-cone should be considered for forking attempts
+#        '''
+#
+#        # TODO: make sure this data structure is properly updated when new units are added!
+#        # NOTE: this implementation assumes that U has been already added to the poset (data structure has been updated)
+#
+#        assert (U.hash() in self.known_forkers_by_unit.keys()), "Unit U has not yet been added to known_forkers_by_unit"
+#
+#        return self.known_forkers_by_unit[U.hash()]
+
+
+    def choose_coinshares(self, unit):
+        '''
+        Implements threshold_coin algorithm from the paper.
+        '''
+
+        pass
+
+
+
+    def diff(self, other):
+        '''
+        Returns a set of units that are in this poset and that are not in the other poset.
+        '''
+
+        pass
+
 
 
     def unit_by_height(self, process_id, height):
@@ -687,3 +701,41 @@ class Poset:
         '''
 
         pass
+
+
+
+    def rand_maximal(self):
+        '''
+        Returns a randomly chosen maximal unit in the poset.
+        '''
+
+        pass
+
+
+
+    def my_maximal(self):
+        '''
+        Returns a randomly chosen maximal unit that is above a last created unit by this process.
+        '''
+
+        pass
+
+
+
+    def get_prime_units(self):
+        '''
+        Returns the set of all prime units.
+        '''
+
+        pass
+
+
+
+    def timing_units(self):
+        '''
+        Returns a set of all timing units.
+        '''
+
+        pass
+
+
