@@ -588,6 +588,10 @@ class Poset:
         '''
         processes_in_support = 0
         for process_id in range(self.n_processes):
+            #if process_id == U.creator_id or process_id == V.creator_id:
+            #    processes_in_support += 1
+            #    continue
+
             in_support = False
             # Because process_id could be potentially forking, we need to check
             # if there exist U_ceil in U.ceil[process_id] and V_floor in V.floor[process_id]

@@ -28,8 +28,8 @@ def test_large_nonforking_below():
 def test_small_forking_below():
     random.seed(123456789)
     n_processes = 5
-    n_units = 11
-    repetitions = 15
+    n_units = 50
+    repetitions = 30
     for _ in range(repetitions):
         #n_forking = random.randint(0,n_processes)
         n_forking = 1
@@ -41,7 +41,7 @@ def test_large_forking_below():
     random.seed(123456789)
     n_processes = 30
     n_units = 100
-    repetitions = 1
+    repetitions = 10
     for _ in range(repetitions):
         #n_forking = random.randint(0,n_processes)
         n_forking = 2
