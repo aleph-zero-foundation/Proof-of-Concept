@@ -76,7 +76,7 @@ def plot(dag, n_processes):
         # set self_predecessor[unit]
         self_predecessor[unit] = get_self_predecessor(dag, (unit, creator_id))
         if self_predecessor[unit]:
-            predecessor = self_predecessor[unit][0][0]
+            predecessor = self_predecessor[unit][0]
             self_predecessor[unit] = predecessor
             if predecessor in self_ancestor:
                 self_ancestor[predecessor].append(unit)

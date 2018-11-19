@@ -250,7 +250,9 @@ def get_self_predecessor(dag, node):
     if len(below_within_process) == 0:
         return None
     else:
-        return compute_maximal_from_subset(dag, below_within_process)
+        list_maximal = compute_maximal_from_subset(dag, below_within_process)
+        assert len(list_maximal) == 1
+        return list_maximal[0]
 
 
 
@@ -349,5 +351,22 @@ def maximal_units_per_process(dag, process_id):
     maximal_units = compute_maximal_from_subset(dag, units_per_process)
 
     return maximal_units
+
+def check_parent_diversity(dag, U, n_processes, treshold):
+    #for V in dag[U]:
+    #    if V[1] == U[1]:
+    #        continue
+    #    process_id = V[1]
+
+    pass
+
+
+def check_growth(dag, node):
+    self_predecessor = get_self_predecessor(dag, node)
+
+    for parent in dag[node]:
+        if parent is not self_predecessor and is_reachable(dag, parent, self_predecessor):
+            return False
+    return True
 
 
