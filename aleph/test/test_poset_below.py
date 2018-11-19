@@ -42,7 +42,7 @@ def test_small_nonforking_below():
 def test_large_nonforking_below():
     random.seed(123456789)
     n_processes = 100
-    n_units = 500
+    n_units = 200
     repetitions = 1
     for _ in range(repetitions):    
         dag = generate_poset.generate_random_nonforking(n_processes, n_units)
@@ -62,7 +62,7 @@ def test_small_forking_below():
 def test_large_forking_below():
     random.seed(123456789)
     n_processes = 100
-    n_units = 500
+    n_units = 200
     repetitions = 1
     for _ in range(repetitions):
         #n_forking = random.randint(0,n_processes)
