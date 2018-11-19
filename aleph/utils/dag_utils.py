@@ -51,10 +51,10 @@ def dag_to_file(dag, n_processes, file_name):
 
 
 def get_self_predecessor(dag, node):
-    process_id = node[1]
+    pid = node[1]
     below_within_process = []
     for dag_node, parents in dag.items():
-        if dag_node != node and is_reachable(dag_node, node):
+        if dag_node[1] == pid and dag_node != node and is_reachable(dag, dag_node, node):
             below_within_process.append(dag_node)
 
     if len(below_within_process) == 0:
