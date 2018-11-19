@@ -44,36 +44,28 @@ class Poset:
 
     def add_unit(self, U):
         '''
-        Adds a unit compliant with the rules, what was checked by check_compliance.
+        Add a unit compliant with the rules, what was checked by check_compliance.
         This method does the following:
-            1. adds the unit U to the poset,
-            2. sets U's self_predecessor, height, and floor fields,
-            3. updates ceil field of predecessors of U,
-            4. updates the lists of maximal elements in the poset.
-            5. update forking_height
-            6. (?) adds an entry to known_forkers_by_unit
+            0. set U's self_predecessor, height, and floor fields (temporary!)
+            1. add the unit U to the poset,
+            2. update the lists of maximal elements in the poset.
+            3. update forking_height
+            3. set floor attribute of U
+            3. set ceil attribute of U and update ceil of predecessors of U
+            6. #(?) adds an entry to known_forkers_by_unit
 
         :param unit U: unit to be added to the poset
         '''
 
         # TOTHINK: maybe we should do check_compliance here????
-        
+
         # TODO: calling this function here is only a temporary solution for initial tests
         self.set_self_predecessor_and_height(U)
 
         self.units[U.hash()] = U
 
-        U.floor = [[] for _ in range(self.n_processes)]
-        self.update_floor(U)
-
-        U.ceil = [[] for _ in range(self.n_processes)]
-        U.ceil[U.creator_id] = [U]
-        for parent in U.parents:
-            self.update_ceil(U, parent)
-            
-            
-        # 4. updates the lists of maximal elements in the poset and   
-        # 5. update forking_height
+        # 2. updates the lists of maximal elements in the poset and
+        # 3. update forking_height
         if len(U.parents) == 0:
             assert self.max_units_per_process[U.creator_id] == [], "A second dealing unit is attempted to be added to the poset"
             self.max_units_per_process[U.creator_id] = [U]
@@ -85,11 +77,14 @@ class Poset:
                 # a new fork is detected
                 self.max_units_per_process[U.creator_id].append(U)
                 self.forking_height[U.creator_id] = min(self.forking_height[U.creator_id], U.height)
-            
 
-        
-        
-        
+        U.floor = [[] for _ in range(self.n_processes)]
+        self.update_floor(U)
+
+        U.ceil = [[] for _ in range(self.n_processes)]
+        U.ceil[U.creator_id] = [U]
+        for parent in U.parents:
+            self.update_ceil(U, parent)
 
         ## 6. add an entry to known_forkers_by_unit
         #forkers = []
