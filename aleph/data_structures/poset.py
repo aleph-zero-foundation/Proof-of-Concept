@@ -261,21 +261,8 @@ class Poset:
         assert (U.self_predecessor is not None), "The self_predecessor field has not been filled for U"
 
         for V in U.parents:
-            if V.creator_id == U.creator_id:
-                continue
-            floor_predecessor = U_self_predecessor.floor[V.creator_id]
-
-            assert (len(floor_predecessor) <= 1), "The creator of V is known to be forking, it should have been rejected before."
-
-            if len(floor_predecessor) == 0:
-                # this means that the creator of U never linked to V.creator_id before
-                pass
-
-            elif len(floor_predecessor) == 1:
-                V_previous = floor_predecessor[0]
-                if not self.strictly_below_within_process(V_previous, V):
-                    return False
-
+            if V.creator_id != U.creator_id and self.below(V, U.self_predecessor):
+                return False
         return True
 
 
