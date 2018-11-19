@@ -8,13 +8,120 @@ and process_id is the id of its creator.
 '''
 
 from aleph.data_structures import Poset, Unit
+import random
 
 
-def _create_node_line(node_name, process_id, parent_names):
-    line = '%s %d ' % (node_name, process_id)
-    for name in parent_names:
-        line = line + name + ' '
-    return line
+
+def check_new_unit_correctness(dag, new_unit, new_unit_parents, forkers):
+    '''
+    Check whether the new unit does not introduce a diamond structure and
+    whether the growth rule is preserved
+    Returns the self_predecessor of new_unit if adding new_unit is correct and False otherwise
+    '''
+    process_id = new_unit[1]
+    old_maximal_per_process = maximal_units_per_process(dag, process_id)
+
+    below_per_process = []
+    dag[new_unit] = new_unit_parents
+    for unit in dag.keys():
+        if unit[1] == process_id and unit is not new_unit and is_reachable(dag, unit, new_unit):
+            below_per_process.append(unit)
+    maximal_below_per_process = compute_maximal_from_subset(dag, below_per_process)
+    dag.pop(new_unit, None)
+
+    if len(maximal_below_per_process) !=1:
+        return False
+
+    self_predecessor = maximal_below_per_process[0]
+    if process_id not in forkers:
+        assert len(old_maximal_per_process) == 1
+        if self_predecessor != old_maximal_per_process[0]:
+            return False
+
+    for parent in new_unit_parents:
+        if parent is not self_predecessor and is_reachable(dag, parent, self_predecessor):
+            return False
+    return self_predecessor
+
+
+
+def generate_random_nonforking(n_processes, n_units, file_name = None):
+    '''
+    Generates a random non-forking poset with n_processes processes and saves it to file_name.
+    Does not return any value.
+    :param int n_processes: the number of processes in poset
+    :param int n_units: the number of units in the process beyond n_processes initial units,
+    hence the total number of units is (n_processes + n_units)
+    '''
+    process_heights = [0] * n_processes
+    dag = {}
+    for process_id in range(n_processes):
+        dag[('U_0_%d' % process_id, process_id)] = []
+
+    for _ in range(n_units):
+        process_id = random.sample(range(n_processes), 1)[0]
+        all_but_process_id = list(range(n_processes))
+        all_but_process_id.remove(process_id)
+        parent_processes = [process_id] + random.sample(all_but_process_id , 1)
+        unit_height = process_heights[process_id] + 1
+        unit_name = generate_unit_name(unit_height, process_id)
+        node = (unit_name, process_id)
+        parent_nodes = [(generate_unit_name(process_heights[id], id), id) for id in parent_processes]
+        dag[node] = parent_nodes
+        process_heights[process_id] += 1
+
+    if file_name:
+        dag_to_file(dag, n_processes, file_name)
+
+    return dag
+
+
+
+def generate_random_forking(n_processes, n_units, n_forkers, file_name = None):
+    '''
+    Generates a random poset with n_processes processes, of which n_forkers are forking and saves it to file_name.
+    The growth property is guaranteed to be satsfied and there are no "diamonds" within forking processes.
+    In other words, the forking processes can only create trees.
+    Does not return any value.
+    :param int n_processes: the number of processes in poset
+    :param int n_forkers: the number of forking processes
+    :param int n_units: the number of units in the process beyond genesis + n_processes initial units,
+    hence the total number of units is (1 + n_processes + n_units)
+    '''
+    forkers = random.sample(range(n_processes), n_forkers)
+    node_heights = {}
+    dag = {}
+    for process_id in range(n_processes):
+        unit_name = generate_unit_name(0, process_id)
+        dag[(unit_name, process_id)] = []
+        node_heights[(unit_name, process_id)] = 0
+
+
+    while len(dag) < n_processes + n_units:
+        process_id = random.sample(range(n_processes), 1)[0]
+        new_unit_name = "temp"
+        new_unit = (new_unit_name, process_id)
+        new_unit_parents = random.sample(dag.keys(), 2)
+        self_predecessor = check_new_unit_correctness(dag, new_unit, new_unit_parents, forkers)
+        if not self_predecessor:
+            continue
+        new_unit_height = node_heights[self_predecessor] + 1
+        new_unit_no = count_nodes_by_process_height(node_heights, process_id, new_unit_height)
+        unit_name = generate_unit_name(new_unit_height, process_id, new_unit_no)
+        parent_names = [parent[0] for parent in new_unit_parents]
+        dag[(unit_name,process_id)] = new_unit_parents
+        node_heights[(unit_name,process_id)] = new_unit_height
+
+    if file_name:
+        dag_to_file(dag, n_processes, file_name)
+
+    return dag
+
+
+
+#======================================================================================================================
+
+
 
 def topological_sort(dag):
     '''
@@ -39,28 +146,17 @@ def topological_sort(dag):
                 nodes_included.add(node)
     return list(topological_list)
 
-def dag_to_file(dag, n_processes, file_name):
-    topological_list = topological_sort(dag)
-    with open(file_name, 'w') as f:
-        f.write('%d\n' % n_processes)
-        for node in topological_list:
-            parent_nodes = dag[node]
-            line = _create_node_line(node[0], node[1], [parent_node[0] for parent_node in parent_nodes])
-            f.write(line+'\n')
 
 
+def reversed_dag(dag):
+    rev_dag = {node : [] for node in dag.keys()}
+    for node, parents in dag.items():
+        for parent_node in parents:
+            rev_dag[parent_node].append(node)
+    return rev_dag
 
-def get_self_predecessor(dag, node):
-    pid = node[1]
-    below_within_process = []
-    for dag_node, parents in dag.items():
-        if dag_node[1] == pid and dag_node != node and is_reachable(dag, dag_node, node):
-            below_within_process.append(dag_node)
 
-    if len(below_within_process) == 0:
-        return None
-    else:
-        return compute_maximal_from_subset(dag, below_within_process)
+#======================================================================================================================
 
 
 def poset_from_dag(dag, n_processes):
@@ -84,6 +180,17 @@ def poset_from_dag(dag, n_processes):
         unit_dict[unit_name] = U
 
     return poset_from_dag, unit_dict
+
+
+
+def dag_to_file(dag, n_processes, file_name):
+    topological_list = topological_sort(dag)
+    with open(file_name, 'w') as f:
+        f.write('%d\n' % n_processes)
+        for node in topological_list:
+            parent_nodes = dag[node]
+            line = create_node_line(node[0], node[1], [parent_node[0] for parent_node in parent_nodes])
+            f.write(line+'\n')
 
 
 
@@ -111,6 +218,50 @@ def dag_from_file(file_name):
         name_to_process_id[unit_name] = unit_creator_id
 
     return dag, n_processes
+
+
+
+def create_node_line(node_name, process_id, parent_names):
+    line = '%s %d ' % (node_name, process_id)
+    for name in parent_names:
+        line = line + name + ' '
+    return line
+
+
+
+def generate_unit_name(unit_height, process_id, parallel_no = 0):
+    if parallel_no == 0:
+        name = "U_%d_%d" % (unit_height, process_id)
+    else:
+        name = "U_%d_%d_%d" % (unit_height, process_id, parallel_no)
+    return name
+
+
+#======================================================================================================================
+
+
+def get_self_predecessor(dag, node):
+    pid = node[1]
+    below_within_process = []
+    for dag_node, parents in dag.items():
+        if dag_node[1] == pid and dag_node != node and is_reachable(dag, dag_node, node):
+            below_within_process.append(dag_node)
+
+    if len(below_within_process) == 0:
+        return None
+    else:
+        return compute_maximal_from_subset(dag, below_within_process)
+
+
+
+def count_nodes_by_process_height(node_heights, process_id, height):
+    count = 0
+    for node, node_height in node_heights.items():
+        if node[1] == process_id and height == node_height:
+            count += 1
+    return count
+
+
 
 def is_reachable(dag, U, V):
     '''Checks whether V is reachable from U in a DAG, using BFS
@@ -154,6 +305,7 @@ def is_reachable_through_n_intermediate(dag, U, V, n_intermediate):
     return n_processes_on_paths >= n_intermediate
 
 
+
 def nodes_below(dag, V):
     '''
     Finds the set of all nodes U that have a path from U to V.
@@ -172,12 +324,6 @@ def nodes_below(dag, V):
         have_path_to_V.add(node)
     return have_path_to_V
 
-def reversed_dag(dag):
-    rev_dag = {node : [] for node in dag.keys()}
-    for node, parents in dag.items():
-        for parent_node in parents:
-            rev_dag[parent_node].append(node)
-    return rev_dag
 
 
 def compute_maximal_from_subset(dag, subset):
@@ -191,6 +337,7 @@ def compute_maximal_from_subset(dag, subset):
         if is_maximal:
             maximal_from_subset.append(U)
     return maximal_from_subset
+
 
 
 def maximal_units_per_process(dag, process_id):
