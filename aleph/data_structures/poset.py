@@ -249,10 +249,7 @@ class Poset:
     def check_growth(self, U):
         '''
         Checks if the unit U, created by process j, respects the "growth" rule.
-        Suppose U wants to use a unit V as its parent and let i (not equal to j) be the creator of V.
-        Let U_previous be the highest ancestor of U, created by j
-        that has as a parent a unit V_previous created by i.
-        Then, we force V_previous < V (strictly less than).
+        No parent of U can be below the self predecessor of U.
         :param unit U: unit that is tested against the grow rule
         :returns: Boolean value, True if U respects the rule, False otherwise.
         '''
@@ -276,7 +273,7 @@ class Poset:
 
             elif len(floor_predecessor) == 1:
                 V_previous = floor_predecessor[0]
-                if not self.strictly_below_within_process(V_predecessor, V):
+                if not self.strictly_below_within_process(V_previous, V):
                     return False
 
         return True
