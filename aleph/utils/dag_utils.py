@@ -18,7 +18,7 @@ def check_parent_diversity(dag, U, n_processes, treshold):
 
     pass
 
-def check_anti_forking(dag, U, n_processes, treshold):
+def check_anti_forking(dag, U, n_processes):
     pass
 
 
@@ -34,13 +34,6 @@ def check_introduce_new_fork(dag, new_unit, new_unit_parents):
     pass
 
 
-def check_well_defined_self_predecessor(dag, new_unit, new_unit_parents):
-    assert new_unit not in dag.keys()
-    dag[new_unit] = new_unit_parents
-    result = get_self_predecessor(dag, new_unit)
-    dag.pop(new_unit)
-    return result
-
 
 
 def check_new_unit_correctness(dag, new_unit, new_unit_parents, forkers):
@@ -52,16 +45,19 @@ def check_new_unit_correctness(dag, new_unit, new_unit_parents, forkers):
     process_id = new_unit[1]
     old_maximal_per_process = maximal_units_per_process(dag, process_id)
 
-    self_predecessor = check_well_defined_self_predecessor(dag, new_unit, new_unit_parents)
+    self_predecessor = get_self_predecessor(dag, new_unit, new_unit_parents)
+
+    if self_predecessor is None:
+        return False
 
     if process_id not in forkers:
         assert len(old_maximal_per_process) == 1
         if self_predecessor != old_maximal_per_process[0]:
             return False
 
-    if check_growth(dag, node_self_predecessor, node_parents):
+    if check_growth(dag, self_predecessor, new_unit_parents):
         return self_predecessor
-    else
+    else:
         return False
 
 
@@ -261,12 +257,9 @@ def generate_unit_name(unit_height, process_id, parallel_no = 0):
 #======================================================================================================================
 
 
-def get_self_predecessor(dag, node):
+def get_self_predecessor(dag, node, parent_nodes):
     pid = node[1]
-    below_within_process = []
-    for dag_node, parents in dag.items():
-        if dag_node[1] == pid and dag_node != node and is_reachable(dag, dag_node, node):
-            below_within_process.append(dag_node)
+    below_within_process = [node_below for node_below in nodes_below_set(dag, parent_nodes) if node_below[1] == pid]
 
     if len(below_within_process) == 0:
         return None
@@ -328,25 +321,29 @@ def is_reachable_through_n_intermediate(dag, U, V, n_intermediate):
     n_processes_on_paths = len(set(processes_on_paths))
     return n_processes_on_paths >= n_intermediate
 
+def nodes_below_set(dag, set_of_nodes):
+    '''
+    Finds the set of all nodes U that have a path from U to one of nodes in set_of_nodes.
+    '''
+    have_path = set([])
+    node_head = set(set_of_nodes)
+    while node_head:
+        node  = node_head.pop()
+        if node not in have_path:
+            have_path.add(node)
+            for parent_node in dag[node]:
+                if parent_node in have_path:
+                    continue
+                node_head.add(parent_node)
+
+    return list(have_path)
 
 
 def nodes_below(dag, V):
     '''
     Finds the set of all nodes U that have a path from U to V.
     '''
-    have_path_to_V = set([])
-    node_head = set([V])
-    while node_head:
-        node  = node_head.pop()
-        if node not in have_path_to_V:
-            have_path_to_V.add(node)
-            for parent_node in dag[node]:
-                if parent_node in have_path_to_V:
-                    continue
-                node_head.add(parent_node)
-
-        have_path_to_V.add(node)
-    return have_path_to_V
+    return nodes_below_set(dag, [V])
 
 
 
