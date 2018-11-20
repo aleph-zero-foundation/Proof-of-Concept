@@ -15,14 +15,12 @@ class DAG:
     def __iter__(self): return iter(self.nodes)
     def __len__(self): return len(self.nodes)
 
-
-    def pid(self, node):
-        return self.pids[node]
+    def pid(self, node): return self.pids[node]
+    def parents(self, node): return iter(self.nodes[node])
 
 
     def add(self, name, pid, parents):
         assert all(p in self for p in parents), 'Parents of {} are not in DAG'.format(name)
-
         self.pids[name] = pid
         self.nodes[name] = parents[:]
 
@@ -41,30 +39,69 @@ class DAG:
 
             if node not in have_path_to_V:
                 have_path_to_V.add(node)
-                for parent_node in self.nodes[node]:
-                    if parent_node in have_path_to_V:
+                for parent in self.parents(node):
+                    if parent in have_path_to_V:
                         continue
-                    node_head.add(parent_node)
+                    node_head.add(parent)
 
         return False
+    below = is_reachable
 
 
-    def nodes_below(self, V):
+    def nodes_below(self, arg):
         '''
-        Finds the set of all nodes U that have a path from U to V.
+        Finds the set of all nodes U that are below arg (either a single node or a set of nodes).
         '''
-        have_path_to_V = set()
-        node_head = set([V])
+        ret = set()
+        node_head = set([arg]) if isinstance(arg, str) else set(arg)
         while node_head:
             node  = node_head.pop()
-            if node not in have_path_to_V:
-                have_path_to_V.add(node)
-                for parent_node in self.nodes[node]:
-                    if parent_node in have_path_to_V:
+            if node not in ret:
+                ret.add(node)
+                for parent_node in self.parents(node):
+                    if parent_node in ret:
                         continue
                     node_head.add(parent_node)
 
-        return have_path_to_V
+        return ret
+
+
+    def is_reachable_through_n(self, U, V, n):
+        '''
+        Checks whether the number of different processes that have units on some path
+        from U to V in dag is at least n.
+        '''
+        below_V = self.nodes_below(V)
+        above_U = self.reverse().nodes_below(U)
+        return len({self.pid(node) for node in (below_V & above_U)}) >= n
+
+
+    def self_predecessor(self, pid, parent_nodes):
+        below_within_process = [node_below for node_below in self.nodes_below(parent_nodes) if self.pid(node_below) == pid]
+
+        if len(below_within_process) == 0:
+            return None
+        list_maximal = self.compute_maximal_from_subset(below_within_process)
+        if len(list_maximal) != 1:
+            return None
+        return list_maximal[0]
+
+
+    def compute_maximal_from_subset(self, subset):
+        maximal_from_subset = []
+        for U in subset:
+            is_maximal = True
+            for V in subset:
+                if V is not U and self.below(U, V):
+                    is_maximal = False
+                    break
+            if is_maximal:
+                maximal_from_subset.append(U)
+        return maximal_from_subset
+
+
+    def maximal_units_per_process(self, process_id):
+        return self.compute_maximal_from_subset([U for U in self if self.pid(U) == process_id])
 
 
     def sorted(self):
@@ -85,7 +122,7 @@ class DAG:
         while childless:
             node = childless.pop()
             ret.append(node)
-            for parent in self.nodes[node]:
+            for parent in self.parents(node):
                 children[parent] -= 1
                 if children[parent] == 0:
                     childless.append(parent)
@@ -118,12 +155,11 @@ def poset_from_dag(dag):
         creator_id = dag.pid(unit_name)
         assert 0 <= creator_id <= n_processes - 1, "Incorrect process id"
 
-        parents = dag.nodes[node]
         assert unit_name not in unit_dict, "Duplicate unit name %s" % unit_name
-        for parent in parents:
+        for parent in dag.parents(node):
             assert parent in unit_dict, "Parent %s of unit %s not known" % (parent, unit_name)
 
-        U = Unit(creator_id = unit_creator_id, parents = [unit_dict[parent] for parent in parents],
+        U = Unit(creator_id = unit_creator_id, parents = [unit_dict[parent] for parent in dag.parents(node)],
                 txs = [])
         poset.add_unit(U)
         unit_dict[unit_name] = U
@@ -146,8 +182,7 @@ def dag_to_file(dag, file_name):
     with open(file_name, 'w') as f:
         f.write('%d\n' % dag.n_processes)
         for node in topological_list:
-            f.write(create_node_line(node, dag.pid(node), dag.nodes[node]))
-
+            f.write(create_node_line(node, dag.pid(node), dag.parents(node)))
 
 
 def dag_from_file(file_name):
