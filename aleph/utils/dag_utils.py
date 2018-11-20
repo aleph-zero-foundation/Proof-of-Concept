@@ -11,12 +11,22 @@ from aleph.data_structures import Poset, Unit
 import random
 
 def check_parent_diversity(dag, U, n_processes, treshold):
-    #for V in dag[U]:
-    #    if V[1] == U[1]:
-    #        continue
-    #    process_id = V[1]
+    proposed_parents_processes = [node[1] for node in dag[U] if node[1]!=U[1]]
+    ancestor_processes = set()
+    W = get_self_predecessor(dag, U, dag[U])
+    while W is not None:
+        new_processes = [node[1] for node in dag[W] if node[1]!=U[1]]
+        ancestor_processes.update(new_processes)
+        if len(ancestor_processes) >= treshold:
+            return True
+        if any([(pid in proposed_parents_processes) for pid in new_processes]):
+            return False
+        W = get_self_predecessor(dag, W, dag[W])
+    return True
 
-    pass
+
+
+
 
 def check_anti_forking(dag, U, n_processes):
     pass
@@ -30,8 +40,12 @@ def check_growth(dag, node_self_predecessor, node_parents):
             return False
     return True
 
-def check_introduce_new_fork(dag, new_unit, new_unit_parents):
-    pass
+
+def check_introduce_new_fork(dag, new_unit, self_predecessor):
+    assert self_predecessor is not None
+    process_id = new_unit[1]
+    maximal_per_process = maximal_units_per_process(dag, process_id)
+    return self_predecessor not in maximal_per_process
 
 
 
@@ -43,7 +57,6 @@ def check_new_unit_correctness(dag, new_unit, new_unit_parents, forkers):
     Returns the self_predecessor of new_unit if adding new_unit is correct and False otherwise
     '''
     process_id = new_unit[1]
-    old_maximal_per_process = maximal_units_per_process(dag, process_id)
 
     self_predecessor = get_self_predecessor(dag, new_unit, new_unit_parents)
 
@@ -51,14 +64,13 @@ def check_new_unit_correctness(dag, new_unit, new_unit_parents, forkers):
         return False
 
     if process_id not in forkers:
-        assert len(old_maximal_per_process) == 1
-        if self_predecessor != old_maximal_per_process[0]:
+        if check_introduce_new_fork(dag, new_unit, self_predecessor):
             return False
 
-    if check_growth(dag, self_predecessor, new_unit_parents):
-        return self_predecessor
-    else:
+    if not check_growth(dag, self_predecessor, new_unit_parents):
         return False
+
+    return self_predecessor
 
 
 
