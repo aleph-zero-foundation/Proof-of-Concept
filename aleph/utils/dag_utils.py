@@ -10,10 +10,10 @@ and process_id is the id of its creator.
 from aleph.data_structures import Poset, Unit
 import random
 
-def check_parent_diversity(dag, U, n_processes, treshold):
-    proposed_parents_processes = [node[1] for node in dag[U] if node[1]!=U[1]]
+def check_parent_diversity(dag, n_processes, treshold, U, U_parents):
+    proposed_parents_processes = [node[1] for node in U_parents if node[1]!=U[1]]
     ancestor_processes = set()
-    W = get_self_predecessor(dag, U, dag[U])
+    W = get_self_predecessor(dag, U, U_parents)
     while W is not None:
         new_processes = [node[1] for node in dag[W] if node[1]!=U[1]]
         ancestor_processes.update(new_processes)
@@ -384,7 +384,14 @@ def maximal_units_per_process(dag, process_id):
     return maximal_units
 
 
-def generate_random_growth_violation(n_processes, n_correct_units, n_forkers):
+def constraints_satisfied(constraints, truth):
+    for constraint, value in constraints.items():
+        if truth[constraint] != value:
+            return False
+    return True
+
+
+def generate_random_violation(n_processes, n_correct_units, n_forkers, ensure, violate):
     dag = {}
     topological_list = []
 
@@ -415,14 +422,23 @@ def generate_random_growth_violation(n_processes, n_correct_units, n_forkers):
 
         terminate_poset = False
 
-        if len(dag) >= n_processes + n_correct_units:
-            if not check_growth(dag, self_predecessor, new_unit_parents):
-                terminate_poset = True
-        else:
-            if not check_growth(dag, self_predecessor, new_unit_parents):
-                continue
+        property_table = {}
 
-        # we can now safely add the new unit
+        property_table['growth'] = check_growth(dag, self_predecessor, new_unit_parents)
+        treshold = (n_processes + 2)//3
+        property_table['parent_diversity'] = check_parent_diversity(dag, n_processes, treshold,
+                                                new_unit, new_unit_parents)
+
+
+        if len(dag) >= n_processes + n_correct_units and constraints_satisfied(violate, property_table):
+            terminate_poset = True
+        elif constraints_satisfied(ensure, property_table):
+            pass
+        else:
+            #cannot add this node to graph
+            continue
+
+
         new_unit_height = node_heights[self_predecessor] + 1
         new_unit_no = count_nodes_by_process_height(node_heights, process_id, new_unit_height)
         unit_name = generate_unit_name(new_unit_height, process_id, new_unit_no)
