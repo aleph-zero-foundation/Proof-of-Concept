@@ -360,6 +360,9 @@ def check_parent_diversity(dag, U, n_processes, treshold):
 
     pass
 
+def check_anti_forking(dag, U, n_processes, treshold):
+    pass
+
 
 def check_growth(dag, node):
     self_predecessor = get_self_predecessor(dag, node)
