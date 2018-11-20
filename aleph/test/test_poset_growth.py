@@ -13,19 +13,33 @@ def check_growth_vs_pattern(dag, topological_list, n_processes, pattern):
 
         U = Unit(creator_id = unit_creator_id, parents = [unit_dict[parent[0]] for parent in parents], txs = [])
         poset.set_self_predecessor_and_height(U)
+        unit_dict[unit_name] = U
         assert poset.check_growth(U) == answer
         poset.add_unit(U)
-        unit_dict[unit_name] = U
+
 
 
 
 def test_small_random_growth():
     random.seed(123456789)
-    n_processes = 5
-    n_units = 20
-    n_forkers = 1
-    repetitions = 30
-    for _ in range(repetitions):
+    repetitions = 2000
+    for iter in range(repetitions):
+        n_processes = random.randint(4, 15)
+        n_units = random.randint(0, n_processes*5)
+        n_forkers = random.randint(0, n_processes)
+        dag, topological_list = dag_utils.generate_random_growth_violation(n_processes, n_units, n_forkers)
+        pattern = [True] * len(topological_list)
+        pattern[-1] = False
+        check_growth_vs_pattern(dag, topological_list, n_processes, pattern)
+
+
+def test_large_random_growth():
+    random.seed(123456789)
+    repetitions = 20
+    for iter in range(repetitions):
+        n_processes = random.randint(50, 100)
+        n_units = random.randint(0, n_processes*3)
+        n_forkers = random.randint(0, 5)
         dag, topological_list = dag_utils.generate_random_growth_violation(n_processes, n_units, n_forkers)
         pattern = [True] * len(topological_list)
         pattern[-1] = False

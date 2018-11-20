@@ -261,7 +261,7 @@ class Poset:
         assert (U.self_predecessor is not None), "The self_predecessor field has not been filled for U"
 
         for V in U.parents:
-            if V.creator_id != U.creator_id and self.below(V, U.self_predecessor):
+            if (V is not U.self_predecessor) and self.below(V, U.self_predecessor):
                 return False
         return True
 

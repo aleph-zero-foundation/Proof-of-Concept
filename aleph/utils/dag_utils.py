@@ -132,7 +132,7 @@ def generate_random_forking(n_processes, n_units, n_forkers, file_name = None):
         new_unit = (new_unit_name, process_id)
         new_unit_parents = random.sample(dag.keys(), 2)
         self_predecessor = check_new_unit_correctness(dag, new_unit, new_unit_parents, forkers)
-        if self_predecessor is None:
+        if not self_predecessor:
             continue
         new_unit_height = node_heights[self_predecessor] + 1
         new_unit_no = count_nodes_by_process_height(node_heights, process_id, new_unit_height)
@@ -396,9 +396,11 @@ def generate_random_growth_violation(n_processes, n_correct_units, n_forkers):
         topological_list.append((unit_name, process_id))
         node_heights[(unit_name, process_id)] = 0
 
-
+    iter = 0
     while True:
-        assert len(dag) < 50*(n_processes + n_correct_units), "The random process had a trouble to terminate."
+        iter += 1
+        assert iter < 1000*(n_processes + n_correct_units), "The random process troubles to terminate."
+        assert len(dag) < 100*(n_processes + n_correct_units), "The random process troubles to terminate."
 
         process_id = random.sample(range(n_processes), 1)[0]
         new_unit_name = "temp"
@@ -414,9 +416,7 @@ def generate_random_growth_violation(n_processes, n_correct_units, n_forkers):
         terminate_poset = False
 
         if len(dag) >= n_processes + n_correct_units:
-            if check_growth(dag, self_predecessor, new_unit_parents):
-                continue
-            else:
+            if not check_growth(dag, self_predecessor, new_unit_parents):
                 terminate_poset = True
         else:
             if not check_growth(dag, self_predecessor, new_unit_parents):
