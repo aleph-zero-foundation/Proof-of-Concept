@@ -25,11 +25,9 @@ def check_parent_diversity(dag, n_processes, treshold, U, U_parents):
     return True
 
 
-
-
-
-def check_anti_forking(dag, U, n_processes):
-    pass
+def check_anti_forking(dag, n_processes, U, U_parents):
+    # TODO: implementation missing
+    return False
 
 
 def check_growth(dag, node_self_predecessor, node_parents):
@@ -406,8 +404,8 @@ def generate_random_violation(n_processes, n_correct_units, n_forkers, ensure, v
     iter = 0
     while True:
         iter += 1
-        assert iter < 1000*(n_processes + n_correct_units), "The random process troubles to terminate."
-        assert len(dag) < 100*(n_processes + n_correct_units), "The random process troubles to terminate."
+        assert iter < 1000*(n_processes + n_correct_units), "The random process had troubles to terminate."
+        assert len(dag) < 100*(n_processes + n_correct_units), "The random process had troubles to terminate."
 
         process_id = random.sample(range(n_processes), 1)[0]
         new_unit_name = "temp"
@@ -428,6 +426,7 @@ def generate_random_violation(n_processes, n_correct_units, n_forkers, ensure, v
         treshold = (n_processes + 2)//3
         property_table['parent_diversity'] = check_parent_diversity(dag, n_processes, treshold,
                                                 new_unit, new_unit_parents)
+        property_table['anti_forking'] = check_anti_forking(dag, n_processes, new_unit, new_unit_parents)
 
 
         if len(dag) >= n_processes + n_correct_units and constraints_satisfied(violate, property_table):
