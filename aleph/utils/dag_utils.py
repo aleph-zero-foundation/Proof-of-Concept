@@ -385,7 +385,38 @@ def maximal_units_per_process(dag, process_id):
 
 
 def generate_random_growth_violation(n_processes, n_correct_units, n_forkers):
-    pass
+    dag = {}
+    topological_list = []
+
+    # forkers = random.sample(range(n_processes), n_forkers)
+    # node_heights = {}
+    # dag = {}
+    # for process_id in range(n_processes):
+        # unit_name = generate_unit_name(0, process_id)
+        # dag[(unit_name, process_id)] = []
+        # node_heights[(unit_name, process_id)] = 0
+
+
+    # while len(dag) < n_processes + n_units:
+        # process_id = random.sample(range(n_processes), 1)[0]
+        # new_unit_name = "temp"
+        # new_unit = (new_unit_name, process_id)
+        # new_unit_parents = random.sample(dag.keys(), 2)
+        # self_predecessor = check_new_unit_correctness(dag, new_unit, new_unit_parents, forkers)
+        # if not self_predecessor:
+            # continue
+        # new_unit_height = node_heights[self_predecessor] + 1
+        # new_unit_no = count_nodes_by_process_height(node_heights, process_id, new_unit_height)
+        # unit_name = generate_unit_name(new_unit_height, process_id, new_unit_no)
+        # parent_names = [parent[0] for parent in new_unit_parents]
+        # dag[(unit_name,process_id)] = new_unit_parents
+        # node_heights[(unit_name,process_id)] = new_unit_height
+
+    # if file_name:
+        # dag_to_file(dag, n_processes, file_name)
+
+    return dag, topological_list
+
 
 
 
