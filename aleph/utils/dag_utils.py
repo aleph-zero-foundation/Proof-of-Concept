@@ -10,16 +10,24 @@ and process_id is the id of its creator.
 from aleph.data_structures import Poset, Unit
 import random
 
-def check_parent_diversity(dag, U, n_processes, treshold):
-    #for V in dag[U]:
-    #    if V[1] == U[1]:
-    #        continue
-    #    process_id = V[1]
+def check_parent_diversity(dag, n_processes, treshold, U, U_parents):
+    proposed_parents_processes = [node[1] for node in U_parents if node[1]!=U[1]]
+    ancestor_processes = set()
+    W = get_self_predecessor(dag, U, U_parents)
+    while W is not None:
+        new_processes = [node[1] for node in dag[W] if node[1]!=U[1]]
+        ancestor_processes.update(new_processes)
+        if len(ancestor_processes) >= treshold:
+            return True
+        if any([(pid in proposed_parents_processes) for pid in new_processes]):
+            return False
+        W = get_self_predecessor(dag, W, dag[W])
+    return True
 
-    pass
 
-def check_anti_forking(dag, U, n_processes):
-    pass
+def check_anti_forking(dag, n_processes, U, U_parents):
+    # TODO: implementation missing
+    return False
 
 
 def check_growth(dag, node_self_predecessor, node_parents):
@@ -30,8 +38,12 @@ def check_growth(dag, node_self_predecessor, node_parents):
             return False
     return True
 
-def check_introduce_new_fork(dag, new_unit, new_unit_parents):
-    pass
+
+def check_introduce_new_fork(dag, new_unit, self_predecessor):
+    assert self_predecessor is not None
+    process_id = new_unit[1]
+    maximal_per_process = maximal_units_per_process(dag, process_id)
+    return self_predecessor not in maximal_per_process
 
 
 
@@ -43,7 +55,6 @@ def check_new_unit_correctness(dag, new_unit, new_unit_parents, forkers):
     Returns the self_predecessor of new_unit if adding new_unit is correct and False otherwise
     '''
     process_id = new_unit[1]
-    old_maximal_per_process = maximal_units_per_process(dag, process_id)
 
     self_predecessor = get_self_predecessor(dag, new_unit, new_unit_parents)
 
@@ -51,14 +62,13 @@ def check_new_unit_correctness(dag, new_unit, new_unit_parents, forkers):
         return False
 
     if process_id not in forkers:
-        assert len(old_maximal_per_process) == 1
-        if self_predecessor != old_maximal_per_process[0]:
+        if check_introduce_new_fork(dag, new_unit, self_predecessor):
             return False
 
-    if check_growth(dag, self_predecessor, new_unit_parents):
-        return self_predecessor
-    else:
+    if not check_growth(dag, self_predecessor, new_unit_parents):
         return False
+
+    return self_predecessor
 
 
 
@@ -372,8 +382,74 @@ def maximal_units_per_process(dag, process_id):
     return maximal_units
 
 
-def generate_random_growth_violation(n_processes, n_correct_units, n_forkers):
-    pass
+def constraints_satisfied(constraints, truth):
+    for constraint, value in constraints.items():
+        if truth[constraint] != value:
+            return False
+    return True
+
+
+def generate_random_violation(n_processes, n_correct_units, n_forkers, ensure, violate):
+    dag = {}
+    topological_list = []
+
+    forkers = random.sample(range(n_processes), n_forkers)
+    node_heights = {}
+    for process_id in range(n_processes):
+        unit_name = generate_unit_name(0, process_id)
+        dag[(unit_name, process_id)] = []
+        topological_list.append((unit_name, process_id))
+        node_heights[(unit_name, process_id)] = 0
+
+    iter = 0
+    while True:
+        iter += 1
+        assert iter < 1000*(n_processes + n_correct_units), "The random process had troubles to terminate."
+        assert len(dag) < 100*(n_processes + n_correct_units), "The random process had troubles to terminate."
+
+        process_id = random.sample(range(n_processes), 1)[0]
+        new_unit_name = "temp"
+        new_unit = (new_unit_name, process_id)
+        new_unit_parents = random.sample(dag.keys(), 2)
+        self_predecessor = get_self_predecessor(dag, new_unit, new_unit_parents)
+        if self_predecessor is None:
+            continue
+        if process_id not in forkers:
+            if check_introduce_new_fork(dag, new_unit, self_predecessor):
+                continue
+
+        terminate_poset = False
+
+        property_table = {}
+
+        property_table['growth'] = check_growth(dag, self_predecessor, new_unit_parents)
+        treshold = (n_processes + 2)//3
+        property_table['parent_diversity'] = check_parent_diversity(dag, n_processes, treshold,
+                                                new_unit, new_unit_parents)
+        property_table['anti_forking'] = check_anti_forking(dag, n_processes, new_unit, new_unit_parents)
+
+
+        if len(dag) >= n_processes + n_correct_units and constraints_satisfied(violate, property_table):
+            terminate_poset = True
+        elif constraints_satisfied(ensure, property_table):
+            pass
+        else:
+            #cannot add this node to graph
+            continue
+
+
+        new_unit_height = node_heights[self_predecessor] + 1
+        new_unit_no = count_nodes_by_process_height(node_heights, process_id, new_unit_height)
+        unit_name = generate_unit_name(new_unit_height, process_id, new_unit_no)
+        parent_names = [parent[0] for parent in new_unit_parents]
+        topological_list.append((unit_name,process_id))
+        dag[(unit_name,process_id)] = new_unit_parents
+        node_heights[(unit_name,process_id)] = new_unit_height
+        if terminate_poset:
+            break
+
+    return dag, topological_list
+
 
 
 

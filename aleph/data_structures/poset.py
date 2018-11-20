@@ -261,7 +261,7 @@ class Poset:
         assert (U.self_predecessor is not None), "The self_predecessor field has not been filled for U"
 
         for V in U.parents:
-            if V.creator_id != U.creator_id and self.below(V, U.self_predecessor):
+            if (V is not U.self_predecessor) and self.below(V, U.self_predecessor):
                 return False
         return True
 
@@ -347,7 +347,7 @@ class Poset:
         then consider the set P of all processes that were used as parents
         of nodes created by j at height h, s.t. h_1 <= h < h_2,
         (i can be used as a parent for U) iff (|P|>=n_processes/3)
-        Note that i is not counted in P.
+        Note that j is not counted in P.
         :param unit U: unit whose parent diversity is being tested
         '''
 
