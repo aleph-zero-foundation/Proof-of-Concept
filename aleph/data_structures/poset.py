@@ -386,12 +386,14 @@ class Poset:
                         was_parent_process[V.creator_id] = True
                         n_parent_processes += 1
 
-            if n_parent_processes*3 >= self.n_procesees:
+            if n_parent_processes*3 >= self.n_processes:
                 break
 
             if proposed_parent_process_occurence:
                 # a proposed parent process repeated too early!
                 return False
+
+            W = W.self_predecessor
 
         return True
 
