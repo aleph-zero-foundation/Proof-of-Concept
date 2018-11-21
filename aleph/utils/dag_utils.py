@@ -1,18 +1,18 @@
 import random
 
 
-def check_parent_diversity(dag, n_processes, treshold, U, U_parents):
-    proposed_parents_processes = [node[1] for node in U_parents if node[1]!=U[1]]
+def check_parent_diversity(dag, pid, parents, threshold):
+    proposed_parents_processes = [dag.pid(node) for node in parents if dag.pid(node) != pid]
     ancestor_processes = set()
-    W = get_self_predecessor(dag, U, U_parents)
+    W = dag.self_predecessor(pid, parents)
     while W is not None:
-        new_processes = [node[1] for node in dag[W] if node[1]!=U[1]]
+        new_processes = [dag.pid(node) for node in dag.parents(W) if dag.pid(node) != pid]
         ancestor_processes.update(new_processes)
         if len(ancestor_processes) >= treshold:
             return True
-        if any([(pid in proposed_parents_processes) for pid in new_processes]):
+        if any((pid in proposed_parents_processes) for pid in new_processes):
             return False
-        W = get_self_predecessor(dag, W, dag[W])
+        W = dag.self_predecessor(pid, dag.parents(W))
     return True
 
 
@@ -24,42 +24,39 @@ def check_growth(dag, node_self_predecessor, node_parents):
     assert node_self_predecessor is not None
 
     for parent in node_parents:
-        if parent != node_self_predecessor and is_reachable(dag, parent, node_self_predecessor):
+        if parent != node_self_predecessor and dag.is_reachable(parent, node_self_predecessor):
             return False
     return True
 
 
-def check_introduce_new_fork(dag, new_unit, self_predecessor):
+def check_introduce_new_fork(dag, pid, self_predecessor):
     assert self_predecessor is not None
-    process_id = new_unit[1]
-    maximal_per_process = maximal_units_per_process(dag, process_id)
-    return self_predecessor not in maximal_per_process
+    return self_predecessor not in dag.maximal_units_per_process(pid)
 
 
 
-
-def check_new_unit_correctness(dag, new_unit, new_unit_parents, forkers):
+def check_new_unit_correctness(dag, new_unit_pid, new_unit_parents, forkers):
     '''
     Check whether the new unit does not introduce a diamond structure and
     whether the growth rule is preserved
     Returns the self_predecessor of new_unit if adding new_unit is correct and False otherwise
     '''
-    process_id = new_unit[1]
 
-    self_predecessor = get_self_predecessor(dag, new_unit, new_unit_parents)
+    self_predecessor = dag.self_predecessor(new_unit_pid, new_unit_parents)
 
     if self_predecessor is None:
         return False
 
-    if process_id not in forkers:
-        if check_introduce_new_fork(dag, new_unit, self_predecessor):
-            return False
+    if new_unit_pid not in forkers and check_introduce_new_fork(dag, new_unit_pid, self_predecessor):
+        return False
 
     if not check_growth(dag, self_predecessor, new_unit_parents):
         return False
 
     return self_predecessor
 
+
+#======================================================================================================================
 
 
 def generate_random_nonforking(n_processes, n_units, file_name = None):
