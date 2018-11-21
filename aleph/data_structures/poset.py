@@ -178,18 +178,30 @@ class Poset:
 
     def set_self_predecessor_and_height(self, U):
         '''
-        Computes the self_predecessor of a unit U and fills in the appropriate field in U.
-        :param unit U: unit whose self_predecessor is being computed
+        Checks if the unit U has a uniquely-, well defined self predecessor.
+        In other words, there is at least one unit below U, created by U.creator_id and
+        U respects the anti-diamond policy, i.e. the following situation is not allowed:
+            - The creator of U is the process j
+            AND
+            - The parents of U (combined) have evidence that j is forking
+        If the check is succesful, the method sets U.self_predecessor and U.height
+        :param unit U: the unit whose self_predecessor is being checked
+        :returns: Boolean value, True if U has a well-defined self_predecessor
         '''
         if len(U.parents) == 0:
             U.self_predecessor = None
             U.height = 0
+            return True
         else:
             combined_floors = self.combine_floors_per_process(U.parents, U.creator_id)
-            assert (len(combined_floors) >= 1), "Unit U has no candidates for predecessors."
-            assert (len(combined_floors) <= 1), "Unit U has more than one candidate for predecessor."
-            U.self_predecessor = combined_floors[0]
-            U.height = U.self_predecessor.height + 1
+            #assert (len(combined_floors) >= 1), "Unit U has no candidates for predecessors."
+            #assert (len(combined_floors) <= 1), "Unit U has more than one candidate for predecessor."
+            if len(combined_floors) == 1:
+                U.self_predecessor = combined_floors[0]
+                U.height = U.self_predecessor.height + 1
+                return True
+            else:
+                return False
 
 
 
@@ -225,17 +237,17 @@ class Poset:
             return False
 
         # This is a dealing unit, and its signature is correct --> it is compliant
-        if len(self.parents) == 0:
+        if len(U.parents) == 0:
+            self.set_self_predecessor_and_height(U)
             return True
 
         # 3. U has a well-defined self_predecessor
 
-        if not self.check_self_predecessor_correctness(U):
+        if not self.set_self_predecessor_and_height(U):
             return False
 
         # At this point we know that U has a well-defined self_predecessor
-        # We can set it -- needed for subsequent checks
-        self.set_self_predecessor_and_height(U)
+        # and the corresponding field U.self_predecessor is set
 
 
         # 4. Satisfies forker-muting policy.
@@ -266,7 +278,8 @@ class Poset:
         '''
         # U.self_predecessor should be correctly set when invoking this method
 
-        assert len(U.parents) != 0, "U should not be a dealing unit."
+        if len(U.parents) == 0:
+            return True
 
         assert (U.self_predecessor is not None), "The self_predecessor field has not been filled for U"
 
@@ -274,21 +287,6 @@ class Poset:
             if (V is not U.self_predecessor) and self.below(V, U.self_predecessor):
                 return False
         return True
-
-    def check_self_predecessor_correctness(self, U):
-        '''
-        Checks if the unit U has a uniquely-, well defined self predecessor.
-        In other words, there is at least one unit below U, created by U.creator_id and
-        U respects the anti-diamond policy, i.e. the following situation is not allowed:
-            - The creator of U is the process j
-            AND
-            - The parents of U (combined) have evidence that j is forking
-        :returns: Boolean value, True if U has a well-defined self_predecessor
-        '''
-
-        combined_floors = self.combine_floors_per_process(U.parents, U.creator_id)
-
-        return len(combined_floors) == 1
 
 
     def check_forker_muting(self, U):
@@ -302,7 +300,8 @@ class Poset:
         :returns: Boolean value, True if U respects the forker-muting policy, False otherwise.
         '''
 
-        assert len(U.parents) != 0, "U should not be a dealing unit."
+        if len(U.parents) == 0:
+            return True
 
         parent_processes = set([V.creator_id for V in U.parents])
         for V, proc in product(U.parents, parent_processes):
@@ -362,7 +361,7 @@ class Poset:
         :param unit U: unit whose parent diversity is being tested
         '''
 
-        # Special case: U is a bottom unit
+        # Special case: U is a dealing unit
         if len(U.parents) == 0:
             return True
 

@@ -26,7 +26,7 @@ def check_parent_diversity(dag, n_processes, treshold, U, U_parents):
 
 
 def check_anti_forking(dag, n_processes, U, U_parents):
-    # TODO: implementation missing
+
     return False
 
 
