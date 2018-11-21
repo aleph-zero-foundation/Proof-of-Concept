@@ -1,5 +1,5 @@
 from aleph.data_structures import Unit, Poset
-from aleph.utils import dag_utils
+from aleph.utils import dag, dag_utils
 import random
 
 
@@ -36,7 +36,7 @@ def test_small_nonforking_below():
     repetitions = 30
     for _ in range(repetitions):
         dag = dag_utils.generate_random_nonforking(n_processes, n_units)
-        check_all_pairs_below(dag, n_processes)
+        check_all_pairs_below(dag)
 
 
 def test_large_nonforking_below():
@@ -46,7 +46,7 @@ def test_large_nonforking_below():
     repetitions = 1
     for _ in range(repetitions):
         dag = dag_utils.generate_random_nonforking(n_processes, n_units)
-        check_all_pairs_below(dag, n_processes)
+        check_all_pairs_below(dag)
 
 
 def test_small_forking_below():
@@ -57,7 +57,7 @@ def test_small_forking_below():
     for _ in range(repetitions):
         n_forking = random.randint(0,n_processes)
         dag = dag_utils.generate_random_forking(n_processes, n_units, n_forking)
-        check_all_pairs_below(dag, n_processes)
+        check_all_pairs_below(dag)
 
 
 def test_large_forking_below():
@@ -68,20 +68,18 @@ def test_large_forking_below():
     for _ in range(repetitions):
         n_forking = random.randint(0,n_processes)
         dag = dag_utils.generate_random_forking(n_processes, n_units, n_forking)
-        check_all_pairs_below(dag, n_processes)
+        check_all_pairs_below(dag)
 
 
-def check_all_pairs_below(dag, n_processes):
+def check_all_pairs_below(arg):
     '''
     Create a poset from a dag and test U<=V for all pairs of units U,V
     against a naive BFS-implementation from dag_utils
     '''
-    poset, unit_dict = dag_utils.poset_from_dag(dag, n_processes)
+    poset, unit_dict = dag.poset_from_dag(arg)
 
-    for nameU, U in unit_dict.items():
-        for nameV, V in unit_dict.items():
-            nodeU = (nameU, U.creator_id)
-            nodeV = (nameV, V.creator_id)
-            assert poset.below(U,V) == dag_utils.is_reachable(dag, nodeU, nodeV)
-            assert poset.above(U,V) == dag_utils.is_reachable(dag, nodeV, nodeU)
+    for nodeU, U in unit_dict.items():
+        for nodeV, V in unit_dict.items():
+            assert poset.below(U,V) == arg.is_reachable(nodeU, nodeV)
+            assert poset.above(U,V) == arg.is_reachable(nodeV, nodeU)
 

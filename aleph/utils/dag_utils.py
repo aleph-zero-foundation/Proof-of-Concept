@@ -1,4 +1,5 @@
 import random
+from .dag import DAG, dag_to_file
 
 
 def check_parent_diversity(dag, pid, parents, threshold):
@@ -61,32 +62,28 @@ def check_new_unit_correctness(dag, new_unit_pid, new_unit_parents, forkers):
 
 def generate_random_nonforking(n_processes, n_units, file_name = None):
     '''
-    Generates a random non-forking poset with n_processes processes and saves it to file_name.
-    Does not return any value.
+    Generate a random non-forking poset with n_processes processes and optionally save it to file_name.
     :param int n_processes: the number of processes in poset
     :param int n_units: the number of units in the process beyond n_processes initial units,
     hence the total number of units is (n_processes + n_units)
+    :return: a DAG instance
     '''
     process_heights = [0] * n_processes
-    dag = {}
+    dag = DAG(n_processes)
     for process_id in range(n_processes):
-        dag[('U_0_%d' % process_id, process_id)] = []
+        dag.add(generate_unit_name(0, process_id), process_id, [])
 
     for _ in range(n_units):
         process_id = random.sample(range(n_processes), 1)[0]
-        all_but_process_id = list(range(n_processes))
-        all_but_process_id.remove(process_id)
+        all_but_process_id = [i for i in range(n_processes) if i != process_id]
         parent_processes = [process_id] + random.sample(all_but_process_id , 1)
         unit_height = process_heights[process_id] + 1
         unit_name = generate_unit_name(unit_height, process_id)
-        node = (unit_name, process_id)
-        parent_nodes = [(generate_unit_name(process_heights[i], i), i) for i in parent_processes]
-        dag[node] = parent_nodes
+        dag.add(unit_name, process_id, [generate_unit_name(process_heights[i], i) for i in parent_processes])
         process_heights[process_id] += 1
 
     if file_name:
-        dag_to_file(dag, n_processes, file_name)
-
+        dag_to_file(dag, file_name)
     return dag
 
 
@@ -94,40 +91,37 @@ def generate_random_nonforking(n_processes, n_units, file_name = None):
 def generate_random_forking(n_processes, n_units, n_forkers, file_name = None):
     '''
     Generates a random poset with n_processes processes, of which n_forkers are forking and saves it to file_name.
-    The growth property is guaranteed to be satsfied and there are no "diamonds" within forking processes.
+    The growth property is guaranteed to be satisfied and there are no "diamonds" within forking processes.
     In other words, the forking processes can only create trees.
-    Does not return any value.
     :param int n_processes: the number of processes in poset
     :param int n_forkers: the number of forking processes
     :param int n_units: the number of units in the process beyond genesis + n_processes initial units,
     hence the total number of units is (1 + n_processes + n_units)
+    :return: a DAG instance
     '''
     forkers = random.sample(range(n_processes), n_forkers)
     node_heights = {}
-    dag = {}
+    dag = DAG(n_processes)
+
     for process_id in range(n_processes):
         unit_name = generate_unit_name(0, process_id)
-        dag[(unit_name, process_id)] = []
-        node_heights[(unit_name, process_id)] = 0
-
+        dag.add(unit_name, process_id, [])
+        node_heights[unit_name] = 0
 
     while len(dag) < n_processes + n_units:
         process_id = random.sample(range(n_processes), 1)[0]
-        new_unit_name = "temp"
-        new_unit = (new_unit_name, process_id)
-        new_unit_parents = random.sample(dag.keys(), 2)
-        self_predecessor = check_new_unit_correctness(dag, new_unit, new_unit_parents, forkers)
+        new_unit_parents = random.sample(dag.nodes.keys(), 2)
+        self_predecessor = check_new_unit_correctness(dag, process_id, new_unit_parents, forkers)
         if not self_predecessor:
             continue
         new_unit_height = node_heights[self_predecessor] + 1
-        new_unit_no = count_nodes_by_process_height(node_heights, process_id, new_unit_height)
+        new_unit_no = count_nodes_by_process_height(dag, node_heights, process_id, new_unit_height)
         unit_name = generate_unit_name(new_unit_height, process_id, new_unit_no)
-        parent_names = [parent[0] for parent in new_unit_parents]
-        dag[(unit_name,process_id)] = new_unit_parents
-        node_heights[(unit_name,process_id)] = new_unit_height
+        dag.add(unit_name, process_id, new_unit_parents)
+        node_heights[unit_name] = new_unit_height
 
     if file_name:
-        dag_to_file(dag, n_processes, file_name)
+        dag_to_file(dag, file_name)
 
     return dag
 
@@ -206,12 +200,8 @@ def generate_unit_name(unit_height, process_id, parallel_no = 0):
     return name
 
 
-def count_nodes_by_process_height(node_heights, process_id, height):
-    count = 0
-    for node, node_height in node_heights.items():
-        if node[1] == process_id and height == node_height:
-            count += 1
-    return count
+def count_nodes_by_process_height(dag, node_heights, process_id, height):
+    return len([node for node in node_heights if (dag.pid(node) == process_id and height == node_heights[node])])
 
 
 def constraints_satisfied(constraints, truth):

@@ -184,13 +184,13 @@ def poset_from_dag(dag):
 
     for unit_name in dag.sorted():
         creator_id = dag.pid(unit_name)
-        assert 0 <= creator_id <= n_processes - 1, "Incorrect process id"
+        assert 0 <= creator_id <= dag.n_processes - 1, "Incorrect process id"
 
         assert unit_name not in unit_dict, "Duplicate unit name %s" % unit_name
-        for parent in dag.parents(node):
+        for parent in dag.parents(unit_name):
             assert parent in unit_dict, "Parent %s of unit %s not known" % (parent, unit_name)
 
-        U = Unit(creator_id = unit_creator_id, parents = [unit_dict[parent] for parent in dag.parents(node)],
+        U = Unit(creator_id = creator_id, parents = [unit_dict[parent] for parent in dag.parents(unit_name)],
                 txs = [])
         poset.add_unit(U)
         unit_dict[unit_name] = U

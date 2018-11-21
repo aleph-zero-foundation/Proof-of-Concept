@@ -4,7 +4,7 @@ from networkx.drawing.nx_agraph import graphviz_layout
 
 import matplotlib.pyplot as plt
 
-from aleph.utils.dag_utils import topological_sort, get_self_predecessor
+#rom aleph.utils.dag_utils import topological_sort, get_self_predecessor
 
 def parse_line(line):
     unit, creator_id = line.split()[:2]
