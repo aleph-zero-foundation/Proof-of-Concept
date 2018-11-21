@@ -204,10 +204,11 @@ class Poset:
         Checks if the unit U is correct and follows the rules of creating units, i.e.:
             1. Parents of U are correct (exist in the poset, etc.)
             2. Has correct signature.
-            3. Satisfies anti-fork policy.
-            4. Satisfies parent diversity rule.
-            5. Check "growth" rule.
-            6. The coinshares are OK, i.e., U contains exactly the coinshares it is supposed to contain.
+            3. U has a well-defined self_predecessor
+            4. Satisfies forker-muting policy.
+            5. Satisfies parent diversity rule.
+            6. Check "growth" rule.
+            7. The coinshares are OK, i.e., U contains exactly the coinshares it is supposed to contain.
         :param unit U: unit whose compliance is being tested
         '''
         # TODO: there might have been other compliance rules that have been forgotten...
@@ -223,23 +224,33 @@ class Poset:
         if not self.check_signature_correct(U):
             return False
 
-        # 3. Satisfies anti-fork policy.
-        if should_check('anti_fork') and not self.check_anti_fork(U):
+        # This is a dealing unit, and its signature is correct --> it is compliant
+        if len(self.parents) == 0:
+            return True
+
+        # 3. U has a well-defined self_predecessor
+
+        if not self.check_self_predecessor_correctness(U):
             return False
 
         # At this point we know that U has a well-defined self_predecessor
         # We can set it -- needed for subsequent checks
         self.set_self_predecessor_and_height(U)
 
-        # 4. Satisfies parent diversity rule.
+
+        # 4. Satisfies forker-muting policy.
+        if should_check('forker_muting') and not self.check_forker_muting(U):
+            return False
+
+        # 5. Satisfies parent diversity rule.
         if should_check('parent_diversity') and not self.check_parent_diversity(U):
             return False
 
-        # 5. Check "growth" rule.
+        # 6. Check "growth" rule.
         if should_check('growth') and not self.check_growth(U):
             return False
 
-        # 6. Coinshares are OK.
+        # 7. Coinshares are OK.
         # TODO: implementation missing
 
         return True
@@ -253,11 +264,10 @@ class Poset:
         :param unit U: unit that is tested against the grow rule
         :returns: Boolean value, True if U respects the rule, False otherwise.
         '''
-
-        if len(U.parents) == 0:
-            return True
-
         # U.self_predecessor should be correctly set when invoking this method
+
+        assert len(U.parents) != 0, "U should not be a dealing unit."
+
         assert (U.self_predecessor is not None), "The self_predecessor field has not been filled for U"
 
         for V in U.parents:
@@ -265,38 +275,39 @@ class Poset:
                 return False
         return True
 
-
-
-    def check_anti_fork(self, U):
+    def check_self_predecessor_correctness(self, U):
         '''
-        Checks if the unit U respects the anti-forking policy, i.e.:
-        The following situations A), B) are not allowed:
-        A)
-            - There exists a process j, s.t. one of U's parents was created by j
-            AND
-            - U has as one of the parents a unit that has evidence that j is forking.
-        B)
+        Checks if the unit U has a uniquely-, well defined self predecessor.
+        In other words, there is at least one unit below U, created by U.creator_id and
+        U respects the anti-diamond policy, i.e. the following situation is not allowed:
             - The creator of U is the process j
             AND
             - The parents of U (combined) have evidence that j is forking
-
-        :param unit U: unit that is checked for respecting anti-forking policy
-        :returns: Boolean value, True if U respects the policy, False otherwise.
+        :returns: Boolean value, True if U has a well-defined self_predecessor
         '''
 
-        if len(U.parents) == 0:
-            return True
+        combined_floors = self.combine_floors_per_process(U.parents, U.creator_id)
 
-        # Check for situation A)
+        return len(combined_floors) == 1
+
+
+    def check_forker_muting(self, U):
+        '''
+        Checks if the unit U respects the forker-muting policy, i.e.:
+        The following situation is not allowed:
+            - There exists a process j, s.t. one of U's parents was created by j
+            AND
+            - U has as one of the parents a unit that has evidence that j is forking.
+        :param unit U: unit that is checked for respecting anti-forking policy
+        :returns: Boolean value, True if U respects the forker-muting policy, False otherwise.
+        '''
+
+        assert len(U.parents) != 0, "U should not be a dealing unit."
+
         parent_processes = set([V.creator_id for V in U.parents])
         for V, proc in product(U.parents, parent_processes):
             if self.has_forking_evidence(V, proc):
                 return False
-
-        # Check for situation B)
-        combined_floors = self.combine_floors_per_process(U.parents, U.creator_id)
-        if len(combined_floors) > 1:
-            return False
 
         return True
 
