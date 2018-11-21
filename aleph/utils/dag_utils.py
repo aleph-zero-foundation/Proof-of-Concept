@@ -8,6 +8,7 @@ and process_id is the id of its creator.
 '''
 
 from aleph.data_structures import Poset, Unit
+#from . import plot
 import random
 
 def check_parent_diversity(dag, n_processes, treshold, U, U_parents):
@@ -25,9 +26,27 @@ def check_parent_diversity(dag, n_processes, treshold, U, U_parents):
     return True
 
 
-def check_anti_forking(dag, n_processes, U, U_parents):
+def forking_processes_in_lower_cone(dag, n_processes, node):
+    cone = nodes_below(dag, node)
+    forkers = []
+    for process_id in range(n_processes):
+        cone_restricted_to_process_id = [node for node in cone if node[1] == process_id]
+        maximal_per_process = compute_maximal_from_subset(dag, cone_restricted_to_process_id)
+        if len(maximal_per_process) > 1:
+            forkers.append(process_id)
+    return forkers
 
-    return False
+
+def check_forker_muting(dag, n_processes, parents):
+    all_forkers_with_evidence = []
+    for U in parents:
+        all_forkers_with_evidence.extend(forking_processes_in_lower_cone(dag, n_processes, U))
+    all_forkers_with_evidence = set(all_forkers_with_evidence)
+
+    return not any([U[1] in all_forkers_with_evidence for U in parents])
+
+def check_distinct_parent_processes(parents):
+    return len(parents) == len(set(parent[1] for parent in parents))
 
 
 def check_growth(dag, node_self_predecessor, node_parents):
@@ -83,7 +102,7 @@ def generate_random_nonforking(n_processes, n_units, file_name = None):
     process_heights = [0] * n_processes
     dag = {}
     for process_id in range(n_processes):
-        dag[('U_0_%d' % process_id, process_id)] = []
+        dag[('0,%d' % process_id, process_id)] = []
 
     for _ in range(n_units):
         process_id = random.sample(range(n_processes), 1)[0]
@@ -183,7 +202,8 @@ def generate_random_violation(n_processes, n_correct_units, n_forkers, ensure, v
         treshold = (n_processes + 2)//3
         property_table['parent_diversity'] = check_parent_diversity(dag, n_processes, treshold,
                                                 new_unit, new_unit_parents)
-        property_table['anti_forking'] = check_anti_forking(dag, n_processes, new_unit, new_unit_parents)
+        property_table['forker_muting'] = check_forker_muting(dag, n_processes, new_unit_parents)
+        property_table['distinct_parents'] = check_distinct_parent_processes(new_unit_parents)
 
 
         if len(dag) >= n_processes + n_correct_units and constraints_satisfied(violate, property_table):
@@ -319,9 +339,9 @@ def create_node_line(node_name, process_id, parent_names):
 
 def generate_unit_name(unit_height, process_id, parallel_no = 0):
     if parallel_no == 0:
-        name = "U_%d_%d" % (unit_height, process_id)
+        name = "%d,%d" % (unit_height, process_id)
     else:
-        name = "U_%d_%d_%d" % (unit_height, process_id, parallel_no)
+        name = "%d,%d,%d" % (unit_height, process_id, parallel_no)
     return name
 
 
