@@ -50,7 +50,7 @@ class DAG:
         self.nodes[name] = parents[:]
 
 
-    #@memo
+    @memo
     def is_reachable(self, U, V):
         '''Checks whether V is reachable from U in a DAG, using BFS
         :param dict dag: a dictionary of the form: node -> [list of parent nodes]
@@ -92,7 +92,7 @@ class DAG:
         return ret
 
 
-    #@memo
+    @memo
     def count_support(self, U, V):
         below_V = self.nodes_below(V)
         above_U = self.reverse().nodes_below(U)
