@@ -1,4 +1,4 @@
-from aleph.crypto.threshold_coin.threshold_signatures import generate_keys
+from aleph.crypto.signatures.threshold_signatures import generate_keys
 from random import sample
 
 class TestThresholdSignatures():
