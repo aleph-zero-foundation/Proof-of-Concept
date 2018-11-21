@@ -5,7 +5,7 @@ import functools
 from aleph.data_structures import Poset, Unit
 
 
-class memo(object):
+class memo:
     '''Decorator. Caches a function's return value each time it is called.
     If called later with the same arguments, the cached value is returned
     (not reevaluated).
@@ -14,8 +14,6 @@ class memo(object):
         self.func = func
         self.cache = {}
     def __call__(self, *args):
-        if not isinstance(args, collections.Hashable):
-            return self.func(*args)
         if args in self.cache:
             return self.cache[args]
         else:
@@ -119,16 +117,10 @@ class DAG:
 
 
     def compute_maximal_from_subset(self, subset):
-        maximal_from_subset = []
-        for U in subset:
-            is_maximal = True
-            for V in subset:
-                if V is not U and self.is_reachable(U, V):
-                    is_maximal = False
-                    break
-            if is_maximal:
-                maximal_from_subset.append(U)
-        return maximal_from_subset
+        parents = set()
+        for node in subset:
+            parents.update(self.parents(node))
+        return list(set(subset) - self.nodes_below(parents))
 
 
     def maximal_units_per_process(self, process_id):
