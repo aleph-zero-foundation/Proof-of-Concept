@@ -93,7 +93,7 @@ class DAG:
     @memo
     def count_support(self, U, V):
         below_V = self.nodes_below(V)
-        above_U = self.reverse().nodes_below(U)
+        above_U = self.reversed().nodes_below(U)
         return len({self.pid(node) for node in (below_V & above_U)})
 
 
@@ -121,6 +121,19 @@ class DAG:
         for node in subset:
             parents.update(self.parents(node))
         return list(set(subset) - self.nodes_below(parents))
+
+
+    def old_compute_maximal_from_subset(self, subset):
+        maximal_from_subset = []
+        for U in subset:
+            is_maximal = True
+            for V in subset:
+                if V is not U and self.is_reachable(U, V):
+                    is_maximal = False
+                    break
+            if is_maximal:
+                maximal_from_subset.append(U)
+        return maximal_from_subset
 
 
     def maximal_units_per_process(self, process_id):
@@ -155,10 +168,10 @@ class DAG:
     def reversed(self):
         ret = DAG(self.n_processes)
         ret.pids = copy.copy(self.pids)
-        for node, parents in self.nodes.items():
-            for parent in parents:
-                if parent not in ret.nodes:
-                    ret.nodes[parent] = []
+        for node in self:
+            ret.nodes[node] = []
+        for node in self:
+            for parent in self.parents(node):
                 ret.nodes[parent].append(node)
         return ret
 
