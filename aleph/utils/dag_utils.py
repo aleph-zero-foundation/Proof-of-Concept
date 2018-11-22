@@ -17,8 +17,31 @@ def check_parent_diversity(dag, pid, parents, threshold):
     return True
 
 
-def check_anti_forking(dag, process_id, parents):
-    return False
+
+def forking_processes_in_lower_cone(dag, node):
+    cone = dag.nodes_below(node)
+    forkers = []
+    for process_id in range(dag.n_processes):
+        cone_restricted_to_process_id = [node for node in cone if dag.pid(node) == process_id]
+        maximal_per_process = dag.compute_maximal_from_subset(cone_restricted_to_process_id)
+        if len(maximal_per_process) > 1:
+            forkers.append(process_id)
+    return forkers
+
+
+
+def check_forker_muting(dag, parents):
+    all_forkers_with_evidence = []
+    for U in parents:
+        all_forkers_with_evidence.extend(forking_processes_in_lower_cone(dag, U))
+    all_forkers_with_evidence = set(all_forkers_with_evidence)
+    return all(dag.pid(U) not in all_forkers_with_evidence for U in parents)
+
+
+
+def check_distinct_parent_processes(dag, parents):
+    return len(parents) == len(set(dag.pid(parent) for parent in parents))
+
 
 
 def check_growth(dag, node_self_predecessor, node_parents):
@@ -28,6 +51,7 @@ def check_growth(dag, node_self_predecessor, node_parents):
         if parent != node_self_predecessor and dag.is_reachable(parent, node_self_predecessor):
             return False
     return True
+
 
 
 def check_introduce_new_fork(dag, pid, self_predecessor):
@@ -157,7 +181,8 @@ def generate_random_violation(n_processes, n_correct_units, n_forkers, ensure, v
         property_table = {}
         property_table['growth'] = check_growth(dag, self_predecessor, new_unit_parents)
         property_table['parent_diversity'] = check_parent_diversity(dag, process_id, new_unit_parents, (n_processes + 2)//3)
-        property_table['anti_forking'] = check_anti_forking(dag, process_id, new_unit_parents)
+        property_table['forker_muting'] = check_forker_muting(dag, new_unit_parents)
+        property_table['distinct_parents'] = check_distinct_parent_processes(dag, new_unit_parents)
 
         if len(dag) >= n_processes + n_correct_units and constraints_satisfied(violate, property_table):
             terminate_poset = True
