@@ -3,17 +3,14 @@ from aleph.utils import dag_utils
 import random
 
 
-def check_diversity_vs_pattern(dag, topological_list, n_processes, pattern):
+def check_diversity_vs_pattern(dag, topological_list, pattern):
     unit_dict = {}
-    poset = Poset(n_processes = n_processes, process_id = 0, secret_key = None, public_key = None)
+    poset = Poset(n_processes = dag.n_processes, process_id = 0, secret_key = None, public_key = None)
 
     for node, answer in zip(topological_list, pattern):
-        unit_name, unit_creator_id = node
-        parents = dag[node]
-
-        U = Unit(creator_id = unit_creator_id, parents = [unit_dict[parent[0]] for parent in parents], txs = [])
+        U = Unit(creator_id = dag.pid(node), parents = [unit_dict[parent] for parent in dag.parents(node)], txs = [])
         poset.set_self_predecessor_and_height(U)
-        unit_dict[unit_name] = U
+        unit_dict[node] = U
         assert poset.check_parent_diversity(U) == answer
         poset.add_unit(U)
 
@@ -23,7 +20,7 @@ def check_diversity_vs_pattern(dag, topological_list, n_processes, pattern):
 def test_small_random_diversity():
     random.seed(123456789)
     repetitions = 2000
-    for iter in range(repetitions):
+    for i in range(repetitions):
         n_processes = random.randint(4, 15)
         n_units = random.randint(0, n_processes*5)
         n_forkers = random.randint(0, n_processes)
@@ -33,13 +30,13 @@ def test_small_random_diversity():
                                 constraints_ensured, constraints_violated)
         pattern = [True] * len(topological_list)
         pattern[-1] = False
-        check_diversity_vs_pattern(dag, topological_list, n_processes, pattern)
+        check_diversity_vs_pattern(dag, topological_list, pattern)
 
 
 def test_large_random_diversity():
     random.seed(123456789)
     repetitions = 20
-    for iter in range(repetitions):
+    for i in range(repetitions):
         n_processes = random.randint(50, 100)
         n_units = random.randint(0, n_processes*3)
         n_forkers = random.randint(0, 5)
@@ -50,4 +47,4 @@ def test_large_random_diversity():
 
         pattern = [True] * len(topological_list)
         pattern[-1] = False
-        check_diversity_vs_pattern(dag, topological_list, n_processes, pattern)
+        check_diversity_vs_pattern(dag, topological_list, pattern)
