@@ -1,6 +1,7 @@
 '''This module implements a poset - a core data structure.'''
 
 from itertools import product
+import random
 
 from aleph.data_structures.unit import Unit
 from aleph.crypto.signatures.keys import PrivateKey, PublicKey
@@ -52,7 +53,7 @@ class Poset:
             3. update forking_height
             3. set floor attribute of U
             3. set ceil attribute of U and update ceil of predecessors of U
-            6. #(?) adds an entry to known_forkers_by_unit
+            6. (?) adds an entry to known_forkers_by_unit
 
         :param unit U: unit to be added to the poset
         '''
@@ -86,7 +87,7 @@ class Poset:
         for parent in U.parents:
             self.update_ceil(U, parent)
 
-        ## 6. add an entry to known_forkers_by_unit
+        # 6. add an entry to known_forkers_by_unit
         #forkers = []
         # process_id is known forking if U.floor[process_id] has more than one element
         #for process_id in range(self.n_processes):
@@ -97,18 +98,75 @@ class Poset:
 
 
 
-    def create_unit(self, parents, txs):
+    def create_unit(self, txs, strategy = "link_self_predecessor", num_parents = 2):
         '''
         Creates a new unit and stores thx in it. Correctness of the txs is checked by a thread listening for new transactions.
-        :param list parents: list of hashes of parent units
         :param list txs: list of correct transactions
-        :returns: the new-created unit
+        :returns: the new-created unit, or None if it is not possible to create a compliant unit
         '''
 
         # NOTE: perhaps we (as an honest process) should always try (if possible)
         # NOTE: to create a unit that gives evidence of another process forking
+        U = Unit(self.process_id, [], txs)
 
-        U = Unit(self.process_id, parents, txs)
+        if len(self.max_units_per_process[self.process_id]) == 0:
+            # this is going to be our dealing unit
+            return U
+
+
+        assert len(self.max_units_per_process[self.process_id]) == 1, "It appears we have created a fork."
+        U_max = self.max_units_per_process[self.process_id][0]
+
+        single_tip_processes = set(pid for pid in range(self.n_processes) if len(self.max_units_per_process[pid]) == 1)
+
+        growth_restricted = set(pid for pid in single_tip_processes if below(self.max_units_per_process[pid][0], U_max))
+
+        recent_parents = set()
+
+        W = U_max
+
+        while True:
+            # W is our dealing unit -> STOP
+            if len(W.parents) == 0:
+                break
+
+            parents = [V.creator_id for V in W.parents is V.creator_id != self.process_id]
+
+            # recent_parents.update(parents)
+            # ceil(n_processes/3)
+
+            treshold = (self.n_processes+2)//3
+            if len(recent_parents.union(parents)) >= treshold:
+                break
+
+            recent_parents = recent_parents.union(parents)
+            W = W.self_predecessor
+
+        legit_parents = [pid for pid in single_tip_processes if not (pid in growth_restricted or pid in recent_parents)]
+
+        assert len(legit_parents) >= 1, "It appears that even the last unit created by our process is not legit"
+        if len(legit_parents) < num_parents:
+            return None
+
+        legit_below = [pid for legit_parents if self.below(U_max, self.max_units_per_process[pid][0])]
+
+        if strategy == "link_self_predecessor":
+            first_parent = self.process_id
+        elif strategy == "link_above_self_predecessor":
+            first_parent = random.sample(legit_below, 1)[0]
+        else:
+            raise NotImplementedError("Strategy %s not implemented" % strategy)
+
+        random.shuffle(legit_parents)
+        parent_processes = legit_parents[:num_parents]
+        if first_parent in parent_processes:
+            parent_processes.remove(first_parent)
+        else:
+            parent_processes.pop()
+        parent_processes = [first_parent] + parent_processes
+
+        U.parents = [self.max_units_per_process[pid] for pid in parent_processes]
+
         return U
 
 
@@ -679,14 +737,6 @@ class Poset:
 
         pass
 
-
-
-    def diff(self, other):
-        '''
-        Returns a set of units that are in this poset and that are not in the other poset.
-        '''
-
-        pass
 
 
 
