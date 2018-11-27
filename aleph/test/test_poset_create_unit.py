@@ -5,7 +5,7 @@ import random
 
 
 
-def check_create_unit(n_processes, n_units, n_forkers):
+def check_create_unit(n_processes, n_units, n_forkers, strategy):
     forkers = random.sample(range(n_processes), n_forkers)
     non_forkers = [process_id for process_id in range(n_processes) if process_id not in forkers]
     dag = DAG(n_processes)
@@ -25,7 +25,7 @@ def check_create_unit(n_processes, n_units, n_forkers):
                 continue
             name, parents = res
         else:
-            U = posets[creator_id].create_unit([], strategy = "link_self_predecessor", num_parents = 2)
+            U = posets[creator_id].create_unit([], strategy = strategy, num_parents = 2)
             if U is None:
                 continue
             parents = [unit_to_name[creator_id][V] for V in U.parents]
@@ -47,18 +47,20 @@ def check_create_unit(n_processes, n_units, n_forkers):
 def test_create_unit_small():
     random.seed(123456789)
     repetitions = 50
-    for rep in range(repetitions):
-        n_processes = random.randint(4, 15)
-        n_units = random.randint(0, n_processes*5)
-        n_forkers = random.randint(0,n_processes//3)
-        check_create_unit(n_processes, n_units, n_forkers)
+    for strategy in ["link_self_predecessor", "link_above_self_predecessor"]:
+        for rep in range(repetitions):
+            n_processes = random.randint(4, 15)
+            n_units = random.randint(0, n_processes*5)
+            n_forkers = random.randint(0,n_processes//3)
+            check_create_unit(n_processes, n_units, n_forkers, strategy)
 
 
 def test_create_unit_large():
     random.seed(123456789)
     repetitions = 10
-    for rep in range(repetitions):
-        n_processes = random.randint(30, 80)
-        n_units = random.randint(0, n_processes*5)
-        n_forkers = random.randint(0,n_processes//3)
-        check_create_unit(n_processes, n_units, n_forkers)
+    for strategy in ["link_self_predecessor", "link_above_self_predecessor"]:
+        for rep in range(repetitions):
+            n_processes = random.randint(30, 80)
+            n_units = random.randint(0, n_processes*5)
+            n_forkers = random.randint(0,n_processes//3)
+            check_create_unit(n_processes, n_units, n_forkers, strategy)
