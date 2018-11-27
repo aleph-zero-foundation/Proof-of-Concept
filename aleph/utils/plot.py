@@ -13,8 +13,7 @@ def parse_line(line):
     return unit, int(creator_id), parents
 
 
-
-def plot(dag):
+def plot_dag(dag):
 
     G = nx.DiGraph()
     height, creator = {}, {}
@@ -86,6 +85,10 @@ def plot(dag):
     node_color = [color_map[dag.pid(unit)] for unit in G.nodes()]
     nx.draw(G, pos, with_labels=True, arrows=True, node_color=node_color, node_size=1000, cmap=plt.get_cmap('jet'))
     plt.show()
+
+
+def plot_poset(poset):
+    pass
 
 
 #if __name__ == '__main__':

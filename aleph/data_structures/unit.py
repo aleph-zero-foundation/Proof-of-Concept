@@ -36,18 +36,12 @@ class Unit(object):
         if self.hash_value is not None:
             return self.hash_value
 
-        # create a string containing all the essential data in the unit and compute its sha512
-        combined_string = ''
-        combined_string += str(self.creator_id)
-        combined_string += str(self.parents_hashes())
-        combined_string += str([str(tx) for tx in self.txs])
-
-        self.hash_value = hashlib.sha512(combined_string.encode()).hexdigest()
+        self.hash_value = hashlib.sha512(str(self)).hexdigest()
         return self.hash_value
 
 
     def parents_hashes(self):
-        return sorted([V.hash() for V in self.parents])
+        return [V.hash() for V in self.parents]
 
 
     def __hash__(self):
@@ -60,5 +54,28 @@ class Unit(object):
                set(map(str, self.txs)) == set(map(str, other.txs)))
 
 
+    def __str__(self):
+        # create a string containing all the essential data in the unit
+        str_repr = ''
+        str_repr += str(self.creator_id)
+        str_repr += str(sorted(self.parents_hashes()))
+        str_repr += str([str(tx) for tx in self.txs])
+        str_repr += str([str(coin_share) for coin_share in self.coinshares])
+
+        return str_repr
 
 
+    def __repr__(self):
+        # create a string containing all the essential data in the unit
+        str_repr = ''
+        str_repr += str(self.creator_id)
+        str_repr += str(sorted(self.parents_hashes()))
+        str_repr += str([str(tx) for tx in self.txs])
+        str_repr += str([str(coin_share) for coin_share in self.coinshares])
+        str_repr += str(self.level)
+        str_repr += str(self.height)
+        str_repr += str(self.self_predecessor.hash())
+        str_repr += str(self.floor)
+        str_repr += str(self.ceil)
+
+        return str_repr
