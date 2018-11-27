@@ -100,8 +100,12 @@ class Poset:
 
     def create_unit(self, txs, strategy = "link_self_predecessor", num_parents = 2):
         '''
-        Creates a new unit and stores thx in it. Correctness of the txs is checked by a thread listening for new transactions.
+        Creates a new unit and stores txs in it. Correctness of the txs is checked by a thread listening for new transactions.
         :param list txs: list of correct transactions
+        :param string strategy: strategy for parent selection, one of:
+        - "link_self_predecessor"
+        - "link_above_self_predecessor"
+        :param int num_parents: number of distinct parents
         :returns: the new-created unit, or None if it is not possible to create a compliant unit
         '''
 
@@ -148,12 +152,12 @@ class Poset:
         if len(legit_parents) < num_parents:
             return None
 
-        legit_below = [pid for legit_parents if self.below(U_max, self.max_units_per_process[pid][0])]
+        legit_below = [pid for pid in legit_parents if self.below(U_max, self.max_units_per_process[pid][0])]
 
         if strategy == "link_self_predecessor":
             first_parent = self.process_id
         elif strategy == "link_above_self_predecessor":
-            first_parent = random.sample(legit_below, 1)[0]
+            first_parent = random.choice(legit_below)
         else:
             raise NotImplementedError("Strategy %s not implemented" % strategy)
 

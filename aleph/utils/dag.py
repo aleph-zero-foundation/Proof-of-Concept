@@ -5,6 +5,7 @@ import functools
 from aleph.data_structures import Poset, Unit
 
 
+
 class memo:
     '''Decorator. Caches a function's return value each time it is called.
     If called later with the same arguments, the cached value is returned
@@ -177,70 +178,7 @@ class DAG:
 
 
 
-#======================================================================================================================
-#======================================================================================================================
-#======================================================================================================================
 
-
-
-def poset_from_dag(dag):
-    poset = Poset(n_processes = dag.n_processes, process_id = 0, secret_key = None, public_key = None)
-    unit_dict = {}
-
-    for unit_name in dag.sorted():
-        creator_id = dag.pid(unit_name)
-        assert 0 <= creator_id <= dag.n_processes - 1, "Incorrect process id"
-
-        assert unit_name not in unit_dict, "Duplicate unit name %s" % unit_name
-        for parent in dag.parents(unit_name):
-            assert parent in unit_dict, "Parent %s of unit %s not known" % (parent, unit_name)
-
-        U = Unit(creator_id = creator_id, parents = [unit_dict[parent] for parent in dag.parents(unit_name)],
-                txs = [])
-        poset.add_unit(U)
-        unit_dict[unit_name] = U
-
-    return poset, unit_dict
-
-
-
-def create_node_line(node, process_id, parents):
-    line = '%s %d' % (node, process_id)
-    for parent in parents:
-        line += ' ' + parent
-    line += '\n'
-    return line
-
-
-
-def dag_to_file(dag, file_name):
-    topological_list = dag.sorted()
-    with open(file_name, 'w') as f:
-        f.write('%d\n' % dag.n_processes)
-        for node in topological_list:
-            f.write(create_node_line(node, dag.pid(node), dag.parents(node)))
-
-
-def dag_from_file(file_name):
-    with open(file_name) as poset_file:
-        lines = poset_file.readlines()
-
-    n_processes = int(lines[0])
-    dag = DAG(n_processes)
-
-    for line in lines[1:]:
-        tokens = line.split()
-        unit_name = tokens[0]
-        creator_id = int(tokens[1])
-        assert 0 <= creator_id <= n_processes - 1, "Incorrect process id"
-        parents = tokens[2:]
-        assert unit_name not in dag, "Duplicate unit name %s" % unit_name
-        for parent in parents:
-            assert parent in dag, "Parent %s of a unit %s not known" % (parent, unit_name)
-
-        dag.add(unit_name, creator_id, parents)
-
-    return dag
 
 
 

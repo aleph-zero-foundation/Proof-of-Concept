@@ -1,5 +1,5 @@
 from aleph.data_structures import Unit, Poset
-from aleph.utils import dag, dag_utils
+from aleph.utils import dag_utils
 import random
 
 
@@ -76,7 +76,7 @@ def check_all_pairs_below(arg):
     Create a poset from a dag and test U<=V for all pairs of units U,V
     against a naive BFS-implementation from dag_utils
     '''
-    poset, unit_dict = dag.poset_from_dag(arg)
+    poset, unit_dict = dag_utils.poset_from_dag(arg)
 
     for nodeU, U in unit_dict.items():
         for nodeV, V in unit_dict.items():

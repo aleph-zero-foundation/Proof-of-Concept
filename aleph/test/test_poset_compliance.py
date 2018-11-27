@@ -1,5 +1,5 @@
 from aleph.data_structures import Unit, Poset
-from aleph.utils import dag, dag_utils
+from aleph.utils import dag_utils
 import random
 
 
