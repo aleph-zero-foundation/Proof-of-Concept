@@ -269,6 +269,43 @@ class Poset:
                 return False
 
 
+    def unit_by_hash(self, unit_hash):
+        '''
+        Returns a unit in the poset given by its hash, or None if not present.
+        '''
+
+        return self.units.get(unit_hash, None)
+
+
+    def units_by_height(self, creator_id, min_height, max_height):
+        '''
+        Simple function for testing listener.
+        '''
+        if min_height >= max_height or min_height > self.max_units_per_process[creator_id][0].height:
+            return []
+
+        units = []
+        U = self.max_units_per_process[creator_id][0]
+        while U.height > min_height:
+            units.append(U)
+            U = U.self_predecessor
+
+        return units
+
+    def get_max_heights_hashes(self):
+        '''
+        Simple function for testing listener.
+        '''
+        heights, hashes = [], []
+
+        for U_l in self.max_units_per_process:
+            U = U_l[0]
+            heights.append(U.height)
+            hashes.append(U.hash)
+
+        return heights, hashes
+
+
 
 #===============================================================================================================================
 # COMPLIANCE
