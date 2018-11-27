@@ -121,9 +121,11 @@ class Poset:
         assert len(self.max_units_per_process[self.process_id]) == 1, "It appears we have created a fork."
         U_max = self.max_units_per_process[self.process_id][0]
 
-        single_tip_processes = set(pid for pid in range(self.n_processes) if len(self.max_units_per_process[pid]) == 1)
+        single_tip_processes = set(pid for pid in range(self.n_processes)
+                                if len(self.max_units_per_process[pid]) == 1)
 
-        growth_restricted = set(pid for pid in single_tip_processes if below(self.max_units_per_process[pid][0], U_max))
+        growth_restricted = set(pid for pid in single_tip_processes
+                                if self.below(self.max_units_per_process[pid][0], U_max))
 
         recent_parents = set()
 
@@ -134,7 +136,7 @@ class Poset:
             if len(W.parents) == 0:
                 break
 
-            parents = [V.creator_id for V in W.parents is V.creator_id != self.process_id]
+            parents = [V.creator_id for V in W.parents if V.creator_id != self.process_id]
 
             # recent_parents.update(parents)
             # ceil(n_processes/3)
@@ -147,12 +149,13 @@ class Poset:
             W = W.self_predecessor
 
         legit_parents = [pid for pid in single_tip_processes if not (pid in growth_restricted or pid in recent_parents)]
+        legit_parents = list(set(legit_parents + [self.process_id]))
 
-        assert len(legit_parents) >= 1, "It appears that even the last unit created by our process is not legit"
         if len(legit_parents) < num_parents:
             return None
 
         legit_below = [pid for pid in legit_parents if self.below(U_max, self.max_units_per_process[pid][0])]
+
 
         if strategy == "link_self_predecessor":
             first_parent = self.process_id
@@ -169,7 +172,7 @@ class Poset:
             parent_processes.pop()
         parent_processes = [first_parent] + parent_processes
 
-        U.parents = [self.max_units_per_process[pid] for pid in parent_processes]
+        U.parents = [self.max_units_per_process[pid][0] for pid in parent_processes]
 
         return U
 
