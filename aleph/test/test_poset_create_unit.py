@@ -5,7 +5,7 @@ import random
 
 
 
-def check_create_unit(n_processes, n_units, n_forkers, strategy):
+def check_create_unit(n_processes, n_units, n_forkers, strategy, verify_fails = False):
     forkers = random.sample(range(n_processes), n_forkers)
     non_forkers = [process_id for process_id in range(n_processes) if process_id not in forkers]
     dag = DAG(n_processes)
@@ -27,6 +27,9 @@ def check_create_unit(n_processes, n_units, n_forkers, strategy):
         else:
             U = posets[creator_id].create_unit([], strategy = strategy, num_parents = 2)
             if U is None:
+                if verify_fails:
+                    res = dag_utils.generate_random_compliant_unit(dag, n_processes, creator_id, forking = False)
+                    assert res is None
                 continue
             parents = [unit_to_name[creator_id][V] for V in U.parents]
             name = dag_utils.generate_unused_name(dag, creator_id)
@@ -52,15 +55,18 @@ def test_create_unit_small():
             n_processes = random.randint(4, 15)
             n_units = random.randint(0, n_processes*5)
             n_forkers = random.randint(0,n_processes//3)
-            check_create_unit(n_processes, n_units, n_forkers, strategy)
+            check_create_unit(n_processes, n_units, n_forkers, strategy, verify_fails = True)
+
 
 
 def test_create_unit_large():
     random.seed(123456789)
-    repetitions = 10
+    repetitions = 5
     for strategy in ["link_self_predecessor", "link_above_self_predecessor"]:
         for rep in range(repetitions):
             n_processes = random.randint(30, 80)
-            n_units = random.randint(0, n_processes*5)
+            n_units = random.randint(0, n_processes*3)
             n_forkers = random.randint(0,n_processes//3)
-            check_create_unit(n_processes, n_units, n_forkers, strategy)
+            check_create_unit(n_processes, n_units, n_forkers, strategy, verify_fails = True)
+
+
