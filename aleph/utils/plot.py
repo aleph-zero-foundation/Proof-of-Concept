@@ -4,6 +4,7 @@ from networkx.drawing.nx_agraph import graphviz_layout
 
 import matplotlib.pyplot as plt
 
+from aleph.utils.dag_utils import dag_from_poset
 
 def parse_line(line):
     unit, creator_id = line.split()[:2]
@@ -88,7 +89,8 @@ def plot_dag(dag):
 
 
 def plot_poset(poset):
-    pass
+    dag, _ = dag_from_poset(poset)
+    plot_dat(dag)
 
 
 #if __name__ == '__main__':

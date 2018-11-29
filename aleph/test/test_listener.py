@@ -2,7 +2,7 @@ from aleph.network import listener, connecter
 from aleph.data_structures import Poset
 from aleph.crypto.signatures.keys import PrivateKey, PublicKey
 from aleph.utils.dag_utils import generate_random_forking, poset_from_dag
-from aleph.utils.plot import plot_poset
+from aleph.utils.plot import plot_poset, plot_dag
 
 import asyncio
 
@@ -56,7 +56,7 @@ async def main():
     for process_id in range(n_parties):
         sk = PrivateKey()
         pk = PublicKey(sk)
-        poset = poset_from_dag(dag, process_id, sk, pk)[0]
+        poset = poset_from_dag(dag, sk, pk)[0]
         poset.id = process_id
         posets.append(poset)
         host_port = 8888 + process_id
@@ -72,9 +72,12 @@ async def main():
         tasks.append(asyncio.create_task(add_units_from_queue(posets[process_id], queues[process_id])))
 
 
-    U = posets[0].create_unit(txs=[], strategy="link_self_predecessor", num_parents=2)
+    U = posets[0].create_unit(0, txs=[], strategy="link_self_predecessor", num_parents=2)
+    if U is None:
+        plot_dag(dag)
+        raise Exception('cannot creat')
     posets[0].add_unit(U)
-    U = posets[1].create_unit(txs=[], strategy="link_self_predecessor", num_parents=2)
+    U = posets[1].create_unit(1, txs=[], strategy="link_self_predecessor", num_parents=2)
     posets[1].add_unit(U)
     tasks.append(asyncio.create_task(sync(posets, queues, host_ip, host_ports, 1,0)))
 

@@ -12,14 +12,12 @@ class Poset:
     '''This class is the core data structure of the Aleph protocol.'''
 
 
-    def __init__(self, n_processes, process_id, secret_key, public_key, compliance_rules=None):
+    def __init__(self, n_processes, secret_key, public_key, compliance_rules=None):
         '''
         :param int n_processes: the committee size
-        :param int process_id: identification number of process whose local view is represented by this poset
         :param list compliance_rules: list of strings defining which compliance rules are followed by this poset
         '''
         self.n_processes = n_processes
-        self.process_id = process_id
         self.compliance_rules = compliance_rules
 
         self.units = {}
@@ -98,7 +96,7 @@ class Poset:
 
 
 
-    def create_unit(self, txs, strategy = "link_self_predecessor", num_parents = 2):
+    def create_unit(self, creator_id, txs, strategy = "link_self_predecessor", num_parents = 2):
         '''
         Creates a new unit and stores txs in it. Correctness of the txs is checked by a thread listening for new transactions.
         :param list txs: list of correct transactions
@@ -111,15 +109,15 @@ class Poset:
 
         # NOTE: perhaps we (as an honest process) should always try (if possible)
         # NOTE: to create a unit that gives evidence of another process forking
-        U = Unit(self.process_id, [], txs)
+        U = Unit(creator_id, [], txs)
 
-        if len(self.max_units_per_process[self.process_id]) == 0:
+        if len(self.max_units_per_process[creator_id]) == 0:
             # this is going to be our dealing unit
             return U
 
 
-        assert len(self.max_units_per_process[self.process_id]) == 1, "It appears we have created a fork."
-        U_max = self.max_units_per_process[self.process_id][0]
+        assert len(self.max_units_per_process[creator_id]) == 1, "It appears we have created a fork."
+        U_max = self.max_units_per_process[creator_id][0]
 
         single_tip_processes = set(pid for pid in range(self.n_processes)
                                 if len(self.max_units_per_process[pid]) == 1)
@@ -135,7 +133,7 @@ class Poset:
             if len(W.parents) == 0:
                 break
 
-            parents = [V.creator_id for V in W.parents if V.creator_id != self.process_id]
+            parents = [V.creator_id for V in W.parents if V.creator_id != creator_id]
 
             # recent_parents.update(parents)
             # ceil(n_processes/3)
@@ -157,7 +155,7 @@ class Poset:
 
 
         if strategy == "link_self_predecessor":
-            first_parent = self.process_id
+            first_parent = creator_id
         elif strategy == "link_above_self_predecessor":
             first_parent = random.choice(legit_below)
         else:
