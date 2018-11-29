@@ -124,8 +124,7 @@ class Poset:
         single_tip_processes = set(pid for pid in range(self.n_processes)
                                 if len(self.max_units_per_process[pid]) == 1)
 
-        growth_restricted = set(pid for pid in single_tip_processes
-                                if self.below(self.max_units_per_process[pid][0], U_max))
+        growth_restricted = set(pid for pid in single_tip_processes if self.below(self.max_units_per_process[pid][0], U_max))
 
         recent_parents = set()
 
@@ -281,12 +280,12 @@ class Poset:
         '''
         Simple function for testing listener.
         '''
-        if min_height >= max_height or min_height > self.max_units_per_process[creator_id][0].height:
+        if min_height > max_height or min_height > self.max_units_per_process[creator_id][0].height:
             return []
 
         units = []
         U = self.max_units_per_process[creator_id][0]
-        while U.height > min_height:
+        while U.height >= min_height:
             units.append(U)
             U = U.self_predecessor
 
