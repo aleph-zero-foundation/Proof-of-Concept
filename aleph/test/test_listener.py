@@ -5,7 +5,25 @@ from aleph.utils.dag_utils import generate_random_forking, poset_from_dag
 from aleph.utils.plot import plot_poset, plot_dag
 
 import asyncio
-from queue import Queue
+
+import asyncio
+
+class Queue():
+    def __init__(self):
+        self.items = []
+
+    def get(self):
+        if self.items:
+            return self.items.pop(0)
+        else:
+            return None
+
+    def put(self, item):
+        self.items.append(item)
+
+    def __bool__(self):
+        return self.items != []
+
 async def add_units_from_queue(poset, queue):
     #print(poset.id, 'adding unit coro start')
     while True:
@@ -55,12 +73,9 @@ async def main():
     for process_id in range(n_parties):
         tasks.append(asyncio.create_task(add_units_from_queue(posets[process_id], queues[process_id])))
 
-    U = posets[0].create_unit(0, txs=[], strategy="link_self_predecessor", num_parents=2)
-    if U is None:
-        plot_dag(dag)
-        raise Exception('cannot creat')
+    U = posets[0].create_unit(txs=[], strategy="link_self_predecessor", num_parents=2)
     posets[0].add_unit(U)
-    U = posets[1].create_unit(1, txs=[], strategy="link_self_predecessor", num_parents=2)
+    U = posets[1].create_unit(txs=[], strategy="link_self_predecessor", num_parents=2)
     posets[1].add_unit(U)
     tasks.append(asyncio.create_task(sync(posets, queues, host_ip, host_ports, 1,0)))
 
