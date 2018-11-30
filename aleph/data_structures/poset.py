@@ -146,7 +146,7 @@ class Poset:
             W = W.self_predecessor
 
         legit_parents = [pid for pid in single_tip_processes if not (pid in growth_restricted or pid in recent_parents)]
-        legit_parents = list(set(legit_parents + [self.process_id]))
+        legit_parents = list(set(legit_parents + [creator_id]))
 
         if len(legit_parents) < num_parents:
             return None

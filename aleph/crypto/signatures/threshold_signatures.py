@@ -16,7 +16,7 @@ def generate_keys(n_parties, threshold):
     gen = group.hash('gengen', G2)
     gen.initPP()
 
-    ONE = group.random(ZR, seed=60)*0+1  # <-- what is that?
+    ONE = gen*0+1  # <-- what is that?
 
     # pick a set of coefficients
     coef = group.random(ZR, threshold)
