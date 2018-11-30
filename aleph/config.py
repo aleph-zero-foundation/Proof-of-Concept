@@ -6,3 +6,14 @@ N_TXS = 10000  # number of transactions per unit
 
 HOST_IP = '127.0.0.1'
 HOST_PORT = 8888
+
+N_RECV_SYNC = 5
+LOGGING_FILENAME = 'aleph.log'
+
+import logging
+
+log_format = '[%(asctime)s] [%(levelname)-8s] [%(name)-10s] %(message)s [%(filename)s:%(lineno)d]'
+logging.basicConfig(filename=LOGGING_FILENAME,
+                    level=logging.DEBUG,
+                    format=log_format,
+                    filemode='w')

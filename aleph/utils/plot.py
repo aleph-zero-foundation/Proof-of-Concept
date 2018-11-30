@@ -2,6 +2,8 @@ import networkx as nx
 import numpy as np
 from networkx.drawing.nx_agraph import graphviz_layout
 
+import logging
+logging.getLogger('matplotlib').setLevel(logging.WARNING)
 import matplotlib.pyplot as plt
 
 from aleph.utils.dag_utils import dag_from_poset

@@ -1,43 +1,10 @@
-from aleph.network import listener, connecter
+from aleph.network import listener, connecter, sync
 from aleph.data_structures import Poset
 from aleph.crypto.signatures.keys import PrivateKey, PublicKey
 from aleph.utils.dag_utils import generate_random_forking, poset_from_dag
 from aleph.utils.plot import plot_poset, plot_dag
 
 import asyncio
-
-import asyncio
-
-class Queue():
-    def __init__(self):
-        self.items = []
-
-    def get(self):
-        if self.items:
-            return self.items.pop(0)
-        else:
-            return None
-
-    def put(self, item):
-        self.items.append(item)
-
-    def __bool__(self):
-        return self.items != []
-
-async def add_units_from_queue(poset, queue):
-    #print(poset.id, 'adding unit coro start')
-    while True:
-        if queue:
-            U = queue.get()
-            print('adding unit', U, 'to poset', poset.id)
-            poset.add_unit(U)
-            break
-        else:
-            #print(poset.id, 'adding units, nothing to add, sleeping')
-            await asyncio.sleep(1)
-
-async def sync(posets, queues, host_ip, host_ports, sender, recipient):
-    await connecter(posets[sender], queues[sender], host_ip, host_ports[recipient])
 
 
 async def main():
@@ -49,9 +16,8 @@ async def main():
 
     n_parties = 2
     posets = []
-    host_ip = '127.0.0.1'
-    host_ports = []
-    queues = []
+    host_ports = [8888+i for i in range(n_parties)]
+    addresses = [('127.0.0.1', port) for port in host_ports]
 
     tasks = []
 
@@ -61,25 +27,22 @@ async def main():
         poset = poset_from_dag(dag, sk, pk)[0]
         poset.id = process_id
         posets.append(poset)
-        host_port = 8888 + process_id
-        host_ports.append(host_port)
-        #queue = asyncio.Queue()
-        queue = Queue()
-        queues.append(queue)
 
-        # await listener(poset, queue, host_ip, host_port)
-        tasks.append(asyncio.create_task(listener(poset, queue, host_ip, host_port)))
+        # await listener(poset, host_ip, host_port)
+        tasks.append(asyncio.create_task(listener(poset, addresses[process_id], addresses)))
 
-    for process_id in range(n_parties):
-        tasks.append(asyncio.create_task(add_units_from_queue(posets[process_id], queues[process_id])))
-
-    U = posets[0].create_unit(txs=[], strategy="link_self_predecessor", num_parents=2)
+    U = posets[0].create_unit(0, txs=[], strategy="link_self_predecessor", num_parents=2)
     posets[0].add_unit(U)
-    U = posets[1].create_unit(txs=[], strategy="link_self_predecessor", num_parents=2)
+    U = posets[1].create_unit(1, txs=[], strategy="link_self_predecessor", num_parents=2)
     posets[1].add_unit(U)
-    tasks.append(asyncio.create_task(sync(posets, queues, host_ip, host_ports, 1,0)))
+    # wait for servers to start
+    await asyncio.sleep(1)
+    # sync!
+    tasks.append(asyncio.create_task(sync(posets[1], 0, addresses[0])))
 
-
-    await asyncio.gather(*asyncio.all_tasks())
+    await tasks[-1]
+    tasks[0].cancel()
+    tasks[1].cancel()
+    # await asyncio.gather(*asyncio.all_tasks())
 
 asyncio.run(main())

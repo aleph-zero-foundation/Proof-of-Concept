@@ -1,2 +1,1 @@
-from .channel import Channel
-from .network import listener, connecter
+from .network import listener, connecter, sync
