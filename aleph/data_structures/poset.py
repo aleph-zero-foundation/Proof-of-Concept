@@ -292,15 +292,46 @@ class Poset:
     def get_max_heights_hashes(self):
         '''
         Simple function for testing listener.
+        Assumes no forks exist.
         '''
         heights, hashes = [], []
 
         for U_l in self.max_units_per_process:
-            U = U_l[0]
-            heights.append(U.height)
-            hashes.append(U.hash)
+            if len(U_l) > 0:
+                U = U_l[0]
+                heights.append(U.height)
+                hashes.append(U.hash)
+            else:
+                heights.append(-1)
+                hashes.append(None)
 
         return heights, hashes
+
+
+    def get_diff(self, process_id, current, prev):
+        '''
+        Outputs the set of all units U such that U lies strictly above some unit in prev and below some unit in current.
+        The output is in topological order.
+        Both current and prev are assumed to be collections of maximal units within process_id.
+        Also the output are only units in process_id
+        '''
+        diff_hashes = set()
+        curr_hashes = set(U.hash() for U in current)
+        prev_hashes = set(U.hash() for U in prev)
+        while len(curr_hashes) > 0:
+            U_hash = curr_hashes.pop()
+            U = self.units[U]
+            if U_hash not in prev_hashes and U_hash not in diff_hashes:
+                diff_hashes.add(U_hash)
+                if U.self_predecessor is not None:
+                    curr_hashes.add(U.self_predecessor.hash())
+
+        return [self.units[U_hash] for U_hash in diff_hashes]
+
+
+
+
+
 
 
 
