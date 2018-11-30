@@ -1,5 +1,6 @@
 from aleph.crypto.signatures.keys import PrivateKey, PublicKey
-from aleph.data_structures import Unit, Poset
+from aleph.data_structures import Unit
+from aleph.process import Process
 
 class TestSignatures():
     def test_one(self):
@@ -15,9 +16,11 @@ class TestSignatures():
         n_processes = 100
         sk = PrivateKey()
         pk = PublicKey(sk)
-        poset = Poset(n_processes, process_id, sk, pk)
+        dummy_keys = [None for _ in range(n_processes)]
+        dummy_addresses = [(None, None) for _ in range(n_processes)]
+        process = Process(n_processes, process_id, sk, pk, dummy_addresses, dummy_keys)
         U = Unit(0,[],[])
-        poset.sign_unit(U)
+        process.sign_unit(U)
 
         msg = str([U.creator_id, U.parents, U.txs, U.coinshares]).encode()
         assert pk.verify_signature(U.signature, msg)

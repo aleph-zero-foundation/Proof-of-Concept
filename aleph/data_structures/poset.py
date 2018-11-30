@@ -12,7 +12,7 @@ class Poset:
     '''This class is the core data structure of the Aleph protocol.'''
 
 
-    def __init__(self, n_processes, secret_key, public_key, compliance_rules=None):
+    def __init__(self, n_processes, compliance_rules=None):
         '''
         :param int n_processes: the committee size
         :param list compliance_rules: list of strings defining which compliance rules are followed by this poset
@@ -23,9 +23,6 @@ class Poset:
         self.units = {}
         self.max_units_per_process = [[] for _ in range(n_processes)]
         self.forking_height = [float('inf')] * n_processes
-
-        self.secret_key = secret_key
-        self.public_key = public_key
 
         #self.level_reached = 0
         self.prime_units_by_level = {}

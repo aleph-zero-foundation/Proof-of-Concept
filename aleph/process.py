@@ -14,7 +14,7 @@ class Process:
     '''This class is the main component of the Aleph protocol.'''
 
 
-    def __init__(self, n_processes, process_id, secret_key, address_list, public_key_list):
+    def __init__(self, n_processes, process_id, secret_key, public_key, address_list, public_key_list):
         '''
         :param int n_processes: the committee size
         :param int process_id: the id of the current process
@@ -27,17 +27,27 @@ class Process:
         self.process_id = process_id
 
         self.secret_key = secret_key
-        self.public_key = public_key_list[process_id]
+        self.public_key = public_key
 
         self.public_key_list = public_key_list
         self.address_list = address_list
         self.host = address_list[process_id][0]
         self.port = address_list[process_id][1]
 
-        self.poset = Poset(self.n_processes, self.secret_key, self.public_key)
+        self.poset = Poset(self.n_processes)
 
         # a bitmap specifying for every process whether he has been detected forking
         self.is_forker = [False for _ in range(self.n_processes)]
+
+
+    def sign_unit(self, U):
+        '''
+        Signs the unit.
+        TODO This method should be probably a part of a process class which we don't have right now.
+        '''
+
+        message = str([U.creator_id, U.parents, U.txs, U.coinshares]).encode()
+        U.signature = self.secret_key.sign(message)
 
 
     async def create_add(self):
@@ -52,10 +62,9 @@ class Process:
 
     async def _run_tasks(self):
     	tasks = []
-    	tasks.append(asyncio.create_task(self.create_add()))
+    	await asyncio.create_task(self.create_add())
     	# TODO: add listener and connected tasks
 
-    	await asyncio.gather(*tasks)
 
 
     def run(self):
