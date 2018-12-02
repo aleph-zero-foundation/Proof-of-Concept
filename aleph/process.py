@@ -4,7 +4,7 @@ import asyncio
 from aleph.data_structures.unit import Unit
 from aleph.data_structures.poset import Poset
 from aleph.crypto.signatures.keys import PrivateKey, PublicKey
-from aleph.network import listener, connecter
+from aleph.network import listener, sync
 from aleph.config import CREATE_FREQ, SYNC_INIT_FREQ
 
 
@@ -43,7 +43,6 @@ class Process:
     def sign_unit(self, U):
         '''
         Signs the unit.
-        TODO This method should be probably a part of a process class which we don't have right now.
         '''
 
         message = str([U.creator_id, U.parents, U.txs, U.coinshares]).encode()
@@ -52,20 +51,31 @@ class Process:
 
     async def create_add(self):
     	while True:
-    		new_unit = self.poset.create_unit()
+    		new_unit = self.poset.create_unit(self.process_id, [], strategy = "link_self_predecessor", num_parents = 2)
     		if new_unit is not None:
     			assert self.poset.check_compliance(new_unit), "A unit created by our process is not passing the compliance test!"
     			self.poset.add_unit(new_unit)
     			await asyncio.sleep(CREATE_FREQ)
 
 
+    async def keep_syncing(self):
+    	await asyncio.sleep(1)
+    	while True:
+    		sync_candidates = list(range(self.n_processes))
+    		sync_candidates.remove(self.process_id)
+    		target_id = random.choice(sync_candidates)
+    		print("OK")
+    		asyncio.create_task(sync(self.poset, self.process_id, target_id, self.address_list[target_id]))
+
+    		await asyncio.sleep(SYNC_INIT_FREQ)
+    		print("OK2")
 
     async def _run_tasks(self):
-    	tasks = []
-    	await asyncio.create_task(self.create_add())
-    	# TODO: add listener and connected tasks
-
-
+    	#tasks = []
+    	asyncio.create_task(self.create_add())
+    	asyncio.create_task(listener(self.poset, self.process_id, self.address_list))
+    	asyncio.create_task(self.keep_syncing())
+    	await asyncio.gather(*asyncio.all_tasks())
 
     def run(self):
     	asyncio.run(self._run_tasks())

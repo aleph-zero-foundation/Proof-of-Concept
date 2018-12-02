@@ -172,14 +172,14 @@ class Poset:
 
 
 
-    def sign_unit(self, U):
-        '''
-        Signs the unit.
-        TODO This method should be probably a part of a process class which we don't have right now.
-        '''
+    #def sign_unit(self, U):
+    #    '''
+    #    Signs the unit.
+    #    TODO This method should be probably a part of a process class which we don't have right now.
+    #    '''
 
-        message = str([U.creator_id, U.parents, U.txs, U.coinshares]).encode()
-        U.signature = self.secret_key.sign(message)
+    #    message = str([U.creator_id, U.parents, U.txs, U.coinshares]).encode()
+    #    U.signature = self.secret_key.sign(message)
 
 
 
@@ -297,7 +297,7 @@ class Poset:
             if len(U_l) > 0:
                 U = U_l[0]
                 heights.append(U.height)
-                hashes.append(U.hash)
+                hashes.append(U.hash())
             else:
                 heights.append(-1)
                 hashes.append(None)

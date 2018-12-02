@@ -16,7 +16,7 @@ async def main():
 
     n_parties = 2
     posets = []
-    host_ports = [8888+i for i in range(n_parties)]
+    host_ports = [8888+i for i in range(n_processes)]
     addresses = [('127.0.0.1', port) for port in host_ports]
 
     tasks = []
@@ -24,12 +24,12 @@ async def main():
     for process_id in range(n_parties):
         sk = PrivateKey()
         pk = PublicKey(sk)
-        poset = poset_from_dag(dag, sk, pk)[0]
+        poset = poset_from_dag(dag)[0]
         poset.id = process_id
         posets.append(poset)
 
         # await listener(poset, host_ip, host_port)
-        tasks.append(asyncio.create_task(listener(poset, addresses[process_id], addresses)))
+        tasks.append(asyncio.create_task(listener(poset, process_id, addresses)))
 
     U = posets[0].create_unit(0, txs=[], strategy="link_self_predecessor", num_parents=2)
     posets[0].add_unit(U)
@@ -38,7 +38,7 @@ async def main():
     # wait for servers to start
     await asyncio.sleep(1)
     # sync!
-    tasks.append(asyncio.create_task(sync(posets[1], 0, addresses[0])))
+    tasks.append(asyncio.create_task(sync(posets[1], 1, 0, addresses[0])))
 
     await tasks[-1]
     tasks[0].cancel()

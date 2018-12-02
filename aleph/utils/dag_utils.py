@@ -282,8 +282,8 @@ def constraints_satisfied(constraints, truth):
 
 
 
-def poset_from_dag(dag, secret_key=None, public_key=None):
-    poset = Poset(n_processes=dag.n_processes, secret_key=secret_key, public_key=public_key)
+def poset_from_dag(dag):
+    poset = Poset(n_processes=dag.n_processes)
     unit_dict = {}
 
     for unit_name in dag.sorted():

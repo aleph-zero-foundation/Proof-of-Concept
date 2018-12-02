@@ -9,8 +9,7 @@ def check_create_unit(n_processes, n_units, n_forkers, strategy, verify_fails = 
     forkers = random.sample(range(n_processes), n_forkers)
     non_forkers = [process_id for process_id in range(n_processes) if process_id not in forkers]
     dag = DAG(n_processes)
-    posets = [Poset(n_processes = n_processes, process_id = process_id, secret_key = None, public_key = None)
-             for process_id in range(n_processes)]
+    posets = [Poset(n_processes = n_processes) for process_id in range(n_processes)]
     name_to_unit = [{} for process_id in range(n_processes)]
     unit_to_name = [{} for process_id in range(n_processes)]
 
@@ -25,7 +24,7 @@ def check_create_unit(n_processes, n_units, n_forkers, strategy, verify_fails = 
                 continue
             name, parents = res
         else:
-            U = posets[creator_id].create_unit([], strategy = strategy, num_parents = 2)
+            U = posets[creator_id].create_unit(creator_id, [], strategy = strategy, num_parents = 2)
             if U is None:
                 if verify_fails:
                     res = dag_utils.generate_random_compliant_unit(dag, n_processes, creator_id, forking = False)

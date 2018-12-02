@@ -5,7 +5,7 @@ import random
 
 def check_muting_vs_pattern(dag, topological_list, pattern):
     unit_dict = {}
-    poset = Poset(n_processes = dag.n_processes, process_id = 0, secret_key = None, public_key = None)
+    poset = Poset(n_processes = dag.n_processes)
 
     for node, answer in zip(topological_list, pattern):
         U = Unit(creator_id = dag.pid(node), parents = [unit_dict[parent] for parent in dag.parents(node)], txs = [])
