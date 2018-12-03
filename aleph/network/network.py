@@ -14,7 +14,7 @@ async def listener(poset, process_id, addresses):
 
         ips = [ip for ip, _ in addresses]
         peer_addr = writer.get_extra_info('peername')
-        logger.debug('listener: assuming that addresses are different')
+        #logger.debug('listener: assuming that addresses are different')
 
         if peer_addr[0] not in ips:
             logger.info(f'Closing connection with {peer_addr[0]}, it is not in address book')
@@ -25,52 +25,54 @@ async def listener(poset, process_id, addresses):
             return
 
         n_recv_syncs += 1
-        logger.info(f'listener: connection established with an unknown process')
+        logger.info(f'listener {process_id}: connection established with an unknown process')
 
-        logger.info(f'listener: receiving info about forkers and heights&hashes from an unknown process')
+        logger.info(f'listener {process_id}: receiving info about forkers and heights&hashes from an unknown process')
         data = await reader.readuntil()
         n_bytes = int(data[:-1])
         data = await reader.read(n_bytes)
         ex_id, ex_heights, ex_hashes = marshal.loads(data)
         assert ex_id != process_id, "It seems we are syncing with ourselves."
         assert ex_id in range(poset.n_processes), "Incorrect process id received."
-        logger.info(f'listener: got forkers/heights {ex_heights} from {ex_id}')
+        logger.info(f'listener {process_id}: got forkers/heights {ex_heights} from {ex_id}')
 
         int_heights, int_hashes = poset.get_max_heights_hashes()
 
-        logger.info(f'listener: sending info about forkers and heights&hashes to {ex_id}')
+        logger.info(f'listener {process_id}: sending info about forkers and heights&hashes to {ex_id}')
 
         data = marshal.dumps((process_id, int_heights, int_hashes))
         writer.write(str(len(data)).encode())
         writer.write(b'\n')
         writer.write(data)
         await writer.drain()
-        logger.info(f'listener: sending forkers/heights {int_heights} to {ex_id}')
+        logger.info(f'listener {process_id}: sending forkers/heights {int_heights} to {ex_id}')
 
         # receive units
-        logger.info(f'listener: receiving units from {ex_id}')
+        logger.info(f'listener {process_id}: receiving units from {ex_id}')
         data = await reader.readuntil()
         n_bytes = int(data[:-1])
         data = await reader.read(n_bytes)
         units_recieved = marshal.loads(data)
-        logger.info('listener: received units')
+        logger.info(f'listener {process_id}: received units')
 
-        logger.info(f'listener: trying to add {len(units_recieved)} units from {ex_id} to poset')
+        logger.info(f'listener {process_id}: trying to add {len(units_recieved)} units from {ex_id} to poset')
         for unit in units_recieved:
             parents = [poset.unit_by_hash(parent_hash) for parent_hash in unit['parents_hashes']]
             U = Unit(unit['creator_id'], parents, unit['txs'], unit['signature'], unit['coinshares'])
+            print(unit)
+            print(parents)
             if poset.check_compliance(U):
                 poset.add_unit(U)
             else:
-                logger.info(f'listener: got unit from {ex_id} that does not comply to the rules; aborting')
+                logger.info(f'listener {process_id}: got unit from {ex_id} that does not comply to the rules; aborting')
                 n_recv_syncs -= 1
                 return
-        logger.info(f'listener: units from {ex_id} are added succesful')
+        logger.info(f'listener {process_id}: units from {ex_id} are added succesful')
 
         send_ind = [i for i, (int_height, ex_height) in enumerate(zip(int_heights, ex_heights)) if int_height > ex_height]
 
         # send units
-        logger.info(f'listener: sending units to {ex_id}')
+        logger.info(f'listener {process_id}: sending units to {ex_id}')
         units_to_send = []
         for i in send_ind:
             units = poset.units_by_height(creator_id=i, min_height=ex_heights[i]+1, max_height=int_heights[i])
@@ -81,9 +83,9 @@ async def listener(poset, process_id, addresses):
         writer.write(b'\n')
         writer.write(data)
         await writer.drain()
-        logger.info(f'listener: units sent to {ex_id}')
+        logger.info(f'listener {process_id}: units sent to {ex_id}')
 
-        logger.info(f'listener: syncing with {ex_id} completed succesfully')
+        logger.info(f'listener {process_id}: syncing with {ex_id} completed succesfully')
         n_recv_syncs -= 1
 
 
@@ -101,33 +103,33 @@ async def listener(poset, process_id, addresses):
 async def sync(poset, initiator_id, target_id, target_addr):
     logger = logging.getLogger(LOGGING_FILENAME)
 
-    logger.info(f'sync: establishing connection to {target_id}')
+    logger.info(f'sync {initiator_id} -> {target_id}: establishing connection to {target_id}')
     reader, writer = await asyncio.open_connection(target_addr[0], target_addr[1])
-    logger.info(f'sync: established connection to {target_id}')
+    logger.info(f'sync {initiator_id} -> {target_id}: established connection to {target_id}')
 
     int_heights, int_hashes = poset.get_max_heights_hashes()
 
-    logger.info(f'sync: sending info about own process_id and forkers/heights/hashes to {target_id}')
+    logger.info(f'sync {initiator_id} -> {target_id}: sending info about own process_id and forkers/heights/hashes to {target_id}')
     #print(int_heights, int_hashes)
     data = marshal.dumps((initiator_id, int_heights, int_hashes))
     writer.write(str(len(data)).encode())
     writer.write(b'\n')
     writer.write(data)
     await writer.drain()
-    logger.info(f'sync: sent own process_id forkers/heights/hashes {int_heights} to {target_id}')
+    logger.info(f'sync {initiator_id} -> {target_id}: sent own process_id forkers/heights/hashes {int_heights} to {target_id}')
 
 
-    logger.info(f'sync: receiving info about target identity and forkers/heights/hashes from {target_id}')
+    logger.info(f'sync {initiator_id} -> {target_id}: receiving info about target identity and forkers/heights/hashes from {target_id}')
     data = await reader.readuntil()
     n_bytes = int(data[:-1])
     data = await reader.read(n_bytes)
     ex_id, ex_heights, ex_hashes = marshal.loads(data)
     assert ex_id == target_id, "The process_id sent by target does not much the intented target_id"
-    logger.info(f'sync: got target identity and forkers/heights/hashes {ex_heights} from {target_id}')
+    logger.info(f'sync {initiator_id} -> {target_id}: got target identity and forkers/heights/hashes {ex_heights} from {target_id}')
 
     # send units
     send_ind = [i for i, (int_height, ex_height) in enumerate(zip(int_heights, ex_heights)) if int_height > ex_height]
-    logger.info(f'sync: sending units to {target_id}')
+    logger.info(f'sync {initiator_id} -> {target_id}: sending units to {target_id}')
     units_to_send = []
     for i in send_ind:
         units = poset.units_by_height(creator_id=i, min_height=ex_heights[i]+1, max_height=int_heights[i])
@@ -138,29 +140,29 @@ async def sync(poset, initiator_id, target_id, target_addr):
     writer.write(b'\n')
     writer.write(data)
     await writer.drain()
-    logger.info(f'sync: units sent to {target_id}')
+    logger.info(f'sync {initiator_id} -> {target_id}: units sent to {target_id}')
 
     # receive units
-    logger.info(f'sync: receiving units from {target_id}')
+    logger.info(f'sync {initiator_id} -> {target_id}: receiving units from {target_id}')
     data = await reader.readuntil()
     n_bytes = int(data[:-1])
     data = await reader.read(n_bytes)
     units_recieved = marshal.loads(data)
-    logger.info('sync: received units')
+    logger.info(f'sync {initiator_id} -> {target_id}: received units')
 
-    logger.info(f'sync: trying to add {len(units_recieved)} units from {target_id} to poset')
+    logger.info(f'sync {initiator_id} -> {target_id}: trying to add {len(units_recieved)} units from {target_id} to poset')
     for unit in units_recieved:
         parents = [poset.unit_by_hash(parent_hash) for parent_hash in unit['parents_hashes']]
         U = Unit(unit['creator_id'], parents, unit['txs'], unit['signature'], unit['coinshares'])
         if poset.check_compliance(U):
             poset.add_unit(U)
         else:
-            logger.info(f'sync: got unit from {target_id} that does not comply to the rules; aborting')
+            logger.info(f'sync {initiator_id} -> {target_id}: got unit from {target_id} that does not comply to the rules; aborting')
             return
-    logger.info(f'sync: units from {target_id} added succesfully')
+    logger.info(f'sync {initiator_id} -> {target_id}: units from {target_id} added succesfully')
 
 
-    logger.info(f'sync: syncing with {target_id} completed succesfully')
+    logger.info(f'sync {initiator_id} -> {target_id}: syncing with {target_id} completed succesfully')
 
 
 
@@ -215,9 +217,14 @@ async def connecter(poset, peer_addr):
     print('connecter: units received')
 
     print('connecter: adding units to poset', len(units_recieved))
+    #TODO: need to have the units topologically sorted here...
     for unit in units_recieved:
+        assert all(U_hash in poset.units.keys() for U_hash in unit['parents_hashes'])
         parents = [poset.unit_by_hash(parent_hash) for parent_hash in unit['parents_hashes']]
         U = Unit(unit['creator_id'], parents, unit['txs'], unit['signature'], unit['coinshares'])
+        if U.hash() in poset.units.keys():
+            # Unit already in the poset, no need to add it (perhaps it has been added in a parallel sync)
+            continue
         if poset.check_compliance(U):
             poset.add_unit(U)
         else:

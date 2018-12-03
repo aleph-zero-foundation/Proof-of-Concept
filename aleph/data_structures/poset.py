@@ -2,10 +2,11 @@
 
 from itertools import product
 import random
+import logging
 
 from aleph.data_structures.unit import Unit
 from aleph.crypto.signatures.keys import PrivateKey, PublicKey
-from .. import config
+from aleph.config import *
 
 
 class Poset:
@@ -106,10 +107,14 @@ class Poset:
 
         # NOTE: perhaps we (as an honest process) should always try (if possible)
         # NOTE: to create a unit that gives evidence of another process forking
+        logger = logging.getLogger(LOGGING_FILENAME)
         U = Unit(creator_id, [], txs)
-
+        logger.info(f"create: {creator_id} attempting to create a unit.")
+        #print(f"create: {creator_id} attempting to create a unit.")
         if len(self.max_units_per_process[creator_id]) == 0:
             # this is going to be our dealing unit
+
+            logger.info(f"create: {creator_id} created its dealing unit.")
             return U
 
 
@@ -280,11 +285,12 @@ class Poset:
 
         units = []
         U = self.max_units_per_process[creator_id][0]
-        while U.height >= min_height:
-            units.append(U)
+        while U is not None and U.height >= min_height:
+            if U.height<=max_height:
+                units.append(U)
             U = U.self_predecessor
 
-        return units
+        return reversed(units)
 
     def get_max_heights_hashes(self):
         '''

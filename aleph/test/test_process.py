@@ -8,30 +8,31 @@ from aleph.utils.plot import plot_poset, plot_dag
 import asyncio
 
 
-def test_processes():
+async def test_processes():
     n_processes = 4
-    n_units = 30
+    n_units = 0
     n_forkers = 0
 
-    dag = generate_random_forking(n_processes, n_units, n_forkers)
+    #dag = generate_random_forking(n_processes, n_units, n_forkers)
 
-    n_parties = 4
-    posets = []
     processes = []
-    host_ports = [8888+i for i in range(n_parties)]
+    host_ports = [8888+i for i in range(n_processes)]
     addresses = [('127.0.0.1', port) for port in host_ports]
 
     private_keys = [PrivateKey() for _ in range(n_processes)]
     public_keys = [PublicKey(sk) for sk in private_keys]
 
-    for process_id in range(n_parties):
+    tasks = []
+
+    for process_id in range(n_processes):
         sk = private_keys[process_id]
         pk = public_keys[process_id]
-
         new_process = Process(n_processes, process_id, sk, pk, addresses, public_keys)
-        new_process.poset = poset_from_dag(dag)[0]
+        new_process.poset = Poset(n_processes)
         processes.append(new_process)
-        new_process.run()
+        tasks.append(asyncio.create_task(new_process.run()))
+
+    await asyncio.gather(*tasks)
 
 
-test_processes()
+asyncio.run(test_processes())

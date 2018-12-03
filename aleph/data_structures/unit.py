@@ -58,7 +58,7 @@ class Unit(object):
         # create a string containing all the essential data in the unit
         str_repr = ''
         str_repr += str(self.creator_id)
-        str_repr += str(sorted(self.parents_hashes()))
+        str_repr += str(self.parents_hashes())
         str_repr += str(self.txs)
         str_repr += str(self.coinshares)
 
@@ -69,7 +69,7 @@ class Unit(object):
         # create a string containing all the essential data in the unit
         str_repr = ''
         str_repr += str(self.creator_id)
-        str_repr += str(sorted(self.parents_hashes()))
+        str_repr += str(self.parents_hashes())
         str_repr += str(self.txs)
         str_repr += str(self.coinshares)
         str_repr += str(self.level)

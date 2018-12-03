@@ -50,33 +50,36 @@ class Process:
 
 
     async def create_add(self):
-    	while True:
+    	#while True:
+    	for _ in range(2):
     		new_unit = self.poset.create_unit(self.process_id, [], strategy = "link_self_predecessor", num_parents = 2)
     		if new_unit is not None:
     			assert self.poset.check_compliance(new_unit), "A unit created by our process is not passing the compliance test!"
     			self.poset.add_unit(new_unit)
-    			await asyncio.sleep(CREATE_FREQ)
+
+    		await asyncio.sleep(CREATE_FREQ)
 
 
     async def keep_syncing(self):
-    	await asyncio.sleep(1)
-    	while True:
+    	await asyncio.sleep(0.7)
+    	#while True:
+    	for _ in range(2):
     		sync_candidates = list(range(self.n_processes))
     		sync_candidates.remove(self.process_id)
     		target_id = random.choice(sync_candidates)
-    		print("OK")
+    		print(self.process_id, '->', target_id)
     		asyncio.create_task(sync(self.poset, self.process_id, target_id, self.address_list[target_id]))
 
     		await asyncio.sleep(SYNC_INIT_FREQ)
-    		print("OK2")
 
-    async def _run_tasks(self):
+    async def run(self):
     	#tasks = []
-    	asyncio.create_task(self.create_add())
-    	asyncio.create_task(listener(self.poset, self.process_id, self.address_list))
-    	asyncio.create_task(self.keep_syncing())
-    	await asyncio.gather(*asyncio.all_tasks())
+    	creator_task = asyncio.create_task(self.create_add())
+    	listener_task = asyncio.create_task(listener(self.poset, self.process_id, self.address_list))
+    	syncing_task = asyncio.create_task(self.keep_syncing())
+    	await asyncio.gather(creator_task, syncing_task )
+    	listener_task.cancel()
 
-    def run(self):
-    	asyncio.run(self._run_tasks())
+    #def run(self):
+    #	asyncio.run(self._run_tasks())
 
