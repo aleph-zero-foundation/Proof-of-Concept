@@ -1,11 +1,12 @@
 import asyncio
 import marshal
 import logging
+import time
 
 from aleph.data_structures import Unit
 from aleph.config import *
 
-async def listener(poset, process_id, addresses):
+async def listener(poset, process_id, addresses, executor):
     n_recv_syncs = 0
 
     async def listen_handler(reader, writer):
@@ -55,6 +56,17 @@ async def listener(poset, process_id, addresses):
         units_recieved = marshal.loads(data)
         logger.info(f'listener {process_id}: received units')
 
+        logger.info(f'listener {process_id}: verifying signatures')
+        loop = asyncio.get_running_loop()
+        tasks = [loop.run_in_executor(executor, verify_signature, unit) for unit in units_recieved]
+        reults = await asyncio.gather(*tasks)
+        if not all(results):
+            logger.info(f'listener {process_id}: got a unit from {ex_id} with invalid signature; aborting')
+            n_recv_syncs -= 1
+            return
+        logger.info(f'listener {process_id}: signatures verified')
+
+
         logger.info(f'listener {process_id}: trying to add {len(units_recieved)} units from {ex_id} to poset')
         for unit in units_recieved:
             assert all(U_hash in poset.units.keys() for U_hash in unit['parents_hashes'])
@@ -99,7 +111,7 @@ async def listener(poset, process_id, addresses):
 
 
 
-async def sync(poset, initiator_id, target_id, target_addr):
+async def sync(poset, initiator_id, target_id, target_addr, executor):
     logger = logging.getLogger(LOGGING_FILENAME)
 
     logger.info(f'sync {initiator_id} -> {target_id}: establishing connection to {target_id}')
@@ -149,6 +161,17 @@ async def sync(poset, initiator_id, target_id, target_addr):
     units_recieved = marshal.loads(data)
     logger.info(f'sync {initiator_id} -> {target_id}: received units')
 
+    logger.info(f'sync {process_id}: verifying signatures')
+    loop = asyncio.get_running_loop()
+    tasks = [loop.run_in_executor(executor, verify_signature, unit) for unit in units_recieved]
+    reults = await asyncio.gather(*tasks)
+    if not all(results):
+        logger.info(f'sync {process_id}: got a unit from {ex_id} with invalid signature; aborting')
+        n_recv_syncs -= 1
+        return
+    logger.info(f'sync {process_id}: signatures verified')
+
+
     logger.info(f'sync {initiator_id} -> {target_id}: trying to add {len(units_recieved)} units from {target_id} to poset')
     for unit in units_recieved:
         assert all(U_hash in poset.units.keys() for U_hash in unit['parents_hashes'])
@@ -165,6 +188,11 @@ async def sync(poset, initiator_id, target_id, target_addr):
     logger.info(f'sync {initiator_id} -> {target_id}: syncing with {target_id} completed succesfully')
 
 
+def verify_signature(unit):
+    '''Verifies signatures of the unit and all txs in it'''
+    # TODO this is a prosthesis
+    time.sleep(1)
+    return True
 
 
 def unit_to_dict(U):

@@ -1,5 +1,6 @@
-import random
 import asyncio
+import concurrent
+import random
 
 from aleph.data_structures.unit import Unit
 from aleph.data_structures.poset import Poset
@@ -50,35 +51,36 @@ class Process:
 
 
     async def create_add(self):
-    	#while True:
-    	for _ in range(2):
-    		new_unit = self.poset.create_unit(self.process_id, [], strategy = "link_self_predecessor", num_parents = 2)
-    		if new_unit is not None:
-    			assert self.poset.check_compliance(new_unit), "A unit created by our process is not passing the compliance test!"
-    			self.poset.add_unit(new_unit)
+    #while True:
+        for _ in range(2):
+            new_unit = self.poset.create_unit(self.process_id, [], strategy = "link_self_predecessor", num_parents = 2)
+            if new_unit is not None:
+                assert self.poset.check_compliance(new_unit), "A unit created by our process is not passing the compliance test!"
+                self.poset.add_unit(new_unit)
 
-    		await asyncio.sleep(CREATE_FREQ)
+                await asyncio.sleep(CREATE_FREQ)
 
 
-    async def keep_syncing(self):
-    	await asyncio.sleep(0.7)
-    	#while True:
-    	for _ in range(2):
-    		sync_candidates = list(range(self.n_processes))
-    		sync_candidates.remove(self.process_id)
-    		target_id = random.choice(sync_candidates)
-    		print(self.process_id, '->', target_id)
-    		asyncio.create_task(sync(self.poset, self.process_id, target_id, self.address_list[target_id]))
+    async def keep_syncing(self, executor):
+        await asyncio.sleep(0.7)
+        #while True:
+        for _ in range(2):
+            sync_candidates = list(range(self.n_processes))
+            sync_candidates.remove(self.process_id)
+            target_id = random.choice(sync_candidates)
+            print(self.process_id, '->', target_id)
+            asyncio.create_task(sync(self.poset, self.process_id, target_id, self.address_list[target_id], executor))
 
-    		await asyncio.sleep(SYNC_INIT_FREQ)
+            await asyncio.sleep(SYNC_INIT_FREQ)
 
     async def run(self):
-    	#tasks = []
-    	creator_task = asyncio.create_task(self.create_add())
-    	listener_task = asyncio.create_task(listener(self.poset, self.process_id, self.address_list))
-    	syncing_task = asyncio.create_task(self.keep_syncing())
-    	await asyncio.gather(creator_task, syncing_task )
-    	listener_task.cancel()
+        #tasks = []
+        executor = concurrent.futures.ProcessPoolExecutor(max_workers=3)
+        creator_task = asyncio.create_task(self.create_add())
+        listener_task = asyncio.create_task(listener(self.poset, self.process_id, self.address_list, executor))
+        syncing_task = asyncio.create_task(self.keep_syncing(executor))
+        await asyncio.gather(creator_task, syncing_task )
+        listener_task.cancel()
 
     #def run(self):
     #	asyncio.run(self._run_tasks())
