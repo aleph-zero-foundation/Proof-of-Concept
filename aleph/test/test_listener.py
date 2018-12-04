@@ -1,4 +1,4 @@
-from aleph.network import listener, connecter, sync
+from aleph.network import listener, sync
 from aleph.data_structures import Poset
 from aleph.crypto.signatures.keys import PrivateKey, PublicKey
 from aleph.utils.dag_utils import generate_random_forking, poset_from_dag

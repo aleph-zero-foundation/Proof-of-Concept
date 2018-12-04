@@ -57,11 +57,10 @@ async def listener(poset, process_id, addresses):
 
         logger.info(f'listener {process_id}: trying to add {len(units_recieved)} units from {ex_id} to poset')
         for unit in units_recieved:
+            assert all(U_hash in poset.units.keys() for U_hash in unit['parents_hashes'])
             parents = [poset.unit_by_hash(parent_hash) for parent_hash in unit['parents_hashes']]
             U = Unit(unit['creator_id'], parents, unit['txs'], unit['signature'], unit['coinshares'])
-            print(unit)
-            print(parents)
-            if poset.check_compliance(U):
+            if U.hash() not in poset.units.keys():
                 poset.add_unit(U)
             else:
                 logger.info(f'listener {process_id}: got unit from {ex_id} that does not comply to the rules; aborting')
@@ -152,9 +151,10 @@ async def sync(poset, initiator_id, target_id, target_addr):
 
     logger.info(f'sync {initiator_id} -> {target_id}: trying to add {len(units_recieved)} units from {target_id} to poset')
     for unit in units_recieved:
+        assert all(U_hash in poset.units.keys() for U_hash in unit['parents_hashes'])
         parents = [poset.unit_by_hash(parent_hash) for parent_hash in unit['parents_hashes']]
         U = Unit(unit['creator_id'], parents, unit['txs'], unit['signature'], unit['coinshares'])
-        if poset.check_compliance(U):
+        if U.hash() not in poset.units.keys():
             poset.add_unit(U)
         else:
             logger.info(f'sync {initiator_id} -> {target_id}: got unit from {target_id} that does not comply to the rules; aborting')
@@ -165,74 +165,6 @@ async def sync(poset, initiator_id, target_id, target_addr):
     logger.info(f'sync {initiator_id} -> {target_id}: syncing with {target_id} completed succesfully')
 
 
-
-async def connecter(poset, peer_addr):
-    int_heights, int_hashes = poset.get_max_heights_hashes()
-
-    reader, writer = await asyncio.open_connection(peer_addr[0], peer_addr[1])
-    print('connecter: connection established')
-
-    print('connecter: writing hh')
-    data = marshal.dumps((int_heights, int_heights))
-    print('connecter: hh n_bytes', len(data))
-    writer.write(str(len(data)).encode())
-    writer.write(b'\n')
-    writer.write(data)
-    await writer.drain()
-    #writer.write_eof()
-    print('connecter: wrote hh')
-
-    print('connecter: reading hh')
-    data = await reader.readuntil()
-    n_bytes = int(data[:-1])
-    print('connecter: hh reading n_bytes', n_bytes)
-    data = await reader.read(n_bytes)
-    ex_heights, ex_hashes = marshal.loads(data)
-    print('connecter: got hh')
-
-    # send units
-    print('connecter: sending units')
-    send_ind = [i for i, (int_height, ex_height) in enumerate(zip(int_heights, ex_heights)) if int_height > ex_height]
-    units_to_send = []
-    for i in send_ind:
-        units = poset.units_by_height(creator_id=i, min_height=ex_heights[i]+1, max_height=int_heights[i])
-        units = [unit_to_dict(U) for U in units]
-        units_to_send.extend(units)
-    data = marshal.dumps(units_to_send)
-    print('connecter: sending units n_bytes', len(data))
-    writer.write(str(len(data)).encode())
-    writer.write(b'\n')
-    writer.write(data)
-    await writer.drain()
-    #writer.write_eof()
-    print('connecter: units send')
-
-    # receive units
-    print('connecter: receiving units')
-    data = await reader.readuntil()
-    n_bytes = int(data[:-1])
-    print('connecter: receiving units n_bytes', n_bytes)
-    data = await reader.read(n_bytes)
-    units_recieved = marshal.loads(data)
-    print('connecter: units received')
-
-    print('connecter: adding units to poset', len(units_recieved))
-    #TODO: need to have the units topologically sorted here...
-    for unit in units_recieved:
-        assert all(U_hash in poset.units.keys() for U_hash in unit['parents_hashes'])
-        parents = [poset.unit_by_hash(parent_hash) for parent_hash in unit['parents_hashes']]
-        U = Unit(unit['creator_id'], parents, unit['txs'], unit['signature'], unit['coinshares'])
-        if U.hash() in poset.units.keys():
-            # Unit already in the poset, no need to add it (perhaps it has been added in a parallel sync)
-            continue
-        if poset.check_compliance(U):
-            poset.add_unit(U)
-        else:
-            logger.info(f'sync: got unit from {pid} that does not comply to the rules; aborting')
-            return
-    print('connecter: units added')
-
-    print('connecter: job complete')
 
 
 def unit_to_dict(U):

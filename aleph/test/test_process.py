@@ -1,4 +1,4 @@
-from aleph.network import listener, connecter, sync
+from aleph.network import listener, sync
 from aleph.data_structures import Poset
 from aleph.process import Process
 from aleph.crypto.signatures.keys import PrivateKey, PublicKey
