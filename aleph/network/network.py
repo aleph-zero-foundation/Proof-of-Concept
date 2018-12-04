@@ -53,7 +53,7 @@ async def listener(poset, process_id, addresses, executor):
         data = await reader.readuntil()
         n_bytes = int(data[:-1])
         data = await reader.read(n_bytes)
-        units_recieved = marshal.loads(data)
+        units_received = marshal.loads(data)
         logger.info(f'listener {process_id}: received units')
 
         logger.info(f'listener {process_id}: verifying signatures')
@@ -73,12 +73,13 @@ async def listener(poset, process_id, addresses, executor):
             parents = [poset.unit_by_hash(parent_hash) for parent_hash in unit['parents_hashes']]
             U = Unit(unit['creator_id'], parents, unit['txs'], unit['signature'], unit['coinshares'])
             if U.hash() not in poset.units.keys():
-                poset.add_unit(U)
-            else:
-                logger.info(f'listener {process_id}: got unit from {ex_id} that does not comply to the rules; aborting')
-                n_recv_syncs -= 1
-                return
-        logger.info(f'listener {process_id}: units from {ex_id} are added succesful')
+                if poset.check_compliance(U):
+                    poset.add_unit(U)
+                else:
+                    logger.error(f'listener {process_id}: got unit from {ex_id} that does not comply to the rules; aborting')
+                    n_recv_syncs -= 1
+                    return
+        logger.info(f'listener {process_id}: units from {ex_id} were added succesfully')
 
         send_ind = [i for i, (int_height, ex_height) in enumerate(zip(int_heights, ex_heights)) if int_height > ex_height]
 
@@ -87,8 +88,9 @@ async def listener(poset, process_id, addresses, executor):
         units_to_send = []
         for i in send_ind:
             units = poset.units_by_height(creator_id=i, min_height=ex_heights[i]+1, max_height=int_heights[i])
-            units = [unit_to_dict(U) for U in units]
             units_to_send.extend(units)
+        units_to_send = poset.order_units_topologically(units_to_send)
+        units_to_send = [unit_to_dict(U) for U in units_to_send]
         data = marshal.dumps(units_to_send)
         writer.write(str(len(data)).encode())
         writer.write(b'\n')
@@ -144,8 +146,9 @@ async def sync(poset, initiator_id, target_id, target_addr, executor):
     units_to_send = []
     for i in send_ind:
         units = poset.units_by_height(creator_id=i, min_height=ex_heights[i]+1, max_height=int_heights[i])
-        units = [unit_to_dict(U) for U in units]
         units_to_send.extend(units)
+    units_to_send = poset.order_units_topologically(units_to_send)
+    units_to_send = [unit_to_dict(U) for U in units_to_send]
     data = marshal.dumps(units_to_send)
     writer.write(str(len(data)).encode())
     writer.write(b'\n')
@@ -158,7 +161,7 @@ async def sync(poset, initiator_id, target_id, target_addr, executor):
     data = await reader.readuntil()
     n_bytes = int(data[:-1])
     data = await reader.read(n_bytes)
-    units_recieved = marshal.loads(data)
+    units_received = marshal.loads(data)
     logger.info(f'sync {initiator_id} -> {target_id}: received units')
 
     logger.info(f'sync {process_id}: verifying signatures')
@@ -178,10 +181,12 @@ async def sync(poset, initiator_id, target_id, target_addr, executor):
         parents = [poset.unit_by_hash(parent_hash) for parent_hash in unit['parents_hashes']]
         U = Unit(unit['creator_id'], parents, unit['txs'], unit['signature'], unit['coinshares'])
         if U.hash() not in poset.units.keys():
-            poset.add_unit(U)
-        else:
-            logger.info(f'sync {initiator_id} -> {target_id}: got unit from {target_id} that does not comply to the rules; aborting')
-            return
+                if poset.check_compliance(U):
+                    poset.add_unit(U)
+                else:
+                    logger.error(f'listener {process_id}: got unit from {ex_id} that does not comply to the rules; aborting')
+                    n_recv_syncs -= 1
+                    return
     logger.info(f'sync {initiator_id} -> {target_id}: units from {target_id} added succesfully')
 
 

@@ -755,6 +755,51 @@ class Poset:
         '''
         return self.high_below(V, U)
 
+#===============================================================================================================================
+# HELPER FUNCTIONS LOOSELY RELATED TO POSETS
+#===============================================================================================================================
+
+    def order_units_topologically(self, units_list):
+        '''
+        Outputs a topological order of units_list.
+        More formally it outputs a list top_list such that:
+            whenever U, V are in units_list and V is a parent of U then V appears before U in top_list.
+        Note: this does not necessarily preserve the ordering in the poset!
+        :param int process_id: the identification number of a process
+        :returns: list top_list: a topologically sorted list units_list
+        '''
+        # NOTE: this might be potentially slow, as it uses a set of Units
+        # implements a DFS on a custom stack
+        #hash_to_units = {U.hash():U for U in units_list}
+        units_added = set()
+        units_set = set(units_list)
+        top_list = []
+        #a unit on a stack is stored along with its color (0 or 1) depending on its state in the DFS algorithm
+        unit_stack = []
+        for U in units_list:
+            if U not in units_added:
+                unit_stack.append((U,0))
+                units_added.add(U)
+
+            while unit_stack:
+                V, color = unit_stack.pop()
+                if color == 0:
+                    unit_stack.append((V,1))
+                    for W in V.parents:
+                        if W in set(units_list) and W not in units_added:
+                            unit_stack.append((W,0))
+                            units_added.add(W)
+                if color == 1:
+                    top_list.append(V)
+
+        return top_list
+
+
+
+
+
+
+
 
 
 #===============================================================================================================================
