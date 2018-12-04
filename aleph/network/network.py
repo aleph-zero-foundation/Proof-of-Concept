@@ -61,11 +61,12 @@ async def listener(poset, process_id, addresses):
             parents = [poset.unit_by_hash(parent_hash) for parent_hash in unit['parents_hashes']]
             U = Unit(unit['creator_id'], parents, unit['txs'], unit['signature'], unit['coinshares'])
             if U.hash() not in poset.units.keys():
-                poset.add_unit(U)
-            else:
-                logger.info(f'listener {process_id}: got unit from {ex_id} that does not comply to the rules; aborting')
-                n_recv_syncs -= 1
-                return
+                if poset.check_compliance(U):
+                    poset.add_unit(U)
+                else:
+                    logger.error(f'listener {process_id}: got unit from {ex_id} that does not comply to the rules; aborting')
+                    n_recv_syncs -= 1
+                    return
         logger.info(f'listener {process_id}: units from {ex_id} are added succesful')
 
         send_ind = [i for i, (int_height, ex_height) in enumerate(zip(int_heights, ex_heights)) if int_height > ex_height]
@@ -155,10 +156,12 @@ async def sync(poset, initiator_id, target_id, target_addr):
         parents = [poset.unit_by_hash(parent_hash) for parent_hash in unit['parents_hashes']]
         U = Unit(unit['creator_id'], parents, unit['txs'], unit['signature'], unit['coinshares'])
         if U.hash() not in poset.units.keys():
-            poset.add_unit(U)
-        else:
-            logger.info(f'sync {initiator_id} -> {target_id}: got unit from {target_id} that does not comply to the rules; aborting')
-            return
+                if poset.check_compliance(U):
+                    poset.add_unit(U)
+                else:
+                    logger.error(f'listener {process_id}: got unit from {ex_id} that does not comply to the rules; aborting')
+                    n_recv_syncs -= 1
+                    return
     logger.info(f'sync {initiator_id} -> {target_id}: units from {target_id} added succesfully')
 
 
