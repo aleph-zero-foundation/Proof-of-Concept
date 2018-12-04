@@ -52,11 +52,11 @@ async def listener(poset, process_id, addresses):
         data = await reader.readuntil()
         n_bytes = int(data[:-1])
         data = await reader.read(n_bytes)
-        units_recieved = marshal.loads(data)
+        units_received = marshal.loads(data)
         logger.info(f'listener {process_id}: received units')
 
-        logger.info(f'listener {process_id}: trying to add {len(units_recieved)} units from {ex_id} to poset')
-        for unit in units_recieved:
+        logger.info(f'listener {process_id}: trying to add {len(units_received)} units from {ex_id} to poset')
+        for unit in units_received:
             assert all(U_hash in poset.units.keys() for U_hash in unit['parents_hashes'])
             parents = [poset.unit_by_hash(parent_hash) for parent_hash in unit['parents_hashes']]
             U = Unit(unit['creator_id'], parents, unit['txs'], unit['signature'], unit['coinshares'])
@@ -67,7 +67,7 @@ async def listener(poset, process_id, addresses):
                     logger.error(f'listener {process_id}: got unit from {ex_id} that does not comply to the rules; aborting')
                     n_recv_syncs -= 1
                     return
-        logger.info(f'listener {process_id}: units from {ex_id} are added succesful')
+        logger.info(f'listener {process_id}: units from {ex_id} were added succesfully')
 
         send_ind = [i for i, (int_height, ex_height) in enumerate(zip(int_heights, ex_heights)) if int_height > ex_height]
 
@@ -76,8 +76,9 @@ async def listener(poset, process_id, addresses):
         units_to_send = []
         for i in send_ind:
             units = poset.units_by_height(creator_id=i, min_height=ex_heights[i]+1, max_height=int_heights[i])
-            units = [unit_to_dict(U) for U in units]
             units_to_send.extend(units)
+        units_to_send = poset.order_units_topologically(units_to_send)
+        units_to_send = [unit_to_dict(U) for U in units_to_send]
         data = marshal.dumps(units_to_send)
         writer.write(str(len(data)).encode())
         writer.write(b'\n')
@@ -133,8 +134,9 @@ async def sync(poset, initiator_id, target_id, target_addr):
     units_to_send = []
     for i in send_ind:
         units = poset.units_by_height(creator_id=i, min_height=ex_heights[i]+1, max_height=int_heights[i])
-        units = [unit_to_dict(U) for U in units]
         units_to_send.extend(units)
+    units_to_send = poset.order_units_topologically(units_to_send)
+    units_to_send = [unit_to_dict(U) for U in units_to_send]
     data = marshal.dumps(units_to_send)
     writer.write(str(len(data)).encode())
     writer.write(b'\n')
@@ -147,11 +149,11 @@ async def sync(poset, initiator_id, target_id, target_addr):
     data = await reader.readuntil()
     n_bytes = int(data[:-1])
     data = await reader.read(n_bytes)
-    units_recieved = marshal.loads(data)
+    units_received = marshal.loads(data)
     logger.info(f'sync {initiator_id} -> {target_id}: received units')
 
-    logger.info(f'sync {initiator_id} -> {target_id}: trying to add {len(units_recieved)} units from {target_id} to poset')
-    for unit in units_recieved:
+    logger.info(f'sync {initiator_id} -> {target_id}: trying to add {len(units_received)} units from {target_id} to poset')
+    for unit in units_received:
         assert all(U_hash in poset.units.keys() for U_hash in unit['parents_hashes'])
         parents = [poset.unit_by_hash(parent_hash) for parent_hash in unit['parents_hashes']]
         U = Unit(unit['creator_id'], parents, unit['txs'], unit['signature'], unit['coinshares'])

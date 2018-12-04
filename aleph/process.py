@@ -51,7 +51,7 @@ class Process:
 
     async def create_add(self):
     	#while True:
-    	for _ in range(2):
+    	for _ in range(15):
     		new_unit = self.poset.create_unit(self.process_id, [], strategy = "link_self_predecessor", num_parents = 2)
     		if new_unit is not None:
     			assert self.poset.check_compliance(new_unit), "A unit created by our process is not passing the compliance test!"
@@ -63,11 +63,11 @@ class Process:
     async def keep_syncing(self):
     	await asyncio.sleep(0.7)
     	#while True:
-    	for _ in range(2):
+    	for _ in range(15):
     		sync_candidates = list(range(self.n_processes))
     		sync_candidates.remove(self.process_id)
     		target_id = random.choice(sync_candidates)
-    		print(self.process_id, '->', target_id)
+    		#print(self.process_id, '->', target_id)
     		asyncio.create_task(sync(self.poset, self.process_id, target_id, self.address_list[target_id]))
 
     		await asyncio.sleep(SYNC_INIT_FREQ)
