@@ -56,19 +56,24 @@ async def listener(poset, process_id, addresses, executor):
         units_received = marshal.loads(data)
         logger.info(f'listener {process_id}: received units')
 
+        '''
+        # verifye signatures
         logger.info(f'listener {process_id}: verifying signatures')
         loop = asyncio.get_running_loop()
-        tasks = [loop.run_in_executor(executor, verify_signature, unit) for unit in units_recieved]
-        reults = await asyncio.gather(*tasks)
+        # TODO check if it possible to create one tast that waits for verifying all units
+        # TODO check if done, pending = asyncio.wait(tasks, return_when=FIRST_COMPLETED) can be used for breaking as soon as some signature is broken.
+        tasks = [loop.run_in_executor(executor, verify_signature, unit) for unit in units_received]
+        results = await asyncio.gather(*tasks)
         if not all(results):
             logger.info(f'listener {process_id}: got a unit from {ex_id} with invalid signature; aborting')
             n_recv_syncs -= 1
             return
         logger.info(f'listener {process_id}: signatures verified')
+        '''
 
 
-        logger.info(f'listener {process_id}: trying to add {len(units_recieved)} units from {ex_id} to poset')
-        for unit in units_recieved:
+        logger.info(f'listener {process_id}: trying to add {len(units_received)} units from {ex_id} to poset')
+        for unit in units_received:
             assert all(U_hash in poset.units.keys() for U_hash in unit['parents_hashes'])
             parents = [poset.unit_by_hash(parent_hash) for parent_hash in unit['parents_hashes']]
             U = Unit(unit['creator_id'], parents, unit['txs'], unit['signature'], unit['coinshares'])
@@ -164,19 +169,21 @@ async def sync(poset, initiator_id, target_id, target_addr, executor):
     units_received = marshal.loads(data)
     logger.info(f'sync {initiator_id} -> {target_id}: received units')
 
-    logger.info(f'sync {process_id}: verifying signatures')
+    '''
+    # verify signatures
+    logger.info(f'sync {initiator_id}: verifying signatures')
     loop = asyncio.get_running_loop()
-    tasks = [loop.run_in_executor(executor, verify_signature, unit) for unit in units_recieved]
-    reults = await asyncio.gather(*tasks)
+    tasks = [loop.run_in_executor(executor, verify_signature, unit) for unit in units_received]
+    results = await asyncio.gather(*tasks)
     if not all(results):
-        logger.info(f'sync {process_id}: got a unit from {ex_id} with invalid signature; aborting')
-        n_recv_syncs -= 1
+        logger.info(f'sync {initiator_id}: got a unit from {ex_id} with invalid signature; aborting')
         return
-    logger.info(f'sync {process_id}: signatures verified')
+    logger.info(f'sync {initiator_id}: signatures verified')
+    '''
 
 
-    logger.info(f'sync {initiator_id} -> {target_id}: trying to add {len(units_recieved)} units from {target_id} to poset')
-    for unit in units_recieved:
+    logger.info(f'sync {initiator_id} -> {target_id}: trying to add {len(units_received)} units from {target_id} to poset')
+    for unit in units_received:
         assert all(U_hash in poset.units.keys() for U_hash in unit['parents_hashes'])
         parents = [poset.unit_by_hash(parent_hash) for parent_hash in unit['parents_hashes']]
         U = Unit(unit['creator_id'], parents, unit['txs'], unit['signature'], unit['coinshares'])
@@ -196,7 +203,7 @@ async def sync(poset, initiator_id, target_id, target_addr, executor):
 def verify_signature(unit):
     '''Verifies signatures of the unit and all txs in it'''
     # TODO this is a prosthesis
-    time.sleep(1)
+    time.sleep(.1)
     return True
 
 

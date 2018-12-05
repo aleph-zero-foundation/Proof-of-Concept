@@ -92,18 +92,17 @@ def plot_dag(dag):
 
 def plot_poset(poset):
     dag, _ = dag_from_poset(poset)
-    plot_dat(dag)
+    plot_dag(dag)
 
 
-#if __name__ == '__main__':
-#    from aleph.utils.dag_utils import dag_from_file
-#    from aleph.utils.generate_poset import generate_random_nonforking, generate_random_forking
-#    n_processes, n_units = 4, 20
-#    # path = 'aleph/test/examples/random_{}_{}.txt' % (n_processes, n_units)
-#    # generate_random_nonforking(n_processes, n_units, path)
-#    n_forkers = 1
-#    path = 'aleph/test/examples/random_forking_{}_{}_{}.txt'.format(n_processes, n_units, n_forkers)
-#    generate_random_forking(n_processes, n_units, n_forkers, path)
-#
-#    dag, n_processes = dag_from_file(path)
-#    plot(dag, n_processes)
+if __name__ == '__main__':
+    from aleph.utils.dag_utils import dag_from_file, generate_random_forking, generate_random_nonforking
+    n_processes, n_units = 4, 20
+    # path = 'aleph/test/examples/random_{}_{}.txt' % (n_processes, n_units)
+    # generate_random_nonforking(n_processes, n_units, path)
+    n_forkers = 1
+    path = 'aleph/test/examples/random_forking_{}_{}_{}.txt'.format(n_processes, n_units, n_forkers)
+    generate_random_forking(n_processes, n_units, n_forkers, path)
+
+    dag = dag_from_file(path)
+    plot_dag(dag)

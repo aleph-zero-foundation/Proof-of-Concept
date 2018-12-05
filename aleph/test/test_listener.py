@@ -5,6 +5,7 @@ from aleph.utils.dag_utils import generate_random_forking, poset_from_dag
 from aleph.utils.plot import plot_poset, plot_dag
 
 import asyncio
+import concurrent
 
 
 async def main():
@@ -12,12 +13,16 @@ async def main():
     n_units = 30
     n_forkers = 0
 
+    max_workers = 2
+
     dag = generate_random_forking(n_processes, n_units, n_forkers)
 
     n_parties = 2
     posets = []
     host_ports = [8888+i for i in range(n_processes)]
     addresses = [('127.0.0.1', port) for port in host_ports]
+
+    executors = [concurrent.futures.ProcessPoolExecutor(max_workers=max_workers) for _ in range(n_parties)]
 
     tasks = []
 
@@ -28,8 +33,9 @@ async def main():
         poset.id = process_id
         posets.append(poset)
 
+
         # await listener(poset, host_ip, host_port)
-        tasks.append(asyncio.create_task(listener(poset, process_id, addresses)))
+        tasks.append(asyncio.create_task(listener(poset, process_id, addresses, executors[process_id])))
 
     U = posets[0].create_unit(0, txs=[], strategy="link_self_predecessor", num_parents=2)
     posets[0].add_unit(U)
@@ -38,7 +44,7 @@ async def main():
     # wait for servers to start
     await asyncio.sleep(1)
     # sync!
-    tasks.append(asyncio.create_task(sync(posets[1], 1, 0, addresses[0])))
+    tasks.append(asyncio.create_task(sync(posets[1], 1, 0, addresses[0], executors[process_id])))
 
     await tasks[-1]
     tasks[0].cancel()
