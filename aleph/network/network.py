@@ -3,8 +3,9 @@ import marshal
 import logging
 import time
 
-from aleph.data_structures import Unit
+from aleph.data_structures import Unit, unit_to_message, tx_to_message
 from aleph.config import *
+from aleph.crypto.keys import PublicKey
 
 
 async def _send_poset_info(process_id, ex_id, writer, int_heights, int_hashes, mode, logger):
@@ -96,7 +97,7 @@ async def _add_units(process_id, ex_id, units_received, poset, mode, logger):
     return True
 
 
-async def listener(poset, process_id, addresses, executor):
+async def listener(poset, process_id, addresses, public_key_list, executor):
     n_recv_syncs = 0
 
     async def listen_handler(reader, writer):
@@ -128,7 +129,7 @@ async def listener(poset, process_id, addresses, executor):
 
         units_received = await _receive_units(process_id, ex_id, reader, 'listener', logger)
 
-        succesful = await _verify_signatures(process_id, units_received, executor, 'listener', logger)
+        succesful = await _verify_signatures(process_id, units_received, public_key_list, executor, 'listener', logger)
         if not succesful:
             logger.info(f'listener {process_id}: got a unit from {ex_id} with invalid signature; aborting')
             n_recv_syncs -= 1
@@ -158,7 +159,7 @@ async def listener(poset, process_id, addresses, executor):
         await server.serve_forever()
 
 
-async def sync(poset, initiator_id, target_id, target_addr, executor):
+async def sync(poset, initiator_id, target_id, target_addr, public_key_list, executor):
     # TODO check if units received are in good order
     # TODO if some signature is broken, and all units with good signatures that can be safely added
     logger = logging.getLogger(LOGGING_FILENAME)
@@ -177,7 +178,7 @@ async def sync(poset, initiator_id, target_id, target_addr, executor):
 
     units_received = await _receive_units(initiator_id, target_id, reader, 'sync', logger)
 
-    succesful = await _verify_signatures(initiator_id, units_received, executor, 'sync', logger)
+    succesful = await _verify_signatures(initiator_id, units_received, public_key_list, executor, 'sync', logger)
     if not succesful:
         logger.info(f'sync {initiator_id}: got a unit from {target_id} with invalid signature; aborting')
         return
@@ -192,10 +193,20 @@ async def sync(poset, initiator_id, target_id, target_addr, executor):
     await writer.wait_closed()
 
 
-def verify_signature(unit):
+def verify_signature(unit, public_key_list):
     '''Verifies signatures of the unit and all txs in it'''
-    # TODO this is a prosthesis
-    time.sleep(.1)
+    # verify unit signature
+    message = unit_to_message(unit['creator_id'], unit['parents'], unit['txs'], unit['coinshares'])
+    if not public_key_list[unit['creator_id']].verify_signature(unit['signature'], message):
+        return False
+
+    # verify signatures of txs
+    for tx in unit['txs']:
+        message = tx_to_message(tx['issuer'], tx['amount'], tx['receiver'], tx['index'], tx['fee'])
+        pk = PublicKey.from_string(tx['issuer'])
+        if not pk.verify_signature(tx['signature'], message):
+            return False
+
     return True
 
 
@@ -206,3 +217,11 @@ def unit_to_dict(U):
             'txs': U.txs,
             'signature': U.signature,
             'coinshares': U.coinshares}
+
+def tx_to_dict(tx):
+    return {'issuer': tx.issuer,
+            'amount': tx.amount,
+            'receiver': tx.receiver,
+            'index': tx.index,
+            'fee': tx.fee,
+            'signature': tx.signature}

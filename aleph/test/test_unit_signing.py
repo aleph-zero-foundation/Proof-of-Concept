@@ -7,7 +7,7 @@ class TestSignatures():
         sk = PrivateKey()
         pk = PublicKey(sk)
         U = Unit(0,[],[])
-        msg = str([U.creator_id, U.parents, U.txs, U.coinshares]).encode()
+        msg = U.to_message()
         signature = sk.sign(msg)
         assert pk.verify_signature(signature, msg)
 
@@ -22,6 +22,6 @@ class TestSignatures():
         U = Unit(0,[],[])
         process.sign_unit(U)
 
-        msg = str([U.creator_id, U.parents, U.txs, U.coinshares]).encode()
+        msg = U.to_message()
         assert pk.verify_signature(U.signature, msg)
 

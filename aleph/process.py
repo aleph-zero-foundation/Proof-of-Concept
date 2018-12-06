@@ -44,7 +44,7 @@ class Process:
         Signs the unit.
         '''
 
-        message = str([U.creator_id, U.parents, U.txs, U.coinshares]).encode()
+        message = U.to_message()
         U.signature = self.secret_key.sign(message)
 
 

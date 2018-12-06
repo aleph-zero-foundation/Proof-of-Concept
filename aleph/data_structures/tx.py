@@ -20,8 +20,8 @@ class Tx(object):
         self.index = index
         self.validated = validated
         self.fee = fee
-        
-        
+
+
     def __str__(self):
         # Required for temporary implementation of unit.hash()
         tx_string = ''
@@ -31,4 +31,10 @@ class Tx(object):
         tx_string += 'Index: ' + str(self.index) + '\n'
         tx_string += 'Fee: ' + str(self.fee) + '\n'
         return tx_string
-        
+
+    def to_message(self):
+        return tx_to_message(self.issuer, self.amount, self.receiver, self.index, self.fee)
+
+
+def tx_to_message(issuer, amount, receiver, index, fee):
+    return str([issuer, amount, receiver, index, fee]).encode()
