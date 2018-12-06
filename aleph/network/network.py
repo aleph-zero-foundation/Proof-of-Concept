@@ -105,6 +105,8 @@ async def listener(poset, process_id, addresses, executor):
 
         logger.info(f'listener {process_id}: syncing with {ex_id} completed succesfully')
         n_recv_syncs -= 1
+        writer.close()
+        await writer.wait_closed()
 
 
     host_addr = addresses[process_id]
@@ -198,6 +200,8 @@ async def sync(poset, initiator_id, target_id, target_addr, executor):
 
 
     logger.info(f'sync {initiator_id} -> {target_id}: syncing with {target_id} completed succesfully')
+    writer.close()
+    await writer.wait_closed()
 
 
 def verify_signature(unit):
