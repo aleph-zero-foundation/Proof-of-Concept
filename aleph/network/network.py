@@ -92,7 +92,7 @@ async def listener(poset, process_id, addresses, executor):
         logger.info(f'listener {process_id}: sending units to {ex_id}')
         units_to_send = []
         for i in send_ind:
-            units = poset.units_by_height(creator_id=i, min_height=ex_heights[i]+1, max_height=int_heights[i])
+            units = poset.units_by_height_interval(creator_id=i, min_height=ex_heights[i]+1, max_height=int_heights[i])
             units_to_send.extend(units)
         units_to_send = poset.order_units_topologically(units_to_send)
         units_to_send = [unit_to_dict(U) for U in units_to_send]
@@ -152,7 +152,7 @@ async def sync(poset, initiator_id, target_id, target_addr, executor):
     logger.info(f'sync {initiator_id} -> {target_id}: sending units to {target_id}')
     units_to_send = []
     for i in send_ind:
-        units = poset.units_by_height(creator_id=i, min_height=ex_heights[i]+1, max_height=int_heights[i])
+        units = poset.units_by_height_interval(creator_id=i, min_height=ex_heights[i]+1, max_height=int_heights[i])
         units_to_send.extend(units)
     units_to_send = poset.order_units_topologically(units_to_send)
     units_to_send = [unit_to_dict(U) for U in units_to_send]
@@ -200,6 +200,8 @@ async def sync(poset, initiator_id, target_id, target_addr, executor):
 
 
     logger.info(f'sync {initiator_id} -> {target_id}: syncing with {target_id} completed succesfully')
+
+    # TODO: at some point we need to add exceptions and exception handling and make sure that the two lines below are executed no matter what happens
     writer.close()
     await writer.wait_closed()
 

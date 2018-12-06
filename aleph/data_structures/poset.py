@@ -23,6 +23,7 @@ class Poset:
 
         self.units = {}
         self.max_units_per_process = [[] for _ in range(n_processes)]
+        self.min_non_validated = [[] for _ in range(n_processes)]
         self.forking_height = [float('inf')] * n_processes
 
         #self.level_reached = 0
@@ -39,7 +40,7 @@ class Poset:
 
 
 
-    def add_unit(self, U):
+    def add_unit(self, U, newly_validated = None):
         '''
         Add a unit compliant with the rules, what was checked by check_compliance.
         This method does the following:
@@ -49,9 +50,10 @@ class Poset:
             3. update forking_height
             3. set floor attribute of U
             3. set ceil attribute of U and update ceil of predecessors of U
-            6. (?) adds an entry to known_forkers_by_unit
+            6. validates units using U if possible
 
         :param unit U: unit to be added to the poset
+        :returns: It does not return anything explicitly but modifies the newly_validated list: adds the units validated by U
         '''
 
         # TOTHINK: maybe we should do check_compliance here????
@@ -83,14 +85,15 @@ class Poset:
         for parent in U.parents:
             self.update_ceil(U, parent)
 
-        # 6. add an entry to known_forkers_by_unit
-        #forkers = []
-        # process_id is known forking if U.floor[process_id] has more than one element
-        #for process_id in range(self.n_processes):
-        #    if len(U.floor[process_id]) > 1:
-        #        forkers.append(process_id)
 
-        #self.known_forkers_by_unit[U.hash()] = forkers
+        # 6. validate units
+        if newly_validated is not None:
+            newly_validated.extend(validate_using_new_unit(U))
+
+        if min_non_validated[U.creator_id] == []:
+            # TODO: this is probably wrong in the presence of forking...
+            min_non_validated[U]
+
 
 
 
@@ -276,7 +279,7 @@ class Poset:
         return self.units.get(unit_hash, None)
 
 
-    def units_by_height(self, creator_id, min_height, max_height):
+    def units_by_height_interval(self, creator_id, min_height, max_height):
         '''
         Simple function for testing listener.
         '''
@@ -795,9 +798,56 @@ class Poset:
         return top_list
 
 
+    def validate_using_new_unit(self, U):
+        '''
+        Validate as many units as possible using the newly-created unit U.
+        Start from min_non_validated and continue towards the top.
+        :returns: the set of all units first-time validated by U
+        '''
+        validated = []
+        for process_id in range(self.n_processes):
+            to_check = set(min_non_validated[proccess_id])
+            non_validated = []
+            while to_check:
+                V = to_check.pop()
+                # the first check below is for efficiency only
+                if self.below(V,U) and self.high_below(V,U):
+                    validated.append(V)
+                    to_check = to_check.union(self.get_self_children(V))
+                else:
+                    non_validated.append(V)
+            min_non_validated[process_id] = non_validated
+        return validated
 
 
 
+    def units_by_height(self, process_id, height):
+        '''
+        Returns list of units created by a given process of a given height.
+        NOTE: this implementation is inefficient.
+        In the future one could improve it by memoizing every k-th height of units, for some constant k, like k=100.
+        '''
+        if height < 0:
+            return []
+
+        result_list = []
+        for U in max_units_per_process[process_id]:
+            if U.height < height:
+                continue
+            while U is not None and U.height > height:
+                U = U.self_predecessor
+            if U.height == height:
+                result_list.append(U)
+
+        #remove possible duplicates in case process_id is a forker
+        return list(set(result_list))
+
+    def get_self_children(self, U):
+        '''
+        Returns the set of all units V in the poset such that V.self_predecessor == U
+        NOTE: inefficient because units_by_height is inefficient.
+        '''
+        return self.units_by_height(U.creator_id, U.height + 1)
 
 
 
@@ -860,12 +910,7 @@ class Poset:
 
 
 
-    def unit_by_height(self, process_id, height):
-        '''
-        Returns a unit or a list of units created by a given process of a given height.
-        '''
 
-        pass
 
 
 
