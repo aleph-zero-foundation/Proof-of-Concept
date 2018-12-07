@@ -50,7 +50,7 @@ class Poset:
             3. update forking_height
             3. set floor attribute of U
             3. set ceil attribute of U and update ceil of predecessors of U
-            6. validates units using U if possible
+            6. validates units using U if possible and updates the border between validated and non-validated units
 
         :param unit U: unit to be added to the poset
         :returns: It does not return anything explicitly but modifies the newly_validated list: adds the units validated by U
@@ -86,13 +86,14 @@ class Poset:
             self.update_ceil(U, parent)
 
 
-        # 6. validate units
+        # 6. validate units and update the "border" of non_validated units
         if newly_validated is not None:
             newly_validated.extend(validate_using_new_unit(U))
 
-        if min_non_validated[U.creator_id] == []:
-            # TODO: this is probably wrong in the presence of forking...
-            min_non_validated[U]
+        # the below might look over-complicated -- this is because of potentials forks of U's creator
+        # ignoring forks this simplifies to: if min_non_validated[U.creator_id] == [] then add U to it
+        if not any(self.below_within_process(V, U) for V in  self.min_non_validated[U.creator_id]):
+            self.min_non_validated.append(U)
 
 
 
