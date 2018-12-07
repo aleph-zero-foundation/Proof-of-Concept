@@ -4,6 +4,7 @@ import random
 
 from aleph.data_structures.unit import Unit
 from aleph.data_structures.poset import Poset
+from aleph.data_structures.user_base import User_base
 from aleph.crypto.signatures.keys import PrivateKey, PublicKey
 from aleph.network import listener, sync
 from aleph.config import CREATE_FREQ, SYNC_INIT_FREQ
@@ -36,6 +37,7 @@ class Process:
         self.port = address_list[process_id][1]
 
         self.poset = Poset(self.n_processes)
+        self.user_base = User_base()
 
         # a bitmap specifying for every process whether he has been detected forking
         self.is_forker = [False for _ in range(self.n_processes)]

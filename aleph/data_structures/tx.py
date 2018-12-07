@@ -20,8 +20,8 @@ class Tx(object):
         self.index = index
         self.validated = validated
         self.fee = fee
-        
-        
+
+
     def __str__(self):
         # Required for temporary implementation of unit.hash()
         tx_string = ''
@@ -31,4 +31,12 @@ class Tx(object):
         tx_string += 'Index: ' + str(self.index) + '\n'
         tx_string += 'Fee: ' + str(self.fee) + '\n'
         return tx_string
-        
+
+    def __eq__(self, other):
+        # self.validated field is ignored in this check
+        return (isinstance(other, Tx) and self.issuer == other.issuer and self.amount == other.amount and self.signature == other.signature
+                and self.receiver == other.receiver and self.fee == other.fee and self.index == other.index)
+
+    def __hash__(self):
+        return hash(str(self))
+

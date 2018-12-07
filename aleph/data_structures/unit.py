@@ -51,7 +51,7 @@ class Unit(object):
     def __eq__(self, other):
         return (isinstance(other, Unit) and self.creator_id == other.creator_id and
                self.parents_hashes() == other.parents_hashes() and
-               set(map(str, self.txs)) == set(map(str, other.txs)))
+               list(map(str, self.txs)) == list(map(str, other.txs)))
 
 
     def __str__(self):

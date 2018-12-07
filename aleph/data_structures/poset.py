@@ -29,6 +29,9 @@ class Poset:
         #self.level_reached = 0
         self.prime_units_by_level = {}
 
+        # dictionary {user_public_key -> set of (tx, U)}  where tx is a pending transaction (sent by this user) in unit U
+        self.pending_txs = {}
+
         # For every unit U maintain a list of processes that can be proved forking by looking at the lower-cone of U
         #self.known_forkers_by_unit = {}
 
@@ -362,6 +365,7 @@ class Poset:
         '''
         # TODO: there might have been other compliance rules that have been forgotten...
         # TODO: should_check() with string arguments is ugly. This is a temporary solution
+        # TODO: it is highly desirable that there are no duplicate transactions in U (i.e. literally copies)
 
         should_check = lambda x: (self.compliance_rules is None or x in self.compliance_rules)
 
@@ -849,6 +853,42 @@ class Poset:
         NOTE: inefficient because units_by_height is inefficient.
         '''
         return self.units_by_height(U.creator_id, U.height + 1)
+
+
+    def validate_transactions_in_unit(self, U, U_validator, user_base):
+        '''
+        Returns a list of transactions in U that can be fast-validated if U's validator unit is U_validator
+        :returns: list of all transactions in unit U that can be fast-validated
+        '''
+
+        validated_transactions = []
+        for tx in U.txs:
+
+            user_public_key = tx.issuer
+            assert user_public_key in self.pending_txs.keys(), f"No transaction is pending for user {user_public_key}."
+            assert (tx, U) in self.pending_txs[user_public_key], "Transaction not found among pending"
+            if tx.index != user_base[tx.issuer] + 1:
+                continue
+            transaction_fork_present = False
+            for (pending_txs, V) in self.pending_txs[user_public_key]:
+                if tx.index == pending_txs.index:
+                    if (tx, U) != (pending_txs, V):
+                        if self.below(V, U_validator):
+                            transaction_fork_present = True
+                            break
+
+            if not transaction_fork_present:
+                if user_base.check_transaction_correctness(tx):
+                    user_base.apply_transaction(tx)
+                    tx.validated = True
+                    validated_transactions.append(tx)
+
+        for tx in validated_transactions:
+            self.pending_txs[tx.issuer].discard((tx,U))
+
+        return validated_transactions
+
+
 
 
 
