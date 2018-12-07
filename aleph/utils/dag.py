@@ -106,6 +106,10 @@ class DAG:
 
 
     def self_predecessor(self, pid, parent_nodes):
+        return self._self_predecessor(pid, *parent_nodes)
+
+    #@memo
+    def _self_predecessor(self, pid, *parent_nodes):
         below_within_process = [node_below for node_below in self.nodes_below(parent_nodes) if self.pid(node_below) == pid]
 
         if len(below_within_process) == 0:
