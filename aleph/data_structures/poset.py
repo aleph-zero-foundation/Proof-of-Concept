@@ -5,7 +5,7 @@ import random
 import logging
 
 from aleph.data_structures.unit import Unit
-from aleph.crypto.signatures.keys import PrivateKey, PublicKey
+from aleph.crypto.keys import SigningKey, VerifyKey
 from aleph.config import *
 
 

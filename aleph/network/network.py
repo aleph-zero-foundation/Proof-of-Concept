@@ -5,7 +5,7 @@ import time
 
 from aleph.data_structures import Unit, unit_to_message, tx_to_message
 from aleph.config import *
-from aleph.crypto.keys import PublicKey
+from aleph.crypto.keys import VerifyKey
 
 
 async def _send_poset_info(process_id, ex_id, writer, int_heights, int_hashes, mode, logger):
@@ -62,13 +62,13 @@ async def _send_units(process_id, ex_id, int_heights, ex_heights, poset, writer,
     logger.info(f'{mode} {process_id}: units sent to {ex_id}')
 
 
-async def _verify_signatures(process_id, units_received, executor, mode, logger):
+async def _verify_signatures(process_id, units_received, public_key_list, executor, mode, logger):
     logger.info(f'{mode} {process_id}: verifying signatures')
 
     loop = asyncio.get_running_loop()
     # TODO check if it possible to create one tast that waits for verifying all units
     # create tasks for checking signatures of all units
-    pending = [loop.run_in_executor(executor, verify_signature, unit) for unit in units_received]
+    pending = [loop.run_in_executor(executor, verify_signature, unit, public_key_list) for unit in units_received]
 
     # check iteratively if all sigantures are valid
     while pending:
@@ -174,7 +174,7 @@ async def sync(poset, initiator_id, target_id, target_addr, public_key_list, exe
 
     ex_id, ex_heights, ex_hashes = await _receive_poset_info(initiator_id, poset.n_processes, reader, 'sync', logger)
 
-    await _send_units(initiator_id, target_id, int_heights, int_hashes, poset, writer, 'sync', logger)
+    await _send_units(initiator_id, target_id, int_heights, ex_heights, poset, writer, 'sync', logger)
 
     units_received = await _receive_units(initiator_id, target_id, reader, 'sync', logger)
 
@@ -196,14 +196,14 @@ async def sync(poset, initiator_id, target_id, target_addr, public_key_list, exe
 def verify_signature(unit, public_key_list):
     '''Verifies signatures of the unit and all txs in it'''
     # verify unit signature
-    message = unit_to_message(unit['creator_id'], unit['parents'], unit['txs'], unit['coinshares'])
+    message = unit_to_message(unit['creator_id'], unit['parents_hashes'], unit['txs'], unit['coinshares'])
     if not public_key_list[unit['creator_id']].verify_signature(unit['signature'], message):
         return False
 
     # verify signatures of txs
     for tx in unit['txs']:
         message = tx_to_message(tx['issuer'], tx['amount'], tx['receiver'], tx['index'], tx['fee'])
-        pk = PublicKey.from_string(tx['issuer'])
+        pk = VerifyKey.from_hex(tx['issuer'])
         if not pk.verify_signature(tx['signature'], message):
             return False
 
