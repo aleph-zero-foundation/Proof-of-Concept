@@ -46,7 +46,7 @@ class Unit(object):
 
     def to_message(self):
         '''Generates message used for signing units'''
-        return unit_to_message(self.creator_id, self.parents, self.txs, self.coinshares)
+        return unit_to_message(self.creator_id, self.parents_hashes(), self.txs, self.coinshares)
 
     def __hash__(self):
         return hash(self.hash())
