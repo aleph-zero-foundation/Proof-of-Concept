@@ -6,7 +6,7 @@ import random
 
 from aleph.data_structures.unit import Unit
 from aleph.data_structures.poset import Poset
-from aleph.data_structures.user_base import User_base
+from aleph.data_structures.userDB import UserDB
 from aleph.crypto.keys import SigningKey, VerifyKey
 from aleph.network import listener, sync, tx_listener
 from aleph.config import CREATE_FREQ, SYNC_INIT_FREQ, LOGGING_FILENAME
@@ -40,12 +40,17 @@ class Process:
         self.prepared_txs = []
 
         self.poset = Poset(self.n_processes)
-        self.user_base = User_base()
+        self.userDB = UserDB()
+
+        # dictionary {user_public_key -> set of (tx, U)}  where tx is a pending transaction (sent by this user) in unit U
+        self.pending_txs = {}
 
         # a bitmap specifying for every process whether he has been detected forking
         self.is_forker = [False for _ in range(self.n_processes)]
 
         self.syncing_tasks = []
+
+        self.validated_transactions = []
 
     def sign_unit(self, U):
         '''
@@ -55,10 +60,61 @@ class Process:
         message = U.to_message()
         U.signature = self.secret_key.sign(message)
 
+    def add_unit_to_poset(self, U):
+        logger = logging.getLogger(LOGGING_FILENAME)
+        if U.hash() in self.poset.units.keys():
+            return True
+
+        if self.poset.check_compliance(U):
+            list_of_validated_units = []
+            self.poset.add_unit(U, list_of_validated_units)
+            logger.info(f'add_unit_to_poset {self.process_id} -> Validated a set of {len(list_of_validated_units)} units.')
+            for V in list_of_validated_units:
+                newly_validated = self.validate_transactions_in_unit(V, U)
+                logger.info(f'add_unit_to_poset {self.process_id} -> Validated a set of {len(newly_validated)} transactions.')
+                self.validated_transactions.extend(newly_validated)
+        else:
+             return False
+
+        return True
+
+    def validate_transactions_in_unit(self, U, U_validator):
+        '''
+        Returns a list of transactions in U that can be fast-validated if U's validator unit is U_validator
+        :returns: list of all transactions in unit U that can be fast-validated
+        '''
+
+        validated_transactions = []
+        for tx in U.txs:
+
+            user_public_key = tx.issuer
+            assert user_public_key in self.pending_txs.keys(), f"No transaction is pending for user {user_public_key}."
+            assert (tx, U) in self.pending_txs[user_public_key], "Transaction not found among pending"
+            if tx.index != user_base[tx.issuer] + 1:
+                continue
+            transaction_fork_present = False
+            for (pending_txs, V) in self.pending_txs[user_public_key]:
+                if tx.index == pending_txs.index:
+                    if (tx, U) != (pending_txs, V):
+                        if self.poset.below(V, U_validator):
+                            transaction_fork_present = True
+                            break
+
+            if not transaction_fork_present:
+                if user_base.check_transaction_correctness(tx):
+                    user_base.apply_transaction(tx)
+                    tx.validated = True
+                    validated_transactions.append(tx)
+
+        for tx in validated_transactions:
+            self.pending_txs[tx.issuer].discard((tx,U))
+
+        return validated_transactions
+
 
     async def create_add(self, txs_queue):
     #while True:
-        for _ in range(20):
+        for _ in range(15):
             txs = self.prepared_txs
             new_unit = self.poset.create_unit(self.process_id, txs, strategy = "link_self_predecessor", num_parents = 2)
             if new_unit is not None:
@@ -76,11 +132,11 @@ class Process:
     async def keep_syncing(self, executor):
         await asyncio.sleep(0.7)
         #while True:
-        for _ in range(20):
+        for _ in range(15):
             sync_candidates = list(range(self.n_processes))
             sync_candidates.remove(self.process_id)
             target_id = random.choice(sync_candidates)
-            self.syncing_tasks.append(asyncio.create_task(sync(self.poset, self.process_id, target_id, self.address_list[target_id], self.public_key_list, executor)))
+            self.syncing_tasks.append(asyncio.create_task(sync(self, self.process_id, target_id, self.address_list[target_id], self.public_key_list, executor)))
 
             await asyncio.sleep(SYNC_INIT_FREQ)
 
@@ -95,7 +151,7 @@ class Process:
 
         executor = concurrent.futures.ProcessPoolExecutor(max_workers=3)
         creator_task = asyncio.create_task(self.create_add(txs_queue))
-        listener_task = asyncio.create_task(listener(self.poset, self.process_id, self.address_list, self.public_key_list, executor))
+        listener_task = asyncio.create_task(listener(self, self.process_id, self.address_list, self.public_key_list, executor))
         syncing_task = asyncio.create_task(self.keep_syncing(executor))
 
         await asyncio.gather(*self.syncing_tasks, creator_task)

@@ -3,18 +3,21 @@ import logging
 from aleph.config import *
 
 
-class User_base:
+class UserDB:
     '''
     This class is used to store information about user accounts: their balances and last succesful transactions.
     '''
 
 
-    def __init__(self):
+    def __init__(self, initial_balances_and_indices = []):
         '''
+        Creates a user data base that contains user balances (by public key) and their last validated transaction.
         '''
         self.user_balance = {}
         self.user_last_transaction_index = {}
-
+        for public_key, balance, index in initial_balances_and_indices:
+            user_balance[public_key] = balance
+            user_last_transaction_index[public_key] = index
 
 
     def account_balance(self, user_public_key):

@@ -29,8 +29,7 @@ class Poset:
         #self.level_reached = 0
         self.prime_units_by_level = {}
 
-        # dictionary {user_public_key -> set of (tx, U)}  where tx is a pending transaction (sent by this user) in unit U
-        self.pending_txs = {}
+
 
         # For every unit U maintain a list of processes that can be proved forking by looking at the lower-cone of U
         #self.known_forkers_by_unit = {}
@@ -91,7 +90,7 @@ class Poset:
 
         # 6. validate units and update the "border" of non_validated units
         if newly_validated is not None:
-            newly_validated.extend(validate_using_new_unit(U))
+            newly_validated.extend(self.validate_using_new_unit(U))
 
         # the below might look over-complicated -- this is because of potentials forks of U's creator
         # ignoring forks this simplifies to: if min_non_validated[U.creator_id] == [] then add U to it
@@ -811,7 +810,7 @@ class Poset:
         '''
         validated = []
         for process_id in range(self.n_processes):
-            to_check = set(min_non_validated[proccess_id])
+            to_check = set(self.min_non_validated[process_id])
             non_validated = []
             while to_check:
                 V = to_check.pop()
@@ -821,7 +820,7 @@ class Poset:
                     to_check = to_check.union(self.get_self_children(V))
                 else:
                     non_validated.append(V)
-            min_non_validated[process_id] = non_validated
+            self.min_non_validated[process_id] = non_validated
         return validated
 
 
@@ -855,38 +854,7 @@ class Poset:
         return self.units_by_height(U.creator_id, U.height + 1)
 
 
-    def validate_transactions_in_unit(self, U, U_validator, user_base):
-        '''
-        Returns a list of transactions in U that can be fast-validated if U's validator unit is U_validator
-        :returns: list of all transactions in unit U that can be fast-validated
-        '''
 
-        validated_transactions = []
-        for tx in U.txs:
-
-            user_public_key = tx.issuer
-            assert user_public_key in self.pending_txs.keys(), f"No transaction is pending for user {user_public_key}."
-            assert (tx, U) in self.pending_txs[user_public_key], "Transaction not found among pending"
-            if tx.index != user_base[tx.issuer] + 1:
-                continue
-            transaction_fork_present = False
-            for (pending_txs, V) in self.pending_txs[user_public_key]:
-                if tx.index == pending_txs.index:
-                    if (tx, U) != (pending_txs, V):
-                        if self.below(V, U_validator):
-                            transaction_fork_present = True
-                            break
-
-            if not transaction_fork_present:
-                if user_base.check_transaction_correctness(tx):
-                    user_base.apply_transaction(tx)
-                    tx.validated = True
-                    validated_transactions.append(tx)
-
-        for tx in validated_transactions:
-            self.pending_txs[tx.issuer].discard((tx,U))
-
-        return validated_transactions
 
 
 

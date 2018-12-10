@@ -14,7 +14,7 @@ def f(n_processes, process_id, sk, pk, addresses, public_keys):
         asyncio.run(new_process.run())
 
 def mp_main():
-    n_processes = 30
+    n_processes = 5
     n_units = 0
     n_forkers = 0
 
