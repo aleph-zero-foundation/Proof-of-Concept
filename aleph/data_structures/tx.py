@@ -32,6 +32,7 @@ class Tx(object):
         tx_string += 'Fee: ' + str(self.fee) + '\n'
         return tx_string
 
+
     def __eq__(self, other):
         # self.validated field is ignored in this check
         return (isinstance(other, Tx) and self.issuer == other.issuer and self.amount == other.amount and self.signature == other.signature
@@ -40,3 +41,10 @@ class Tx(object):
     def __hash__(self):
         return hash(str(self))
 
+
+    def to_message(self):
+        return tx_to_message(self.issuer, self.amount, self.receiver, self.index, self.fee)
+
+
+def tx_to_message(issuer, amount, receiver, index, fee):
+    return str([issuer, amount, receiver, index, fee]).encode()

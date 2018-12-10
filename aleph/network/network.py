@@ -3,13 +3,106 @@ import marshal
 import logging
 import time
 
-from aleph.data_structures import Unit
+from aleph.data_structures import Unit, unit_to_message, tx_to_message
 from aleph.config import *
+from aleph.crypto.keys import VerifyKey
 
-async def listener(poset, process_id, addresses, executor):
+
+async def _send_poset_info(process_id, ex_id, writer, int_heights, int_hashes, mode, logger):
+    logger.info(f'{mode} {process_id}: sending info about forkers and heights&hashes to {ex_id}')
+
+    data = marshal.dumps((process_id, int_heights, int_hashes))
+    writer.write(str(len(data)).encode())
+    writer.write(b'\n')
+    writer.write(data)
+    await writer.drain()
+    logger.info(f'{mode} {process_id}: sending forkers/heights {int_heights} to {ex_id}')
+
+
+async def _receive_poset_info(process_id, n_processes, reader, mode, logger):
+    logger.info(f'{mode} {process_id}: receiving info about forkers and heights&hashes from an unknown process')
+    data = await reader.readuntil()
+    n_bytes = int(data[:-1])
+    data = await reader.read(n_bytes)
+    ex_id, ex_heights, ex_hashes = marshal.loads(data)
+    assert ex_id != process_id, "It seems we are syncing with ourselves."
+    assert ex_id in range(n_processes), "Incorrect process id received."
+    logger.info(f'{mode} {process_id}: got forkers/heights {ex_heights} from {ex_id}')
+
+    return ex_id, ex_heights, ex_hashes
+
+
+async def _receive_units(process_id, ex_id, reader, mode, logger):
+    logger.info(f'{mode} {process_id}: receiving units from {ex_id}')
+    data = await reader.readuntil()
+    n_bytes = int(data[:-1])
+    data = await reader.read(n_bytes)
+    units_received = marshal.loads(data)
+    logger.info(f'{mode}, {process_id}: received units')
+    return units_received
+
+
+async def _send_units(process_id, ex_id, int_heights, ex_heights, poset, writer, mode, logger):
+    send_ind = [i for i, (int_height, ex_height) in enumerate(zip(int_heights, ex_heights)) if int_height > ex_height]
+
+    logger.info(f'{mode} {process_id}: sending units to {ex_id}')
+    units_to_send = []
+    for i in send_ind:
+        units = poset.units_by_height(creator_id=i, min_height=ex_heights[i]+1, max_height=int_heights[i])
+        units_to_send.extend(units)
+    units_to_send = poset.order_units_topologically(units_to_send)
+    units_to_send = [unit_to_dict(U) for U in units_to_send]
+
+    data = marshal.dumps(units_to_send)
+    writer.write(str(len(data)).encode())
+    writer.write(b'\n')
+    writer.write(data)
+    await writer.drain()
+
+    logger.info(f'{mode} {process_id}: units sent to {ex_id}')
+
+
+async def _verify_signatures(process_id, units_received, public_key_list, executor, mode, logger):
+    logger.info(f'{mode} {process_id}: verifying signatures')
+
+    loop = asyncio.get_running_loop()
+    # TODO check if it possible to create one tast that waits for verifying all units
+    # create tasks for checking signatures of all units
+    pending = [loop.run_in_executor(executor, verify_signature, unit, public_key_list) for unit in units_received]
+
+    # check iteratively if all sigantures are valid
+    while pending:
+        done, pending = await asyncio.wait(pending, return_when=asyncio.FIRST_COMPLETED)
+        for coro in done:
+            if not coro.result():
+                return False
+
+    logger.info(f'{mode} {process_id}: signatures verified')
+
+    return True
+
+
+async def _add_units(process_id, ex_id, units_received, poset, mode, logger):
+    logger.info(f'{mode} {process_id}: trying to add {len(units_received)} units from {ex_id} to poset')
+    for unit in units_received:
+        assert all(U_hash in poset.units.keys() for U_hash in unit['parents_hashes'])
+        parents = [poset.unit_by_hash(parent_hash) for parent_hash in unit['parents_hashes']]
+        U = Unit(unit['creator_id'], parents, unit['txs'], unit['signature'], unit['coinshares'])
+        if U.hash() not in poset.units.keys():
+            if poset.check_compliance(U):
+                poset.add_unit(U)
+            else:
+                return False
+    logger.info(f'{mode} {process_id}: units from {ex_id} were added succesfully')
+    return True
+
+
+async def listener(poset, process_id, addresses, public_key_list, executor):
     n_recv_syncs = 0
 
     async def listen_handler(reader, writer):
+        # TODO check if units received are in good order
+        # TODO if some signature is broken, and all units with good signatures that can be safely added
         nonlocal n_recv_syncs
         logger = logging.getLogger(LOGGING_FILENAME)
 
@@ -18,90 +111,38 @@ async def listener(poset, process_id, addresses, executor):
         #logger.debug('listener: assuming that addresses are different')
 
         if peer_addr[0] not in ips:
-            logger.info(f'Closing connection with {peer_addr[0]}, it is not in address book')
+            logger.info(f'listener closing connection with {peer_addr[0]}, it is not in address book')
             return
 
+        logger.info(f'listener {process_id} current number of syncs is {n_recv_syncs}')
         if n_recv_syncs > N_RECV_SYNC:
-            logger.info(f'Too many synchronizations, rejecting {peer_addr}')
+            logger.info(f'listener too many synchronizations, rejecting {peer_addr}')
             return
 
         n_recv_syncs += 1
         logger.info(f'listener {process_id}: connection established with an unknown process')
 
-        logger.info(f'listener {process_id}: receiving info about forkers and heights&hashes from an unknown process')
-        data = await reader.readuntil()
-        n_bytes = int(data[:-1])
-        data = await reader.read(n_bytes)
-        ex_id, ex_heights, ex_hashes = marshal.loads(data)
-        assert ex_id != process_id, "It seems we are syncing with ourselves."
-        assert ex_id in range(poset.n_processes), "Incorrect process id received."
-        logger.info(f'listener {process_id}: got forkers/heights {ex_heights} from {ex_id}')
-
+        ex_id, ex_heights, ex_hashes = await _receive_poset_info(process_id, poset.n_processes, reader, 'listener', logger)
         int_heights, int_hashes = poset.get_max_heights_hashes()
 
-        logger.info(f'listener {process_id}: sending info about forkers and heights&hashes to {ex_id}')
+        await _send_poset_info(process_id, ex_id, writer, int_heights, int_hashes, 'listener', logger)
 
-        data = marshal.dumps((process_id, int_heights, int_hashes))
-        writer.write(str(len(data)).encode())
-        writer.write(b'\n')
-        writer.write(data)
-        await writer.drain()
-        logger.info(f'listener {process_id}: sending forkers/heights {int_heights} to {ex_id}')
+        units_received = await _receive_units(process_id, ex_id, reader, 'listener', logger)
 
-        # receive units
-        logger.info(f'listener {process_id}: receiving units from {ex_id}')
-        data = await reader.readuntil()
-        n_bytes = int(data[:-1])
-        data = await reader.read(n_bytes)
-        units_received = marshal.loads(data)
-        logger.info(f'listener {process_id}: received units')
-
-        '''
-        # verifye signatures
-        logger.info(f'listener {process_id}: verifying signatures')
-        loop = asyncio.get_running_loop()
-        # TODO check if it possible to create one tast that waits for verifying all units
-        # TODO check if done, pending = asyncio.wait(tasks, return_when=FIRST_COMPLETED) can be used for breaking as soon as some signature is broken.
-        tasks = [loop.run_in_executor(executor, verify_signature, unit) for unit in units_received]
-        results = await asyncio.gather(*tasks)
-        if not all(results):
+        succesful = await _verify_signatures(process_id, units_received, public_key_list, executor, 'listener', logger)
+        if not succesful:
             logger.info(f'listener {process_id}: got a unit from {ex_id} with invalid signature; aborting')
             n_recv_syncs -= 1
             return
-        logger.info(f'listener {process_id}: signatures verified')
-        '''
 
+        succesful = await _add_units(process_id, ex_id, units_received, poset, 'listener', logger)
+        if not succesful:
+            logger.error(f'listener {process_id}: got unit from {ex_id} that does not comply to the rules; aborting')
+            n_recv_syncs -= 1
+            return
 
-        logger.info(f'listener {process_id}: trying to add {len(units_received)} units from {ex_id} to poset')
-        for unit in units_received:
-            assert all(U_hash in poset.units.keys() for U_hash in unit['parents_hashes'])
-            parents = [poset.unit_by_hash(parent_hash) for parent_hash in unit['parents_hashes']]
-            U = Unit(unit['creator_id'], parents, unit['txs'], unit['signature'], unit['coinshares'])
-            if U.hash() not in poset.units.keys():
-                if poset.check_compliance(U):
-                    poset.add_unit(U)
-                else:
-                    logger.error(f'listener {process_id}: got unit from {ex_id} that does not comply to the rules; aborting')
-                    n_recv_syncs -= 1
-                    return
-        logger.info(f'listener {process_id}: units from {ex_id} were added succesfully')
+        await _send_units(process_id, ex_id, int_heights, ex_heights, poset, writer, 'listener', logger)
 
-        send_ind = [i for i, (int_height, ex_height) in enumerate(zip(int_heights, ex_heights)) if int_height > ex_height]
-
-        # send units
-        logger.info(f'listener {process_id}: sending units to {ex_id}')
-        units_to_send = []
-        for i in send_ind:
-            units = poset.units_by_height_interval(creator_id=i, min_height=ex_heights[i]+1, max_height=int_heights[i])
-            units_to_send.extend(units)
-        units_to_send = poset.order_units_topologically(units_to_send)
-        units_to_send = [unit_to_dict(U) for U in units_to_send]
-        data = marshal.dumps(units_to_send)
-        writer.write(str(len(data)).encode())
-        writer.write(b'\n')
-        writer.write(data)
-        await writer.drain()
-        logger.info(f'listener {process_id}: units sent to {ex_id}')
 
         logger.info(f'listener {process_id}: syncing with {ex_id} completed succesfully')
         n_recv_syncs -= 1
@@ -119,8 +160,9 @@ async def listener(poset, process_id, addresses, executor):
         await server.serve_forever()
 
 
-
-async def sync(poset, initiator_id, target_id, target_addr, executor):
+async def sync(poset, initiator_id, target_id, target_addr, public_key_list, executor):
+    # TODO check if units received are in good order
+    # TODO if some signature is broken, and all units with good signatures that can be safely added
     logger = logging.getLogger(LOGGING_FILENAME)
 
     logger.info(f'sync {initiator_id} -> {target_id}: establishing connection to {target_id}')
@@ -129,75 +171,24 @@ async def sync(poset, initiator_id, target_id, target_addr, executor):
 
     int_heights, int_hashes = poset.get_max_heights_hashes()
 
-    logger.info(f'sync {initiator_id} -> {target_id}: sending info about own process_id and forkers/heights/hashes to {target_id}')
-    #print(int_heights, int_hashes)
-    data = marshal.dumps((initiator_id, int_heights, int_hashes))
-    writer.write(str(len(data)).encode())
-    writer.write(b'\n')
-    writer.write(data)
-    await writer.drain()
-    logger.info(f'sync {initiator_id} -> {target_id}: sent own process_id forkers/heights/hashes {int_heights} to {target_id}')
+    await _send_poset_info(initiator_id, target_id, writer, int_heights, int_hashes, 'sync', logger)
+
+    ex_id, ex_heights, ex_hashes = await _receive_poset_info(initiator_id, poset.n_processes, reader, 'sync', logger)
+
+    await _send_units(initiator_id, target_id, int_heights, ex_heights, poset, writer, 'sync', logger)
 
 
-    logger.info(f'sync {initiator_id} -> {target_id}: receiving info about target identity and forkers/heights/hashes from {target_id}')
-    data = await reader.readuntil()
-    n_bytes = int(data[:-1])
-    data = await reader.read(n_bytes)
-    ex_id, ex_heights, ex_hashes = marshal.loads(data)
-    assert ex_id == target_id, "The process_id sent by target does not much the intented target_id"
-    logger.info(f'sync {initiator_id} -> {target_id}: got target identity and forkers/heights/hashes {ex_heights} from {target_id}')
+    units_received = await _receive_units(initiator_id, target_id, reader, 'sync', logger)
 
-    # send units
-    send_ind = [i for i, (int_height, ex_height) in enumerate(zip(int_heights, ex_heights)) if int_height > ex_height]
-    logger.info(f'sync {initiator_id} -> {target_id}: sending units to {target_id}')
-    units_to_send = []
-    for i in send_ind:
-        units = poset.units_by_height_interval(creator_id=i, min_height=ex_heights[i]+1, max_height=int_heights[i])
-        units_to_send.extend(units)
-    units_to_send = poset.order_units_topologically(units_to_send)
-    units_to_send = [unit_to_dict(U) for U in units_to_send]
-    data = marshal.dumps(units_to_send)
-    writer.write(str(len(data)).encode())
-    writer.write(b'\n')
-    writer.write(data)
-    await writer.drain()
-    logger.info(f'sync {initiator_id} -> {target_id}: units sent to {target_id}')
-
-    # receive units
-    logger.info(f'sync {initiator_id} -> {target_id}: receiving units from {target_id}')
-    data = await reader.readuntil()
-    n_bytes = int(data[:-1])
-    data = await reader.read(n_bytes)
-    units_received = marshal.loads(data)
-    logger.info(f'sync {initiator_id} -> {target_id}: received units')
-
-    '''
-    # verify signatures
-    logger.info(f'sync {initiator_id}: verifying signatures')
-    loop = asyncio.get_running_loop()
-    tasks = [loop.run_in_executor(executor, verify_signature, unit) for unit in units_received]
-    results = await asyncio.gather(*tasks)
-    if not all(results):
-        logger.info(f'sync {initiator_id}: got a unit from {ex_id} with invalid signature; aborting')
+    succesful = await _verify_signatures(initiator_id, units_received, public_key_list, executor, 'sync', logger)
+    if not succesful:
+        logger.info(f'sync {initiator_id}: got a unit from {target_id} with invalid signature; aborting')
         return
-    logger.info(f'sync {initiator_id}: signatures verified')
-    '''
 
-
-    logger.info(f'sync {initiator_id} -> {target_id}: trying to add {len(units_received)} units from {target_id} to poset')
-    for unit in units_received:
-        assert all(U_hash in poset.units.keys() for U_hash in unit['parents_hashes'])
-        parents = [poset.unit_by_hash(parent_hash) for parent_hash in unit['parents_hashes']]
-        U = Unit(unit['creator_id'], parents, unit['txs'], unit['signature'], unit['coinshares'])
-        if U.hash() not in poset.units.keys():
-                if poset.check_compliance(U):
-                    poset.add_unit(U)
-                else:
-                    logger.error(f'listener {process_id}: got unit from {ex_id} that does not comply to the rules; aborting')
-                    n_recv_syncs -= 1
-                    return
-    logger.info(f'sync {initiator_id} -> {target_id}: units from {target_id} added succesfully')
-
+    succesful = await _add_units(initiator_id, target_id, units_received, poset, 'sync', logger)
+    if not succesful:
+        logger.error(f'sync {initiator_id}: got unit from {target_id} that does not comply to the rules; aborting')
+        return
 
     logger.info(f'sync {initiator_id} -> {target_id}: syncing with {target_id} completed succesfully')
 
@@ -206,10 +197,20 @@ async def sync(poset, initiator_id, target_id, target_addr, executor):
     await writer.wait_closed()
 
 
-def verify_signature(unit):
+def verify_signature(unit, public_key_list):
     '''Verifies signatures of the unit and all txs in it'''
-    # TODO this is a prosthesis
-    time.sleep(.1)
+    # verify unit signature
+    message = unit_to_message(unit['creator_id'], unit['parents_hashes'], unit['txs'], unit['coinshares'])
+    if not public_key_list[unit['creator_id']].verify_signature(unit['signature'], message):
+        return False
+
+    # verify signatures of txs
+    for tx in unit['txs']:
+        message = tx_to_message(tx['issuer'], tx['amount'], tx['receiver'], tx['index'], tx['fee'])
+        pk = VerifyKey.from_hex(tx['issuer'])
+        if not pk.verify_signature(tx['signature'], message):
+            return False
+
     return True
 
 
@@ -220,3 +221,11 @@ def unit_to_dict(U):
             'txs': U.txs,
             'signature': U.signature,
             'coinshares': U.coinshares}
+
+def tx_to_dict(tx):
+    return {'issuer': tx.issuer,
+            'amount': tx.amount,
+            'receiver': tx.receiver,
+            'index': tx.index,
+            'fee': tx.fee,
+            'signature': tx.signature}

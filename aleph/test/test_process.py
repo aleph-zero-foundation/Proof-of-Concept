@@ -1,15 +1,15 @@
 from aleph.network import listener, sync
 from aleph.data_structures import Poset
 from aleph.process import Process
-from aleph.crypto.signatures.keys import PrivateKey, PublicKey
+from aleph.crypto.keys import SigningKey, VerifyKey
 from aleph.utils.dag_utils import generate_random_forking, poset_from_dag
 from aleph.utils.plot import plot_poset, plot_dag
 
 import asyncio
 
 
-async def test_processes():
-    n_processes = 40
+async def main():
+    n_processes = 30
     n_units = 0
     n_forkers = 0
 
@@ -19,13 +19,13 @@ async def test_processes():
     host_ports = [8888+i for i in range(n_processes)]
     addresses = [('127.0.0.1', port) for port in host_ports]
 
-    private_keys = [PrivateKey() for _ in range(n_processes)]
-    public_keys = [PublicKey(sk) for sk in private_keys]
+    signing_keys = [SigningKey() for _ in range(n_processes)]
+    public_keys = [VerifyKey.from_SigningKey(sk) for sk in signing_keys]
 
     tasks = []
 
     for process_id in range(n_processes):
-        sk = private_keys[process_id]
+        sk = signing_keys[process_id]
         pk = public_keys[process_id]
         new_process = Process(n_processes, process_id, sk, pk, addresses, public_keys)
         new_process.poset = Poset(n_processes)
@@ -35,4 +35,5 @@ async def test_processes():
     await asyncio.gather(*tasks)
 
 
-asyncio.run(test_processes())
+if __name__ == '__main__':
+    asyncio.run(main())

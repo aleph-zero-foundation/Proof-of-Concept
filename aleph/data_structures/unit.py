@@ -44,6 +44,10 @@ class Unit(object):
         return [V.hash() for V in self.parents]
 
 
+    def to_message(self):
+        '''Generates message used for signing units'''
+        return unit_to_message(self.creator_id, self.parents, self.txs, self.coinshares)
+
     def __hash__(self):
         return hash(self.hash())
 
@@ -79,3 +83,7 @@ class Unit(object):
         str_repr += str(self.ceil)
 
         return str_repr
+
+
+def unit_to_message(creator_id, parents, txs, coinshares):
+    return str([creator_id, parents, txs, coinshares]).encode()
