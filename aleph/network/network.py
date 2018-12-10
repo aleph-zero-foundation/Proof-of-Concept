@@ -48,7 +48,7 @@ async def _send_units(process_id, ex_id, int_heights, ex_heights, poset, writer,
     logger.info(f'{mode} {process_id}: sending units to {ex_id}')
     units_to_send = []
     for i in send_ind:
-        units = poset.units_by_height(creator_id=i, min_height=ex_heights[i]+1, max_height=int_heights[i])
+        units = poset.units_by_height_interval(creator_id=i, min_height=ex_heights[i]+1, max_height=int_heights[i])
         units_to_send.extend(units)
     units_to_send = poset.order_units_topologically(units_to_send)
     units_to_send = [unit_to_dict(U) for U in units_to_send]

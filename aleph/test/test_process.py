@@ -9,7 +9,7 @@ import asyncio
 
 
 async def main():
-    n_processes = 30
+    n_processes = 5
     n_units = 0
     n_forkers = 0
 
