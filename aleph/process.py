@@ -78,9 +78,10 @@ class Process:
                     self.pending_txs[tx.issuer] = set()
                 self.pending_txs[tx.issuer].add((tx,U))
             for V in list_of_validated_units:
-                newly_validated = self.validate_transactions_in_unit(V, U)
-                logger.info(f'add_unit_to_poset {self.process_id} -> Validated a set of {len(newly_validated)} transactions.')
-                self.validated_transactions.extend(newly_validated)
+                if V.txs:
+                    newly_validated = self.validate_transactions_in_unit(V, U)
+                    logger.info(f'add_unit_to_poset {self.process_id} -> Validated a set of {len(newly_validated)}/{len(V.txs)} transactions.')
+                    self.validated_transactions.extend(newly_validated)
         else:
              return False
 
@@ -93,6 +94,7 @@ class Process:
         :param unit U_validator: a unit that validates U (is high above U)
         :returns: list of all transactions in unit U that can be fast-validated
         '''
+        logger = logging.getLogger(LOGGING_FILENAME)
         validated_transactions = []
         for tx in U.txs:
             user_public_key = tx.issuer
@@ -100,6 +102,7 @@ class Process:
             assert user_public_key in self.pending_txs.keys(), f"No transaction is pending for user {user_public_key}."
             assert (tx, U) in self.pending_txs[user_public_key], "Transaction not found among pending"
             if tx.index != self.userDB.last_transaction(tx.issuer) + 1:
+                logger.info(f'tx validation: transaction failed to validate because its index is {tx.index}, while the previous one was {self.userDB.last_transaction(tx.issuer)}')
                 continue
             transaction_fork_present = False
             for (pending_txs, V) in self.pending_txs[user_public_key]:
@@ -113,6 +116,8 @@ class Process:
                 if self.userDB.check_transaction_correctness(tx):
                     self.userDB.apply_transaction(tx)
                     validated_transactions.append(tx)
+            #else:
+            #    print("fork")
 
         for tx in validated_transactions:
             self.pending_txs[tx.issuer].discard((tx,U))
@@ -140,7 +145,7 @@ class Process:
     async def keep_syncing(self, executor):
         await asyncio.sleep(0.7)
         #while True:
-        for _ in range(10):
+        for _ in range(15):
             sync_candidates = list(range(self.n_processes))
             sync_candidates.remove(self.process_id)
             target_id = random.choice(sync_candidates)
