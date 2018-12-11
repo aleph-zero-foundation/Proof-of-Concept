@@ -2,8 +2,11 @@ import nacl.signing
 
 
 class SigningKey:
-    def __init__(self):
-        self.secret_key = nacl.signing.SigningKey.generate()
+    def __init__(self, seed_hex=None):
+        if seed_hex is not None:
+            self.secret_key = nacl.signing.SigningKey(seed_hex, encoder=nacl.encoding.HexEncoder)
+        else:
+            self.secret_key = nacl.signing.SigningKey.generate()
         self.type = 'nacl.signing.SigningKey'
 
     def sign(self, message):
@@ -14,6 +17,8 @@ class SigningKey:
             message = message.encode()
         return self.secret_key.sign(message)
 
+    def to_hex(self):
+        return nacl.encoding.HexEncoder.encode(self.secret_key._seed)
 
 class VerifyKey:
     def __init__(self, verify_key):
