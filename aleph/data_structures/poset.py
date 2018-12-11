@@ -32,6 +32,7 @@ class Poset:
         #a structure for efficiently executing  the units_by_height method, for every process this is a sparse list of units sorted by height
         #every unit of height memo_height*k for some k>=0 is memoized, in case of forks only one unit is added
         self.memoized_units = [[] for _ in range(n_processes)]
+        self.memo_height = memo_height
 
 
 
@@ -108,10 +109,10 @@ class Poset:
             U_no = U.height//self.memo_height
             if n_units_memoized >= U_no + 1:
                 #this means that U.creator_id is forking and there is already a unit added on this height
-                continue
+                pass
             else:
                 assert n_units_memoized == U_no, f"The number of units memoized is {n_units_memoized} while it should be {U_no}."
-                self.memoized[U.creator_id].append(U)
+                self.memoized_units[U.creator_id].append(U)
 
 
 
