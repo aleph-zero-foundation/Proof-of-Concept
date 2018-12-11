@@ -56,12 +56,18 @@ class Process:
     def sign_unit(self, U):
         '''
         Signs the unit.
+        :param unit U: the unit to be signed.
         '''
 
         message = U.to_message()
         U.signature = self.secret_key.sign(message)
 
     def add_unit_to_poset(self, U):
+        '''
+        Checks compliance of the unit U and adds it to the poset (unless already in the poset). Subsequently validates transactions using U.
+        :param unit U: the unit to be added
+        :returns: boolean value: True if succesfully added, False if unit is not compliant
+        '''
         logger = logging.getLogger(LOGGING_FILENAME)
         if U.hash() in self.poset.units.keys():
             return True
@@ -86,6 +92,8 @@ class Process:
     def validate_transactions_in_unit(self, U, U_validator):
         '''
         Returns a list of transactions in U that can be fast-validated if U's validator unit is U_validator
+        :param unit U: unit whose transactions should be validated
+        :param unit U_validator: a unit that validates U (is high above U)
         :returns: list of all transactions in unit U that can be fast-validated
         '''
         validated_transactions = []

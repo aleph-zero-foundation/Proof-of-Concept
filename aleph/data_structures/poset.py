@@ -666,7 +666,7 @@ class Poset:
         :param unit U: first unit to be tested
         :param unit V: second unit to be tested
         '''
-        assert (U.creator_id == V.creator_id and U.creator_id is not None) , "expected two processes created by the same process"
+        assert (U.creator_id == V.creator_id and U.creator_id is not None) , "expected two units created by the same process"
         if U.height > V.height:
             return False
         process_id = U.creator_id
@@ -869,7 +869,7 @@ class Poset:
 
 
         # we need to be especially careful because the query is about a fork
-        # thus we go from the top to not miss anything
+        # thus we go all the way from the top to not miss anything
         result_list = []
         for U in self.max_units_per_process[process_id]:
             if U.height < height:
