@@ -6,7 +6,7 @@ setup(
     packages=find_packages(),
     install_requires=[
         "charm-crypto==0.50",
-        "coincurve",
+        "pynacl",
         "networkx",
         "numpy",
         "matplotlib",
