@@ -16,8 +16,8 @@ class UserDB:
         self.user_balance = {}
         self.user_last_transaction_index = {}
         for public_key, balance, index in initial_balances_and_indices:
-            user_balance[public_key] = balance
-            user_last_transaction_index[public_key] = index
+            self.user_balance[public_key] = balance
+            self.user_last_transaction_index[public_key] = index
 
 
     def account_balance(self, user_public_key):

@@ -7,9 +7,8 @@ from aleph.crypto.keys import SigningKey, VerifyKey
 from aleph.data_structures import tx_to_message
 
 
-def tx_generator(committee_addresses, n_light_nodes, txps):
+def tx_generator(committee_addresses, n_light_nodes, signing_keys, txps):
     last_tx_index = [-1 for _ in range(n_light_nodes)]
-    signing_keys = [SigningKey() for _ in range(n_light_nodes)]
     verify_keys_hex = [VerifyKey.from_SigningKey(sk).to_hex() for sk in signing_keys]
 
     counter = 0
@@ -33,6 +32,8 @@ def tx_generator(committee_addresses, n_light_nodes, txps):
                   'amount': 0,
                   'receiver': verify_keys_hex[receiver_id],
                   'index': last_tx_index[issuer_id] + 1}
+            last_tx_index[issuer_id] += 1
+
             message = tx_to_message(tx['issuer'], tx['amount'], tx['receiver'], tx['index'])
             tx['signature'] = signing_keys[issuer_id].sign(message)
             last_tx_index[issuer_id] += 1
