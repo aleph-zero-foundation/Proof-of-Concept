@@ -14,7 +14,7 @@ class Process:
     '''This class is the main component of the Aleph protocol.'''
 
 
-    def __init__(self, n_processes, process_id, secret_key, public_key, address_list, public_key_list, tx_receiver_address):
+    def __init__(self, n_processes, process_id, secret_key, public_key, address_list, public_key_list, tx_receiver_address, userDB=None):
         '''
         :param int n_processes: the committee size
         :param int process_id: the id of the current process
@@ -38,7 +38,9 @@ class Process:
         self.prepared_txs = []
 
         self.poset = Poset(self.n_processes)
-        self.userDB = UserDB()
+        self.userDB = userDB
+        if self.userDB is None:
+            self.userDB = UserDB()
 
         # dictionary {user_public_key -> set of (tx, U)}  where tx is a pending transaction (sent by this user) in unit U
         self.pending_txs = {}
