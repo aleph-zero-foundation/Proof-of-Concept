@@ -32,6 +32,7 @@ class Poset:
         #a structure for efficiently executing  the units_by_height method, for every process this is a sparse list of units sorted by height
         #every unit of height memo_height*k for some k>=0 is memoized, in case of forks only one unit is added
         self.memoized_units = [[] for _ in range(n_processes)]
+        self.memo_height = memo_height
 
 
 
@@ -108,10 +109,10 @@ class Poset:
             U_no = U.height//self.memo_height
             if n_units_memoized >= U_no + 1:
                 #this means that U.creator_id is forking and there is already a unit added on this height
-                continue
+                pass
             else:
                 assert n_units_memoized == U_no, f"The number of units memoized is {n_units_memoized} while it should be {U_no}."
-                self.memoized[U.creator_id].append(U)
+                self.memoized_units[U.creator_id].append(U)
 
 
 
@@ -666,7 +667,7 @@ class Poset:
         :param unit U: first unit to be tested
         :param unit V: second unit to be tested
         '''
-        assert (U.creator_id == V.creator_id and U.creator_id is not None) , "expected two processes created by the same process"
+        assert (U.creator_id == V.creator_id and U.creator_id is not None) , "expected two units created by the same process"
         if U.height > V.height:
             return False
         process_id = U.creator_id
@@ -869,7 +870,7 @@ class Poset:
 
 
         # we need to be especially careful because the query is about a fork
-        # thus we go from the top to not miss anything
+        # thus we go all the way from the top to not miss anything
         result_list = []
         for U in self.max_units_per_process[process_id]:
             if U.height < height:

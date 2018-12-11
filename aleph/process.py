@@ -4,12 +4,9 @@ import logging
 import multiprocessing
 import random
 
-from aleph.data_structures.unit import Unit
 from aleph.data_structures.poset import Poset
 from aleph.data_structures.userDB import UserDB
-from aleph.crypto.keys import SigningKey, VerifyKey
 from aleph.network import listener, sync, tx_listener
-from aleph.data_structures.tx import Tx
 from aleph.config import CREATE_FREQ, SYNC_INIT_FREQ, LOGGING_FILENAME
 
 
@@ -56,12 +53,18 @@ class Process:
     def sign_unit(self, U):
         '''
         Signs the unit.
+        :param unit U: the unit to be signed.
         '''
 
         message = U.to_message()
         U.signature = self.secret_key.sign(message)
 
     def add_unit_to_poset(self, U):
+        '''
+        Checks compliance of the unit U and adds it to the poset (unless already in the poset). Subsequently validates transactions using U.
+        :param unit U: the unit to be added
+        :returns: boolean value: True if succesfully added, False if unit is not compliant
+        '''
         logger = logging.getLogger(LOGGING_FILENAME)
         if U.hash() in self.poset.units.keys():
             return True
@@ -86,6 +89,8 @@ class Process:
     def validate_transactions_in_unit(self, U, U_validator):
         '''
         Returns a list of transactions in U that can be fast-validated if U's validator unit is U_validator
+        :param unit U: unit whose transactions should be validated
+        :param unit U_validator: a unit that validates U (is high above U)
         :returns: list of all transactions in unit U that can be fast-validated
         '''
         validated_transactions = []
@@ -135,7 +140,7 @@ class Process:
     async def keep_syncing(self, executor):
         await asyncio.sleep(0.7)
         #while True:
-        for _ in range(15):
+        for _ in range(10):
             sync_candidates = list(range(self.n_processes))
             sync_candidates.remove(self.process_id)
             target_id = random.choice(sync_candidates)
@@ -149,7 +154,7 @@ class Process:
         logger = logging.getLogger(LOGGING_FILENAME)
 
         txs_queue = multiprocessing.Queue()
-        p = multiprocessing.Process(target=tx_listener, args=(txs_queue,))
+        p = multiprocessing.Process(target=tx_listener, args=(self.tx_receiver_address, txs_queue))
         p.start()
 
         executor = concurrent.futures.ProcessPoolExecutor(max_workers=3)
