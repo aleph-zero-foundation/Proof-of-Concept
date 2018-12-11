@@ -1,7 +1,7 @@
 class Tx(object):
     '''This class stores a transactions issued by some user and is signed by the user'''
 
-    __slots__ = ['issuer', 'signature', 'amount', 'receiver', 'index', 'validated', 'fee']
+    __slots__ = ['issuer', 'signature', 'amount', 'receiver', 'index']
 
     def __init__(self, issuer, signature, amount, receiver, index):
         '''
@@ -19,7 +19,7 @@ class Tx(object):
 
 
     @classmethod
-    def from_dict(self, tx_dict):
+    def from_dict(cls, tx_dict):
         return Tx(tx_dict['issuer'],
                   tx_dict['signature'],
                   tx_dict['amount'],
@@ -36,6 +36,9 @@ class Tx(object):
         tx_string += 'Index: ' + str(self.index) + '\n'
         return tx_string
 
+    def __repr__(self):
+        return str([self.issuer, self.receiver, self.signature, self.amount, self.index])
+
 
     def __eq__(self, other):
         # self.validated field is ignored in this check
@@ -49,6 +52,13 @@ class Tx(object):
     def to_message(self):
         return tx_to_message(self.issuer, self.amount, self.receiver, self.index)
 
+    def to_dict(self):
+        return {'issuer': self.issuer,
+                'amount': self.amount,
+                'receiver': self.receiver,
+                'index': self.index,
+                'signature': self.signature}
 
-def tx_to_message(issuer, amount, receiver, index, fee):
-    return str([issuer, amount, receiver, index, fee]).encode()
+
+def tx_to_message(issuer, amount, receiver, index):
+    return str([issuer, amount, receiver, index]).encode()

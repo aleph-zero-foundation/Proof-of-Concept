@@ -42,7 +42,7 @@ def tx_listener(listen_addr, queue):
 
 
 
-async def listener(poset, process_id, addresses, public_key_list, executor):
+async def listener(process, process_id, addresses, public_key_list, executor):
     n_recv_syncs = 0
 
     async def listen_handler(reader, writer):
@@ -67,8 +67,8 @@ async def listener(poset, process_id, addresses, public_key_list, executor):
         n_recv_syncs += 1
         logger.info(f'listener {process_id}: connection established with an unknown process')
 
-        ex_id, ex_heights, ex_hashes = await _receive_poset_info(process_id, poset.n_processes, reader, 'listener', logger)
-        int_heights, int_hashes = poset.get_max_heights_hashes()
+        ex_id, ex_heights, ex_hashes = await _receive_poset_info(process_id, process.poset.n_processes, reader, 'listener', logger)
+        int_heights, int_hashes = process.poset.get_max_heights_hashes()
 
         await _send_poset_info(process_id, ex_id, writer, int_heights, int_hashes, 'listener', logger)
 
@@ -80,13 +80,13 @@ async def listener(poset, process_id, addresses, public_key_list, executor):
             n_recv_syncs -= 1
             return
 
-        succesful = await _add_units(process_id, ex_id, units_received, poset, 'listener', logger)
+        succesful = await _add_units(process_id, ex_id, units_received, process, 'listener', logger)
         if not succesful:
             logger.error(f'listener {process_id}: got unit from {ex_id} that does not comply to the rules; aborting')
             n_recv_syncs -= 1
             return
 
-        await _send_units(process_id, ex_id, int_heights, ex_heights, poset, writer, 'listener', logger)
+        await _send_units(process_id, ex_id, int_heights, ex_heights, process, writer, 'listener', logger)
 
 
         logger.info(f'listener {process_id}: syncing with {ex_id} completed succesfully')
@@ -105,7 +105,7 @@ async def listener(poset, process_id, addresses, public_key_list, executor):
         await server.serve_forever()
 
 
-async def sync(poset, initiator_id, target_id, target_addr, public_key_list, executor):
+async def sync(process, initiator_id, target_id, target_addr, public_key_list, executor):
     # TODO check if units received are in good order
     # TODO if some signature is broken, and all units with good signatures that can be safely added
     logger = logging.getLogger(LOGGING_FILENAME)
@@ -114,13 +114,13 @@ async def sync(poset, initiator_id, target_id, target_addr, public_key_list, exe
     reader, writer = await asyncio.open_connection(target_addr[0], target_addr[1])
     logger.info(f'sync {initiator_id} -> {target_id}: established connection to {target_id}')
 
-    int_heights, int_hashes = poset.get_max_heights_hashes()
+    int_heights, int_hashes = process.poset.get_max_heights_hashes()
 
     await _send_poset_info(initiator_id, target_id, writer, int_heights, int_hashes, 'sync', logger)
 
-    ex_id, ex_heights, ex_hashes = await _receive_poset_info(initiator_id, poset.n_processes, reader, 'sync', logger)
+    ex_id, ex_heights, ex_hashes = await _receive_poset_info(initiator_id, process.poset.n_processes, reader, 'sync', logger)
 
-    await _send_units(initiator_id, target_id, int_heights, ex_heights, poset, writer, 'sync', logger)
+    await _send_units(initiator_id, target_id, int_heights, ex_heights, process, writer, 'sync', logger)
 
 
     units_received = await _receive_units(initiator_id, target_id, reader, 'sync', logger)
@@ -130,7 +130,7 @@ async def sync(poset, initiator_id, target_id, target_addr, public_key_list, exe
         logger.info(f'sync {initiator_id}: got a unit from {target_id} with invalid signature; aborting')
         return
 
-    succesful = await _add_units(initiator_id, target_id, units_received, poset, 'sync', logger)
+    succesful = await _add_units(initiator_id, target_id, units_received, process, 'sync', logger)
     if not succesful:
         logger.error(f'sync {initiator_id}: got unit from {target_id} that does not comply to the rules; aborting')
         return
@@ -177,15 +177,15 @@ async def _receive_units(process_id, ex_id, reader, mode, logger):
     return units_received
 
 
-async def _send_units(process_id, ex_id, int_heights, ex_heights, poset, writer, mode, logger):
+async def _send_units(process_id, ex_id, int_heights, ex_heights, process, writer, mode, logger):
     send_ind = [i for i, (int_height, ex_height) in enumerate(zip(int_heights, ex_heights)) if int_height > ex_height]
 
     logger.info(f'{mode} {process_id}: sending units to {ex_id}')
     units_to_send = []
     for i in send_ind:
-        units = poset.units_by_height(creator_id=i, min_height=ex_heights[i]+1, max_height=int_heights[i])
+        units = process.poset.units_by_height_interval(creator_id=i, min_height=ex_heights[i]+1, max_height=int_heights[i])
         units_to_send.extend(units)
-    units_to_send = poset.order_units_topologically(units_to_send)
+    units_to_send = process.poset.order_units_topologically(units_to_send)
     units_to_send = [unit_to_dict(U) for U in units_to_send]
 
     data = marshal.dumps(units_to_send)
@@ -222,17 +222,15 @@ async def _verify_signatures(process_id, units_received, public_key_list, execut
     return True
 
 
-async def _add_units(process_id, ex_id, units_received, poset, mode, logger):
+async def _add_units(process_id, ex_id, units_received, process, mode, logger):
     logger.info(f'{mode} {process_id}: trying to add {len(units_received)} units from {ex_id} to poset')
     for unit in units_received:
-        assert all(U_hash in poset.units.keys() for U_hash in unit['parents_hashes'])
-        parents = [poset.unit_by_hash(parent_hash) for parent_hash in unit['parents_hashes']]
-        U = Unit(unit['creator_id'], parents, unit['txs'], unit['signature'], unit['coinshares'])
-        if U.hash() not in poset.units.keys():
-            if poset.check_compliance(U):
-                poset.add_unit(U)
-            else:
-                return False
+        assert all(U_hash in process.poset.units.keys() for U_hash in unit['parents_hashes'])
+        parents = [process.poset.unit_by_hash(parent_hash) for parent_hash in unit['parents_hashes']]
+        txs = [Tx.from_dict(dict_tx) for dict_tx in unit['txs']]
+        U = Unit(unit['creator_id'], parents, txs, unit['signature'], unit['coinshares'])
+        if not process.add_unit_to_poset(U):
+            return False
     logger.info(f'{mode} {process_id}: units from {ex_id} were added succesfully')
     return True
 
@@ -246,10 +244,12 @@ def verify_signature(unit, public_key_list):
         return False
 
     # verify signatures of txs
-    for tx in unit['txs']:
-        message = tx_to_message(tx['issuer'], tx['amount'], tx['receiver'], tx['index'], tx['fee'])
-        pk = VerifyKey.from_hex(tx['issuer'])
-        if not pk.verify_signature(tx['signature'], message):
+    for tx_dict in unit['txs']:
+        tx = Tx.from_dict(tx_dict)
+        message = tx.to_message()
+        #message = tx_to_message(tx['issuer'], tx['amount'], tx['receiver'], tx['index'], tx['fee'])
+        pk = VerifyKey.from_hex(tx.issuer)
+        if not pk.verify_signature(tx.signature, message):
             return False
 
     return True
@@ -259,14 +259,10 @@ def unit_to_dict(U):
     parents_hashes = [parent.hash() for parent in U.parents]
     return {'creator_id': U.creator_id,
             'parents_hashes': parents_hashes,
-            'txs': U.txs,
+            'txs': [tx.to_dict() for tx in U.txs],
             'signature': U.signature,
             'coinshares': U.coinshares}
 
-def tx_to_dict(tx):
-    return {'issuer': tx.issuer,
-            'amount': tx.amount,
-            'receiver': tx.receiver,
-            'index': tx.index,
-            'fee': tx.fee,
-            'signature': tx.signature}
+
+
+

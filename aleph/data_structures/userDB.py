@@ -3,27 +3,30 @@ import logging
 from aleph.config import *
 
 
-class User_base:
+class UserDB:
     '''
     This class is used to store information about user accounts: their balances and last succesful transactions.
     '''
 
 
-    def __init__(self):
+    def __init__(self, initial_balances_and_indices = []):
         '''
+        Creates a user data base that contains user balances (by public key) and their last validated transaction.
         '''
         self.user_balance = {}
         self.user_last_transaction_index = {}
-
+        for public_key, balance, index in initial_balances_and_indices:
+            user_balance[public_key] = balance
+            user_last_transaction_index[public_key] = index
 
 
     def account_balance(self, user_public_key):
-        return user_balance.get(user_public_key, 0)
+        return self.user_balance.get(user_public_key, 0)
 
 
 
     def last_transaction(self, user_public_key):
-        return user_last_transaction_index.get(user_public_key, -1)
+        return self.user_last_transaction_index.get(user_public_key, -1)
 
 
 
@@ -48,7 +51,7 @@ class User_base:
         issuer_balance -= tx.amount
         receiver_balance += tx.amount
 
-        user_balance[tx.issuer] = issuer_balance
-        user_balance[tx.receiver] = receiver_balance
-        user_last_transaction_index[tx.issuer] = tx.index
+        self.user_balance[tx.issuer] = issuer_balance
+        self.user_balance[tx.receiver] = receiver_balance
+        self.user_last_transaction_index[tx.issuer] = tx.index
 

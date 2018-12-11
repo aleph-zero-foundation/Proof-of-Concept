@@ -46,7 +46,8 @@ class Unit(object):
 
     def to_message(self):
         '''Generates message used for signing units'''
-        return unit_to_message(self.creator_id, self.parents_hashes(), self.txs, self.coinshares)
+        dict_txs = [tx.to_dict() for tx in self.txs]
+        return unit_to_message(self.creator_id, self.parents_hashes(), dict_txs, self.coinshares)
 
     def __hash__(self):
         return hash(self.hash())
@@ -85,5 +86,5 @@ class Unit(object):
         return str_repr
 
 
-def unit_to_message(creator_id, parents, txs, coinshares):
-    return str([creator_id, parents, txs, coinshares]).encode()
+def unit_to_message(creator_id, parents, dics_txs, coinshares):
+    return str([creator_id, parents, dics_txs, coinshares]).encode()
