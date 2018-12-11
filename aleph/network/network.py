@@ -1,20 +1,16 @@
 import asyncio
 import logging
 import marshal
-import random
 import socketserver
 
 from time import time
 
-from aleph.data_structures import Unit, unit_to_message, Tx, tx_to_message
+from aleph.data_structures import Unit, unit_to_message, Tx
 from aleph.config import *
-from aleph.crypto.keys import VerifyKey, SigningKey
+from aleph.crypto.keys import VerifyKey
 
 
 def tx_listener(listen_addr, queue):
-    logger = logging.getLogger(LOGGING_FILENAME)
-    logger.info(f'Starting tx server on {listen_addr}')
-
     tx_buffer = []
     prev_put_time = time()
 
@@ -26,20 +22,21 @@ def tx_listener(listen_addr, queue):
             data = self.request.recv(1024)
             tx_dict = marshal.loads(data)
             tx = Tx.from_dict(tx_dict)
+            tx_buffer.append(tx)
 
             logger.info(f'tx server: tx received from {self.client_address}')
 
-            tx_buffer.append(tx)
             if len(tx_buffer) == N_TXS or (time()-prev_put_time > CREATE_FREQ):
                 prev_put_time = time()
                 logger.info(f'tx server: putting {len(tx_buffer)} txs on queue')
                 queue.put(tx_buffer)
                 tx_buffer = []
 
+    logger = logging.getLogger(LOGGING_FILENAME)
+    logger.info(f'Starting tx server on {listen_addr}')
+
     with socketserver.TCPServer(listen_addr, TCPHandler) as server:
         server.serve_forever()
-
-
 
 
 async def listener(process, process_id, addresses, public_key_list, executor):
@@ -99,7 +96,7 @@ async def listener(process, process_id, addresses, public_key_list, executor):
     server = await asyncio.start_server(listen_handler, host_addr[0], host_addr[1])
 
     logger = logging.getLogger(LOGGING_FILENAME)
-    logger.info(f'Serving on {host_addr}')
+    logger.info(f'Starting sync server on {host_addr}')
 
     async with server:
         await server.serve_forever()
@@ -199,9 +196,6 @@ async def _send_units(process_id, ex_id, int_heights, ex_heights, process, write
     logger.info(f'{mode} {process_id}: units sent to {ex_id}')
 
 
-
-
-
 async def _verify_signatures(process_id, units_received, public_key_list, executor, mode, logger):
     logger.info(f'{mode} {process_id}: verifying signatures')
 
@@ -235,7 +229,6 @@ async def _add_units(process_id, ex_id, units_received, process, mode, logger):
     return True
 
 
-
 def verify_signature(unit, public_key_list):
     '''Verifies signatures of the unit and all txs in it'''
     # verify unit signature
@@ -247,7 +240,6 @@ def verify_signature(unit, public_key_list):
     for tx_dict in unit['txs']:
         tx = Tx.from_dict(tx_dict)
         message = tx.to_message()
-        #message = tx_to_message(tx['issuer'], tx['amount'], tx['receiver'], tx['index'], tx['fee'])
         pk = VerifyKey.from_hex(tx.issuer)
         if not pk.verify_signature(tx.signature, message):
             return False
@@ -262,7 +254,3 @@ def unit_to_dict(U):
             'txs': [tx.to_dict() for tx in U.txs],
             'signature': U.signature,
             'coinshares': U.coinshares}
-
-
-
-
