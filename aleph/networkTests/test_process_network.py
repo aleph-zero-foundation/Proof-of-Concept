@@ -61,7 +61,7 @@ async def discover_at(ip, all_pub_keys):
     result = {}
     for port, key in keys_by_port.items():
         if key in all_pub_keys:
-            result[VerifyKey.from_hex(key)] = (ip, port)
+            result[key] = (ip, port)
     return result
 
 async def discover(all_pub_keys, ip_range):
@@ -85,13 +85,15 @@ def process_client_map(client_map):
     return addresses, public_keys
 
 async def run_processes(client_map, priv_keys):
-    addresses, public_keys = process_client_map(client_map)
+    addresses, public_key_hexes = process_client_map(client_map)
+    public_keys = [VerifyKey.from_hex(pub_key) for pub_key in public_key_hexes]
     n_processes = len(public_keys)
     tasks = []
     for priv_key in priv_keys:
-        pub_key = PublicKey(priv_key)
-        process_id = public_keys.index(pub_key)
-        new_process = Process(n_processes, process_id, priv_key, pub_key, addresses, public_keys)
+        pub_key = VerifyKey.from_SigningKey(priv_key)
+        process_id = public_key_hexes.index(pub_key.to_hex())
+        tx_receiver_address = (addresses[process_id][0], addresses[process_id][1]+32)
+        new_process = Process(n_processes, process_id, priv_key, pub_key, addresses, public_keys, tx_receiver_address)
         new_process.poset = Poset(n_processes)
         tasks.append(asyncio.create_task(new_process.run()))
     await asyncio.gather(*tasks)
