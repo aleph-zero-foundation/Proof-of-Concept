@@ -4,7 +4,7 @@ import marshal
 import random
 import time
 
-from aleph.data_structures import Unit, unit_to_message, tx_to_message
+from aleph.data_structures import Unit, Tx, unit_to_message, tx_to_message
 from aleph.config import *
 from aleph.crypto.keys import VerifyKey, SigningKey
 
@@ -13,7 +13,7 @@ def tx_listener(queue):
     '''Handler for incoming txs'''
     # This is only a prothesis
 
-    time.sleep(5)
+    time.sleep(1)
     n_light_nodes = 100
     signing_keys = [SigningKey() for _ in range(n_light_nodes)]
     verify_keys = [VerifyKey.from_SigningKey(sk) for sk in signing_keys]
@@ -23,9 +23,12 @@ def tx_listener(queue):
         for _ in range(n_tx):
             issuer_id = random.randrange(0, n_light_nodes)
             tx = {'amount':0, 'receiver':0, 'index':0, 'fee':0}
-            tx['issuer'] = verify_keys[issuer_id].to_hex()
-            message = tx_to_message(tx['issuer'], tx['amount'], tx['receiver'], tx['index'], tx['fee'])
-            tx['signature'] = signing_keys[issuer_id].sign(message)
+            tx = Tx(issuer = verify_keys[issuer_id].to_hex(), signature = None, amount = 0, receiver = "0", index = 0)
+            #tx['issuer'] = verify_keys[issuer_id].to_hex()
+            #message = tx_to_message(tx['issuer'], tx['amount'], tx['receiver'], tx['index'], tx['fee'])
+            message = tx.to_message()
+            #tx['signature'] = signing_keys[issuer_id].sign(message)
+            tx.signature = signing_keys[issuer_id].sign(message)
             txs.append(tx)
 
         queue.put(txs)
@@ -221,7 +224,8 @@ async def _add_units(process_id, ex_id, units_received, process, mode, logger):
     for unit in units_received:
         assert all(U_hash in process.poset.units.keys() for U_hash in unit['parents_hashes'])
         parents = [process.poset.unit_by_hash(parent_hash) for parent_hash in unit['parents_hashes']]
-        U = Unit(unit['creator_id'], parents, unit['txs'], unit['signature'], unit['coinshares'])
+        txs = [Tx.from_dict(dict_tx) for dict_tx in unit['txs']]
+        U = Unit(unit['creator_id'], parents, txs, unit['signature'], unit['coinshares'])
         if not process.add_unit_to_poset(U):
             return False
     logger.info(f'{mode} {process_id}: units from {ex_id} were added succesfully')
@@ -237,10 +241,12 @@ def verify_signature(unit, public_key_list):
         return False
 
     # verify signatures of txs
-    for tx in unit['txs']:
-        message = tx_to_message(tx['issuer'], tx['amount'], tx['receiver'], tx['index'], tx['fee'])
-        pk = VerifyKey.from_hex(tx['issuer'])
-        if not pk.verify_signature(tx['signature'], message):
+    for tx_dict in unit['txs']:
+        tx = Tx.from_dict(tx_dict)
+        message = tx.to_message()
+        #message = tx_to_message(tx['issuer'], tx['amount'], tx['receiver'], tx['index'], tx['fee'])
+        pk = VerifyKey.from_hex(tx.issuer)
+        if not pk.verify_signature(tx.signature, message):
             return False
 
     return True
@@ -250,14 +256,10 @@ def unit_to_dict(U):
     parents_hashes = [parent.hash() for parent in U.parents]
     return {'creator_id': U.creator_id,
             'parents_hashes': parents_hashes,
-            'txs': U.txs,
+            'txs': [tx.to_dict() for tx in U.txs],
             'signature': U.signature,
             'coinshares': U.coinshares}
 
-def tx_to_dict(tx):
-    return {'issuer': tx.issuer,
-            'amount': tx.amount,
-            'receiver': tx.receiver,
-            'index': tx.index,
-            'fee': tx.fee,
-            'signature': tx.signature}
+
+
+

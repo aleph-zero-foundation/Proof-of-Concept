@@ -21,12 +21,12 @@ class UserDB:
 
 
     def account_balance(self, user_public_key):
-        return user_balance.get(user_public_key, 0)
+        return self.user_balance.get(user_public_key, 0)
 
 
 
     def last_transaction(self, user_public_key):
-        return user_last_transaction_index.get(user_public_key, -1)
+        return self.user_last_transaction_index.get(user_public_key, -1)
 
 
 
@@ -51,7 +51,7 @@ class UserDB:
         issuer_balance -= tx.amount
         receiver_balance += tx.amount
 
-        user_balance[tx.issuer] = issuer_balance
-        user_balance[tx.receiver] = receiver_balance
-        user_last_transaction_index[tx.issuer] = tx.index
+        self.user_balance[tx.issuer] = issuer_balance
+        self.user_balance[tx.receiver] = receiver_balance
+        self.user_last_transaction_index[tx.issuer] = tx.index
 

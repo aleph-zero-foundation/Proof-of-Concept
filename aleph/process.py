@@ -9,6 +9,7 @@ from aleph.data_structures.poset import Poset
 from aleph.data_structures.userDB import UserDB
 from aleph.crypto.keys import SigningKey, VerifyKey
 from aleph.network import listener, sync, tx_listener
+from aleph.data_structures.tx import Tx
 from aleph.config import CREATE_FREQ, SYNC_INIT_FREQ, LOGGING_FILENAME
 
 
@@ -69,6 +70,10 @@ class Process:
             list_of_validated_units = []
             self.poset.add_unit(U, list_of_validated_units)
             logger.info(f'add_unit_to_poset {self.process_id} -> Validated a set of {len(list_of_validated_units)} units.')
+            for tx in U.txs:
+                if tx.issuer not in self.pending_txs.keys():
+                    self.pending_txs[tx.issuer] = set()
+                self.pending_txs[tx.issuer].add((tx,U))
             for V in list_of_validated_units:
                 newly_validated = self.validate_transactions_in_unit(V, U)
                 logger.info(f'add_unit_to_poset {self.process_id} -> Validated a set of {len(newly_validated)} transactions.')
@@ -83,14 +88,13 @@ class Process:
         Returns a list of transactions in U that can be fast-validated if U's validator unit is U_validator
         :returns: list of all transactions in unit U that can be fast-validated
         '''
-
         validated_transactions = []
         for tx in U.txs:
-
             user_public_key = tx.issuer
+
             assert user_public_key in self.pending_txs.keys(), f"No transaction is pending for user {user_public_key}."
             assert (tx, U) in self.pending_txs[user_public_key], "Transaction not found among pending"
-            if tx.index != user_base[tx.issuer] + 1:
+            if tx.index != self.userDB.last_transaction(tx.issuer) + 1:
                 continue
             transaction_fork_present = False
             for (pending_txs, V) in self.pending_txs[user_public_key]:
@@ -101,14 +105,12 @@ class Process:
                             break
 
             if not transaction_fork_present:
-                if user_base.check_transaction_correctness(tx):
-                    user_base.apply_transaction(tx)
-                    tx.validated = True
+                if self.userDB.check_transaction_correctness(tx):
+                    self.userDB.apply_transaction(tx)
                     validated_transactions.append(tx)
 
         for tx in validated_transactions:
             self.pending_txs[tx.issuer].discard((tx,U))
-
         return validated_transactions
 
 
@@ -120,7 +122,8 @@ class Process:
             if new_unit is not None:
                 assert self.poset.check_compliance(new_unit), "A unit created by our process is not passing the compliance test!"
                 self.sign_unit(new_unit)
-                self.poset.add_unit(new_unit)
+                #self.poset.add_unit(new_unit)
+                self.add_unit_to_poset(new_unit)
                 if not txs_queue.empty():
                     self.prepared_txs = txs_queue.get()
                 else:

@@ -1,9 +1,9 @@
 class Tx(object):
     '''This class stores a transactions issued by some user and is signed by the user'''
 
-    __slots__ = ['issuer', 'signature', 'amount', 'receiver', 'index', 'validated', 'fee']
+    __slots__ = ['issuer', 'signature', 'amount', 'receiver', 'index']
 
-    def __init__(self, issuer, signature, amount, receiver, index, validated, fee):
+    def __init__(self, issuer, signature, amount, receiver, index):
         '''
         :param int issuer: public key of the issuer of the transaction
         :param int signature: signature made by the issuer of the transaction preventing forging transactions by Byzantine processes
@@ -18,8 +18,6 @@ class Tx(object):
         self.amount = amount
         self.receiver = receiver
         self.index = index
-        self.validated = validated
-        self.fee = fee
 
 
     def __str__(self):
@@ -29,22 +27,35 @@ class Tx(object):
         tx_string += 'Receiver: ' + str(self.receiver) + '\n'
         tx_string += 'Amount: ' + str(self.amount) + '\n'
         tx_string += 'Index: ' + str(self.index) + '\n'
-        tx_string += 'Fee: ' + str(self.fee) + '\n'
         return tx_string
+
+    def __repr__(self):
+        return str([self.issuer, self.receiver, self.signature, self.amount, self.index])
 
 
     def __eq__(self, other):
         # self.validated field is ignored in this check
         return (isinstance(other, Tx) and self.issuer == other.issuer and self.amount == other.amount and self.signature == other.signature
-                and self.receiver == other.receiver and self.fee == other.fee and self.index == other.index)
+                and self.receiver == other.receiver and self.index == other.index)
 
     def __hash__(self):
         return hash(str(self))
 
 
     def to_message(self):
-        return tx_to_message(self.issuer, self.amount, self.receiver, self.index, self.fee)
+        return tx_to_message(self.issuer, self.amount, self.receiver, self.index)
+
+    @classmethod
+    def from_dict(cls, tx_dict):
+        return Tx(tx_dict['issuer'], tx_dict['signature'], tx_dict['amount'], tx_dict['receiver'], tx_dict['index'])
+
+    def to_dict(self):
+        return {'issuer': self.issuer,
+                'amount': self.amount,
+                'receiver': self.receiver,
+                'index': self.index,
+                'signature': self.signature}
 
 
-def tx_to_message(issuer, amount, receiver, index, fee):
-    return str([issuer, amount, receiver, index, fee]).encode()
+def tx_to_message(issuer, amount, receiver, index):
+    return str([issuer, amount, receiver, index]).encode()

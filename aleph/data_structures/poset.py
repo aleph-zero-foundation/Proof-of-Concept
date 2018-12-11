@@ -95,7 +95,7 @@ class Poset:
         # the below might look over-complicated -- this is because of potentials forks of U's creator
         # ignoring forks this simplifies to: if min_non_validated[U.creator_id] == [] then add U to it
         if not any(self.below_within_process(V, U) for V in  self.min_non_validated[U.creator_id]):
-            self.min_non_validated.append(U)
+            self.min_non_validated[U.creator_id].append(U)
 
 
 
@@ -835,7 +835,7 @@ class Poset:
             return []
 
         result_list = []
-        for U in max_units_per_process[process_id]:
+        for U in self.max_units_per_process[process_id]:
             if U.height < height:
                 continue
             while U is not None and U.height > height:
