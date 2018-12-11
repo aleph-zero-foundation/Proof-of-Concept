@@ -13,7 +13,7 @@ class Poset:
     '''This class is the core data structure of the Aleph protocol.'''
 
 
-    def __init__(self, n_processes, compliance_rules=None):
+    def __init__(self, n_processes, compliance_rules = None, memo_height = 10):
         '''
         :param int n_processes: the committee size
         :param list compliance_rules: list of strings defining which compliance rules are followed by this poset
@@ -28,6 +28,10 @@ class Poset:
 
         #self.level_reached = 0
         self.prime_units_by_level = {}
+
+        #a structure for efficiently executing  the units_by_height method, for every process this is a sparse list of units sorted by height
+        #every unit of height memo_height*k for some k>=0 is memoized, in case of forks only one unit is added
+        self.memoized_units = [[] for _ in range(n_processes)]
 
 
 
@@ -53,6 +57,7 @@ class Poset:
             3. set floor attribute of U
             3. set ceil attribute of U and update ceil of predecessors of U
             6. validates units using U if possible and updates the border between validated and non-validated units
+            7. If required, adds U to memoized_units
 
         :param unit U: unit to be added to the poset
         :returns: It does not return anything explicitly but modifies the newly_validated list: adds the units validated by U
@@ -96,6 +101,17 @@ class Poset:
         # ignoring forks this simplifies to: if min_non_validated[U.creator_id] == [] then add U to it
         if not any(self.below_within_process(V, U) for V in  self.min_non_validated[U.creator_id]):
             self.min_non_validated[U.creator_id].append(U)
+
+        # 7. Update memoized_units
+        if U.height % self.memo_height == 0:
+            n_units_memoized = len(self.memoized_units[U.creator_id])
+            U_no = U.height//self.memo_height
+            if n_units_memoized >= U_no + 1:
+                #this means that U.creator_id is forking and there is already a unit added on this height
+                continue
+            else:
+                assert n_units_memoized == U_no, f"The number of units memoized is {n_units_memoized} while it should be {U_no}."
+                self.memoized[U.creator_id].append(U)
 
 
 
@@ -831,19 +847,39 @@ class Poset:
         NOTE: this implementation is inefficient.
         In the future one could improve it by memoizing every k-th height of units, for some constant k, like k=100.
         '''
-        if height < 0:
+        if height < 0 or self.max_units_per_process[process_id] == []:
             return []
 
+        if height < self.forking_height[process_id]:
+            # we can use the memoized units, there will be a unique result
+            # find the lowest memoized unit above height -- ceil(height/self.memo_height)
+            memoized_pos = (height + self.memo_height - 1)//self.memo_height
+            if len(self.memoized_units[process_id]) >= memoized_pos + 1:
+                U = self.memoized_units[process_id][memoized_pos]
+            else:
+                U = self.max_units_per_process[process_id][0]
+
+            if U.height < height:
+                return []
+
+            while U is not None and U.height > height:
+                U = U.self_predecessor
+            return [U]
+
+
+
+        # we need to be especially careful because the query is about a fork
+        # thus we go from the top to not miss anything
         result_list = []
         for U in self.max_units_per_process[process_id]:
             if U.height < height:
                 continue
             while U is not None and U.height > height:
                 U = U.self_predecessor
-            if U.height == height:
+            if U is not None and U.height == height:
                 result_list.append(U)
 
-        #remove possible duplicates in case process_id is a forker
+        #remove possible duplicates -- process_id is a forker
         return list(set(result_list))
 
     def get_self_children(self, U):
