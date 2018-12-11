@@ -2,36 +2,42 @@ import asyncio
 import logging
 import marshal
 import random
-import time
+import socketserver
 
-from aleph.data_structures import Unit, unit_to_message, tx_to_message
+from time import time
+
+from aleph.data_structures import Unit, unit_to_message, Tx, tx_to_message
 from aleph.config import *
 from aleph.crypto.keys import VerifyKey, SigningKey
 
 
-def tx_listener(queue):
-    '''Handler for incoming txs'''
-    # This is only a prothesis
+def tx_listener(listen_addr, queue):
+    logger = logging.getLogger(LOGGING_FILENAME)
+    logger.info(f'Starting tx server on {listen_addr}')
 
-    time.sleep(5)
-    n_light_nodes = 100
-    signing_keys = [SigningKey() for _ in range(n_light_nodes)]
-    verify_keys = [VerifyKey.from_SigningKey(sk) for sk in signing_keys]
-    while True:
-        n_tx = random.randrange(0, 5)
-        txs = []
-        for _ in range(n_tx):
-            issuer_id = random.randrange(0, n_light_nodes)
-            tx = {'amount':0, 'receiver':0, 'index':0, 'fee':0}
-            tx['issuer'] = verify_keys[issuer_id].to_hex()
-            message = tx_to_message(tx['issuer'], tx['amount'], tx['receiver'], tx['index'], tx['fee'])
-            tx['signature'] = signing_keys[issuer_id].sign(message)
-            txs.append(tx)
+    tx_buffer = []
+    prev_put_time = time()
 
-        queue.put(txs)
-        time.sleep(CREATE_FREQ)
+    class TCPHandler(socketserver.BaseRequestHandler):
+        def handle(self):
+            nonlocal tx_buffer, prev_put_time
+            logger.info(f'tx server: established connection with {self.client_address}')
 
+            data = self.request.recv(1024)
+            tx_dict = marshal.loads(data)
+            tx = Tx.from_dict(tx_dict)
 
+            logger.info(f'tx server: tx received from {self.client_address}')
+
+            tx_buffer.append(tx)
+            if len(tx_buffer) == N_TXS or (time()-prev_put_time > CREATE_FREQ):
+                prev_put_time = time()
+                logger.info(f'tx server: putting {len(tx_buffer)} txs on queue')
+                queue.put(tx_buffer)
+                tx_buffer = []
+
+    with socketserver.TCPServer(listen_addr, TCPHandler) as server:
+        server.serve_forever()
 
 
 
