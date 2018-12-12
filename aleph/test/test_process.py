@@ -10,7 +10,7 @@ import multiprocessing
 
 
 async def main():
-    n_processes = 20
+    n_processes = 5
     n_units = 0
     n_forkers = 0
     txps = 30

@@ -126,7 +126,7 @@ class Process:
 
     async def create_add(self, txs_queue):
     #while True:
-        for _ in range(25):
+        for _ in range(10):
             txs = self.prepared_txs
             new_unit = self.poset.create_unit(self.process_id, txs, strategy = "link_self_predecessor", num_parents = 2)
             if new_unit is not None:
@@ -145,7 +145,7 @@ class Process:
     async def keep_syncing(self, executor):
         await asyncio.sleep(0.7)
         #while True:
-        for _ in range(25):
+        for _ in range(10):
             sync_candidates = list(range(self.n_processes))
             sync_candidates.remove(self.process_id)
             target_id = random.choice(sync_candidates)
