@@ -96,10 +96,11 @@ async def run_processes(client_map, priv_keys):
         new_process = Process(n_processes, process_id, priv_key, pub_key, addresses, public_keys, tx_receiver_address)
         new_process.poset = Poset(n_processes)
         tasks.append(asyncio.create_task(new_process.run()))
+    await asyncio.sleep(1)
     await asyncio.gather(*tasks)
 
 async def run():
-    # argumenty: klucze prywatne, klucze publiczne, nasze IP, zakres IP
+    # arguments: private keys, public keys, our IP, IP range
     import sys
     assert(len(sys.argv) == 5)
     priv_keys_file = sys.argv[1]
