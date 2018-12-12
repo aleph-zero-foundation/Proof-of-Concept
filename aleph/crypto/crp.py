@@ -3,13 +3,13 @@ import hashlib
 
 class CommonRandomPermutation:
 
-    def __init__(self, public_keys, hashing_function = None):
+    def __init__(self, public_keys_hex, hashing_function = None):
         """
-        :param public_keys: list of all public keys in lexicographic order
+        :param public_keys: list of all public keys in hex format
         :param hashing_function: hashing function used for generating common random permutations -- assumed to input and output a bytestring
         if None hashing_function is provided then it uses hashlib.sha512
         """
-        self.public_keys = public_keys
+        self.public_keys = [bytes.fromhex(key_hex) for key_hex in public_keys_hex]
         self.hashing_function = hashing_function
 
     def _xor(self, bytes1, bytes2):
