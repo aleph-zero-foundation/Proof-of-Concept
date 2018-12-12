@@ -30,12 +30,12 @@ def tx_generator(committee_addresses, n_light_nodes, txps):
             issuer_id = random.randrange(0, n_light_nodes)
             receiver_id = random.choice([uid for uid in range(n_light_nodes) if uid != issuer_id])
             tx = {'issuer': verify_keys_hex[issuer_id],
-                  'amount': random.randrange(1, 10000),
+                  'amount': 0,
                   'receiver': verify_keys_hex[receiver_id],
                   'index': last_tx_index[issuer_id] + 1}
             message = tx_to_message(tx['issuer'], tx['amount'], tx['receiver'], tx['index'])
             tx['signature'] = signing_keys[issuer_id].sign(message)
-
+            last_tx_index[issuer_id] += 1
             data = marshal.dumps(tx)
             sock.sendall(data)
             counter += 1

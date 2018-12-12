@@ -10,10 +10,10 @@ import multiprocessing
 
 
 async def main():
-    n_processes = 10
+    n_processes = 5
     n_units = 0
     n_forkers = 0
-    txps = 5
+    txps = 30
     n_light_nodes = 100
 
     processes = []
