@@ -7,7 +7,7 @@ import random
 from aleph.data_structures.poset import Poset
 from aleph.data_structures.userDB import UserDB
 from aleph.network import listener, sync, tx_listener
-from aleph.config import CREATE_FREQ, SYNC_INIT_FREQ, LOGGING_FILENAME
+from aleph.config import CREATE_FREQ, SYNC_INIT_FREQ, LOGGER_NAME
 
 
 class Process:
@@ -65,7 +65,7 @@ class Process:
         :param unit U: the unit to be added
         :returns: boolean value: True if succesfully added, False if unit is not compliant
         '''
-        logger = logging.getLogger(LOGGING_FILENAME)
+        logger = logging.getLogger(LOGGER_NAME)
         if U.hash() in self.poset.units.keys():
             return True
 
@@ -94,7 +94,7 @@ class Process:
         :param unit U_validator: a unit that validates U (is high above U)
         :returns: list of all transactions in unit U that can be fast-validated
         '''
-        logger = logging.getLogger(LOGGING_FILENAME)
+        logger = logging.getLogger(LOGGER_NAME)
         validated_transactions = []
         for tx in U.txs:
             user_public_key = tx.issuer
@@ -156,7 +156,7 @@ class Process:
 
     async def run(self):
         # start another process listening for incoming txs
-        logger = logging.getLogger(LOGGING_FILENAME)
+        logger = logging.getLogger(LOGGER_NAME)
 
         txs_queue = multiprocessing.Queue()
         p = multiprocessing.Process(target=tx_listener, args=(self.tx_receiver_address, txs_queue))

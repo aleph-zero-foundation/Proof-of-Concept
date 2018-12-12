@@ -130,7 +130,7 @@ class Poset:
 
         # NOTE: perhaps we (as an honest process) should always try (if possible)
         # NOTE: to create a unit that gives evidence of another process forking
-        logger = logging.getLogger(LOGGING_FILENAME)
+        logger = logging.getLogger(LOGGER_NAME)
         U = Unit(creator_id, [], txs)
         logger.info(f"create: {creator_id} attempting to create a unit.")
         #print(f"create: {creator_id} attempting to create a unit.")

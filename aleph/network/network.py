@@ -32,7 +32,7 @@ def tx_listener(listen_addr, queue):
                 queue.put(tx_buffer)
                 tx_buffer = []
 
-    logger = logging.getLogger(LOGGING_FILENAME)
+    logger = logging.getLogger(LOGGER_NAME)
     logger.info(f'Starting tx server on {listen_addr}')
 
     with socketserver.TCPServer(listen_addr, TCPHandler) as server:
@@ -46,7 +46,7 @@ async def listener(process, process_id, addresses, public_key_list, executor):
         # TODO check if units received are in good order
         # TODO if some signature is broken, and all units with good signatures that can be safely added
         nonlocal n_recv_syncs
-        logger = logging.getLogger(LOGGING_FILENAME)
+        logger = logging.getLogger(LOGGER_NAME)
 
         ips = [ip for ip, _ in addresses]
         peer_addr = writer.get_extra_info('peername')
@@ -95,7 +95,7 @@ async def listener(process, process_id, addresses, public_key_list, executor):
     host_addr = addresses[process_id]
     server = await asyncio.start_server(listen_handler, host_addr[0], host_addr[1])
 
-    logger = logging.getLogger(LOGGING_FILENAME)
+    logger = logging.getLogger(LOGGER_NAME)
     logger.info(f'Starting sync server on {host_addr}')
 
     async with server:
@@ -105,7 +105,7 @@ async def listener(process, process_id, addresses, public_key_list, executor):
 async def sync(process, initiator_id, target_id, target_addr, public_key_list, executor):
     # TODO check if units received are in good order
     # TODO if some signature is broken, and all units with good signatures that can be safely added
-    logger = logging.getLogger(LOGGING_FILENAME)
+    logger = logging.getLogger(LOGGER_NAME)
 
     logger.info(f'sync {initiator_id} -> {target_id}: establishing connection to {target_id}')
     reader, writer = await asyncio.open_connection(target_addr[0], target_addr[1])

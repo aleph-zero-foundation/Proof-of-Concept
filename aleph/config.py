@@ -9,12 +9,18 @@ HOST_IP = '127.0.0.1'
 HOST_PORT = 8888
 
 N_RECV_SYNC = 5
-LOGGING_FILENAME = 'aleph.log'
+LOGGER_NAME = 'aleph'
 
 import logging
 
 log_format = '[%(asctime)s] [%(levelname)-8s] [%(name)-10s] %(message)s [%(filename)s:%(lineno)d]'
-logging.basicConfig(filename=LOGGING_FILENAME,
+logging.basicConfig(filename='other.log',
                     level=logging.DEBUG,
                     format=log_format,
                     filemode='w')
+logger = logging.getLogger(LOGGER_NAME)
+logger.setLevel(logging.DEBUG)
+fh = logging.FileHandler('aleph.log')
+fh.setLevel(logging.DEBUG)
+fh.setFormatter(logging.Formatter(log_format))
+logger.addHandler(fh)
