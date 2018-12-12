@@ -20,7 +20,7 @@ logging.basicConfig(filename='other.log',
                     filemode='w')
 logger = logging.getLogger(LOGGER_NAME)
 logger.setLevel(logging.DEBUG)
-fh = logging.FileHandler('aleph.log')
+fh = logging.FileHandler('aleph.log', mode='w')
 fh.setLevel(logging.DEBUG)
 fh.setFormatter(logging.Formatter(log_format))
 logger.addHandler(fh)
