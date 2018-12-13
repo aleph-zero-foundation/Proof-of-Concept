@@ -29,7 +29,8 @@ class Poset:
         #common random permutation
         self.crp = crp
 
-        #self.level_reached = 0
+        self.level_reached = 0
+        self.level_timing_established = 0
         self.prime_units_by_level = {}
 
         # The list of dealing units for every process -- in a healthy situation (absence of forkers) there should be one per process
@@ -900,6 +901,55 @@ class Poset:
                 pi_values_level_below.append(self.compute_pi(U_c, V))
             memo[('delta', U_hash)] = self.super_majority(pi_values_level_below)
             return self.super_majority(pi_values_level_below)
+
+    def decide_unit_is_timing(self, U_c):
+        #TODO: need to add memoization for this function
+        # go over even level starting from U_c.level + 2
+        if U_c.hash() not in self.timing_partial_results.keys():
+            self.timing_partial_results[U_c.hash()] = {}
+        for level in range(U_c.level + 2, self.level_reached + 1, 2):
+            for U in self.prime_units_by_level[level]:
+                decision = self.compute_delta(U_c, U)
+                if decision != -1:
+                    return decision
+        return -1
+
+    def decide_timing_on_level(self, level):
+        sigma = self.crp[level]
+
+        for process_id in sigma:
+            prime_units_by_curr_process = [U for U in self.prime_units_by_level[level] if U.creator_id == process_id]
+            decision = -1
+            #TODO: the case when there are multiple units in this list is especially tricky (caused by forking)
+            #TODO: need to rethink this code deeply
+            for U_c in prime_units_by_curr_process:
+                decision = self.decide_unit_is_timing(U_c)
+                if decision == 1:
+                    #TODO: not sure about this when forks present
+                    return U_c
+                if decision == 0:
+                    #TODO: again, not sure
+                    break
+            if decision == -1:
+                #we don't have a decision about process_id yet, need to wait
+                #this can also mean that there is no prime unit for process_id at this level
+                #TODO: should probably wait only until self.level_reached > level + 4 or so
+                return None
+
+        assert False, f"Something terrible happened: no timing unit was chosen at level {level}."
+
+        return None
+
+    def attempt_timing_decision(self):
+
+        for level in range(self.level_timing_established + 1, self.level_reached + 1):
+            U_t = self.decide_timing_on_level(level)
+            if U_t is not None:
+                self.timing_units.append(U_t)
+                assert len(self.timing_units) == level, "The length of the list of timing units does not match the level of the currently added unit"
+                #TODO: this should also trigger cleaning up the memoized results for level
+            else:
+                break
 
 
 
