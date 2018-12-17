@@ -1,4 +1,4 @@
-import marshal
+import pickle
 import random
 import socket
 import time
@@ -30,7 +30,7 @@ def tx_generator(committee_addresses, signing_keys, txps):
               'index': last_tx_index[issuer_id] + 1}
         message = tx_to_message(tx['issuer'], tx['amount'], tx['receiver'], tx['index'])
         tx['signature'] = signing_keys[issuer_id].sign(message)
-        data = marshal.dumps(tx)
+        data = pickle.dumps(tx)
 
         sent = False
         while not sent:

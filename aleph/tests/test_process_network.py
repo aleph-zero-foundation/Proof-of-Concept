@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 import asyncio
-import marshal
 import multiprocessing
+import pickle
 import random
 import subprocess
 
@@ -48,9 +48,9 @@ def put_message(writer, message):
 def make_discovery_server(priv_keys, account_priv_keys):
     response = []
     if account_priv_keys is not None:
-        response.append(marshal.dumps('tx'))
-        response.append(marshal.dumps(make_database_response(account_priv_keys)))
-    response.append(marshal.dumps(make_discovery_response(priv_keys)))
+        response.append(pickle.dumps('tx'))
+        response.append(pickle.dumps(make_database_response(account_priv_keys)))
+    response.append(pickle.dumps(make_discovery_response(priv_keys)))
     async def discovery_server(reader, writer):
         for resp in response:
             put_message(writer, resp)
@@ -70,7 +70,7 @@ async def get_message(reader):
     data = await reader.readuntil()
     n_bytes = int(data[:-1])
     data = await reader.readexactly(n_bytes)
-    return marshal.loads(data)
+    return pickle.loads(data)
 
 async def discover_at(ip, all_pub_keys):
     print("Discovering at "+ ip)

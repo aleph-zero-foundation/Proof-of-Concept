@@ -1,6 +1,6 @@
 import asyncio
 import logging
-import marshal
+import pickle
 import socketserver
 
 from time import time
@@ -20,7 +20,7 @@ def tx_listener(listen_addr, queue):
             logger.info(f'tx server: established connection with {self.client_address}')
 
             data = self.request.recv(1024)
-            tx_dict = marshal.loads(data)
+            tx_dict = pickle.loads(data)
             tx = Tx.from_dict(tx_dict)
             tx_buffer.append(tx)
 
@@ -143,7 +143,7 @@ async def sync(process, initiator_id, target_id, target_addr, public_key_list, e
 async def _send_poset_info(process_id, ex_id, writer, int_heights, int_hashes, mode, logger):
     logger.info(f'{mode} {process_id}: sending info about forkers and heights&hashes to {ex_id}')
 
-    data = marshal.dumps((process_id, int_heights, int_hashes))
+    data = pickle.dumps((process_id, int_heights, int_hashes))
     writer.write(str(len(data)).encode())
     writer.write(b'\n')
     writer.write(data)
@@ -156,7 +156,7 @@ async def _receive_poset_info(process_id, n_processes, reader, mode, logger):
     data = await reader.readuntil()
     n_bytes = int(data[:-1])
     data = await reader.readexactly(n_bytes)
-    ex_id, ex_heights, ex_hashes = marshal.loads(data)
+    ex_id, ex_heights, ex_hashes = pickle.loads(data)
     assert ex_id != process_id, "It seems we are syncing with ourselves."
     assert ex_id in range(n_processes), "Incorrect process id received."
     logger.info(f'{mode} {process_id}: got forkers/heights {ex_heights} from {ex_id}')
@@ -170,7 +170,7 @@ async def _receive_units(process_id, ex_id, reader, mode, logger):
     n_bytes = int(data[:-1])
     logger.info(f'{mode} {process_id}: received {n_bytes} bytes from {ex_id}')
     data = await reader.readexactly(n_bytes)
-    units_received = marshal.loads(data)
+    units_received = pickle.loads(data)
     logger.info(f'{mode}, {process_id}: received units')
     return units_received
 
@@ -186,7 +186,7 @@ async def _send_units(process_id, ex_id, int_heights, ex_heights, process, write
     units_to_send = process.poset.order_units_topologically(units_to_send)
     units_to_send = [unit_to_dict(U) for U in units_to_send]
 
-    data = marshal.dumps(units_to_send)
+    data = pickle.dumps(units_to_send)
     writer.write(str(len(data)).encode())
     logger.info(f'{mode} {process_id}: sending {len(data)} bytes to {ex_id}')
     writer.write(b'\n')
