@@ -22,20 +22,27 @@ def tx_generator(committee_addresses, n_light_nodes, txps):
                 time.sleep(1-(time.time()-starts))
             starts = time.time()
 
-        com_addr = random.choice(committee_addresses)
+        issuer_id = random.randrange(0, n_light_nodes)
+        receiver_id = random.choice([uid for uid in range(n_light_nodes) if uid != issuer_id])
+        tx = {'issuer': verify_keys_hex[issuer_id],
+              'amount': 0,
+              'receiver': verify_keys_hex[receiver_id],
+              'index': last_tx_index[issuer_id] + 1}
+        message = tx_to_message(tx['issuer'], tx['amount'], tx['receiver'], tx['index'])
+        tx['signature'] = signing_keys[issuer_id].sign(message)
+        data = marshal.dumps(tx)
 
-        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
-            sock.connect(com_addr)
+        sent = False
+        while not sent:
+            com_addr = random.choice(committee_addresses)
 
-            issuer_id = random.randrange(0, n_light_nodes)
-            receiver_id = random.choice([uid for uid in range(n_light_nodes) if uid != issuer_id])
-            tx = {'issuer': verify_keys_hex[issuer_id],
-                  'amount': 0,
-                  'receiver': verify_keys_hex[receiver_id],
-                  'index': last_tx_index[issuer_id] + 1}
-            message = tx_to_message(tx['issuer'], tx['amount'], tx['receiver'], tx['index'])
-            tx['signature'] = signing_keys[issuer_id].sign(message)
-            last_tx_index[issuer_id] += 1
-            data = marshal.dumps(tx)
-            sock.sendall(data)
-            counter += 1
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+                try:
+                    sock.connect(com_addr)
+                    sock.sendall(data)
+                    sent = True
+                except:
+                    return # assume all failures mean others stopped
+
+        last_tx_index[issuer_id] += 1
+        counter += 1
