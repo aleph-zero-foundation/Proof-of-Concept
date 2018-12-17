@@ -7,7 +7,8 @@ from aleph.crypto.keys import SigningKey, VerifyKey
 from aleph.data_structures import tx_to_message
 
 
-def tx_generator(committee_addresses, n_light_nodes, signing_keys, txps):
+def tx_generator(committee_addresses, signing_keys, txps):
+    n_light_nodes = len(signing_keys)
     last_tx_index = [-1 for _ in range(n_light_nodes)]
     verify_keys_hex = [VerifyKey.from_SigningKey(sk).to_hex() for sk in signing_keys]
 

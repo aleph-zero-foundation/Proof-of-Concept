@@ -28,7 +28,6 @@ def tx_listener(listen_addr, queue):
 
             if len(tx_buffer) == N_TXS or (time()-prev_put_time > CREATE_FREQ):
                 prev_put_time = time()
-                print(len(tx_buffer))
                 logger.info(f'tx server: putting {len(tx_buffer)} txs on queue')
                 queue.put(tx_buffer)
                 tx_buffer = []
