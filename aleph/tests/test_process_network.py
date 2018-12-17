@@ -69,7 +69,7 @@ def get_ip_candidates(ip_range):
 async def get_message(reader):
     data = await reader.readuntil()
     n_bytes = int(data[:-1])
-    data = await reader.read(n_bytes)
+    data = await reader.readexactly(n_bytes)
     return marshal.loads(data)
 
 async def discover_at(ip, all_pub_keys):
