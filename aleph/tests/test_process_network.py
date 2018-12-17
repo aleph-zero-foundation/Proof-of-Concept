@@ -85,35 +85,38 @@ def process_client_map(client_map):
         addresses.append(client_map[pub_key])
     return addresses, public_keys
 
-async def run_processes(client_map, priv_keys):
+async def run_processes(client_map, priv_keys, generate_txs):
     txps = 30
     n_light_nodes = 100
     addresses, public_key_hexes = process_client_map(client_map)
     public_keys = [VerifyKey.from_hex(pub_key) for pub_key in public_key_hexes]
     n_processes = len(public_keys)
     tasks = []
-    tx_rec_addresses = []
     for priv_key in priv_keys:
         pub_key = VerifyKey.from_SigningKey(priv_key)
         process_id = public_key_hexes.index(pub_key.to_hex())
         tx_receiver_address = (addresses[process_id][0], addresses[process_id][1]+32)
-        tx_rec_addresses.append(tx_receiver_address)
         new_process = Process(n_processes, process_id, priv_key, pub_key, addresses, public_keys, tx_receiver_address)
         tasks.append(asyncio.create_task(new_process.run()))
-    await asyncio.sleep(1)
-    p = multiprocessing.Process(target=tx_generator, args=(tx_rec_addresses, n_light_nodes, txps))
-    p.start()
-    await asyncio.gather(*tasks)
-    p.kill()
+    if generate_txs:
+        tx_rec_addresses = [(adr[0], adr[1]+32) for adr in addresses]
+        await asyncio.sleep(1)
+        p = multiprocessing.Process(target=tx_generator, args=(tx_rec_addresses, n_light_nodes, txps))
+        p.start()
+        await asyncio.gather(*tasks)
+        p.kill()
+    else:
+        await asyncio.gather(*tasks)
 
 async def run():
-    # arguments: private keys, public keys, our IP, IP range
+    # arguments: private keys, public keys, our IP, IP range, whether to produce transactions (0 or 1)
     import sys
-    assert(len(sys.argv) == 5)
+    assert(len(sys.argv) == 6)
     priv_keys_file = sys.argv[1]
     pub_keys_file = sys.argv[2]
     our_ip = sys.argv[3]
     ip_range = sys.argv[4]
+    generate_txs = int(sys.argv[5]) == 1
 
     priv_keys = get_priv_keys(priv_keys_file)
     all_pub_keys = get_pub_keys(pub_keys_file)
@@ -127,7 +130,7 @@ async def run():
 
     client_map = await discover(all_pub_keys, ip_range)
 
-    await run_processes(client_map, priv_keys)
+    await run_processes(client_map, priv_keys, generate_txs)
 
 if __name__ == '__main__':
     asyncio.run(run())
