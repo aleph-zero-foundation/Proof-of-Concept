@@ -39,7 +39,7 @@ def tx_listener(listen_addr, queue):
         server.serve_forever()
 
 
-async def listener(process, process_id, addresses, public_key_list, executor):
+async def listener(process, process_id, addresses, public_key_list, executor, serverStarted):
     n_recv_syncs = 0
 
     async def listen_handler(reader, writer):
@@ -94,6 +94,7 @@ async def listener(process, process_id, addresses, public_key_list, executor):
 
     host_addr = addresses[process_id]
     server = await asyncio.start_server(listen_handler, host_addr[0], host_addr[1])
+    serverStarted.set()
 
     logger = logging.getLogger(LOGGER_NAME)
     logger.info(f'Starting sync server on {host_addr}')

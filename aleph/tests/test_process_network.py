@@ -8,6 +8,7 @@ import asyncio
 
 import subprocess
 import marshal
+import multiprocessing
 
 DISCOVERY_PORT = 49643
 
@@ -52,7 +53,7 @@ def get_ip_candidates(ip_range):
     return set(ips)
 
 async def discover_at(ip, all_pub_keys):
-    print("Discovering at "+ip.decode('utf8'))
+    print("Discovering at "+ ip)
     reader, writer = await asyncio.open_connection(ip, DISCOVERY_PORT)
     data = await reader.readuntil()
     n_bytes = int(data[:-1])
@@ -70,7 +71,7 @@ async def discover(all_pub_keys, ip_range):
     while len(client_map) < len(all_pub_keys):
         await asyncio.sleep(1)
         ip_candidates = get_ip_candidates(ip_range) - checked_ips
-        discovery_tasks = [asyncio.create_task(discover_at(ip, all_pub_keys)) for ip in ip_candidates]
+        discovery_tasks = [asyncio.create_task(discover_at(ip.decode('utf8'), all_pub_keys)) for ip in ip_candidates]
         new_clients = await asyncio.gather(*discovery_tasks)
         for client in new_clients:
             client_map.update(client)
@@ -98,7 +99,6 @@ async def run_processes(client_map, priv_keys):
         tx_receiver_address = (addresses[process_id][0], addresses[process_id][1]+32)
         tx_rec_addresses.append(tx_receiver_address)
         new_process = Process(n_processes, process_id, priv_key, pub_key, addresses, public_keys, tx_receiver_address)
-        new_process.poset = Poset(n_processes)
         tasks.append(asyncio.create_task(new_process.run()))
     await asyncio.sleep(1)
     p = multiprocessing.Process(target=tx_generator, args=(tx_rec_addresses, n_light_nodes, txps))

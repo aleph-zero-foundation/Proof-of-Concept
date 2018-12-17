@@ -83,7 +83,7 @@ class Process:
                     logger.info(f'add_unit_to_poset {self.process_id} -> Validated a set of {len(newly_validated)}/{len(V.txs)} transactions.')
                     self.validated_transactions.extend(newly_validated)
         else:
-             return False
+            return False
 
         return True
 
@@ -124,7 +124,8 @@ class Process:
         return validated_transactions
 
 
-    async def create_add(self, txs_queue):
+    async def create_add(self, txs_queue, serverStarted):
+        await serverStarted.wait()
     #while True:
         for _ in range(10):
             txs = self.prepared_txs
@@ -142,8 +143,8 @@ class Process:
             await asyncio.sleep(CREATE_FREQ)
 
 
-    async def keep_syncing(self, executor):
-        await asyncio.sleep(0.7)
+    async def keep_syncing(self, executor, serverStarted):
+        await serverStarted.wait()
         #while True:
         for _ in range(10):
             sync_candidates = list(range(self.n_processes))
@@ -162,10 +163,11 @@ class Process:
         p = multiprocessing.Process(target=tx_listener, args=(self.tx_receiver_address, txs_queue))
         p.start()
 
+        serverStarted = asyncio.Event()
         executor = concurrent.futures.ProcessPoolExecutor(max_workers=3)
-        creator_task = asyncio.create_task(self.create_add(txs_queue))
-        listener_task = asyncio.create_task(listener(self, self.process_id, self.address_list, self.public_key_list, executor))
-        syncing_task = asyncio.create_task(self.keep_syncing(executor))
+        creator_task = asyncio.create_task(self.create_add(txs_queue, serverStarted))
+        listener_task = asyncio.create_task(listener(self, self.process_id, self.address_list, self.public_key_list, executor, serverStarted))
+        syncing_task = asyncio.create_task(self.keep_syncing(executor, serverStarted))
 
         await asyncio.gather(syncing_task, creator_task)
         logger.info(f'{self.process_id} gathered results; cancelling listener')
