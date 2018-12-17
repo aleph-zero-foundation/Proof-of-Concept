@@ -44,7 +44,7 @@ async def main():
 
     await asyncio.sleep(1)
 
-    p = multiprocessing.Process(target=tx_generator, args=(recv_addresses, n_light_nodes, ln_signing_keys, txps))
+    p = multiprocessing.Process(target=tx_generator, args=(recv_addresses, ln_signing_keys, txps))
     p.start()
 
     await asyncio.gather(*tasks)
