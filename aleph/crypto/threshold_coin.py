@@ -1,4 +1,5 @@
-from aleph.crypto.signatures.threshold_signatures import generate_keys
+from .signatures.threshold_signatures import generate_keys
+
 from charm.core.math.pairing import hashPair
 from base64 import decodebytes
 

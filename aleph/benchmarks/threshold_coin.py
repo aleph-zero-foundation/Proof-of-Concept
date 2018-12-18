@@ -2,8 +2,7 @@ from time import time
 from tqdm import tqdm
 from random import randint, sample
 
-from aleph.crypto.threshold_coin import ThresholdCoin
-from aleph.crypto.signatures.threshold_signatures import generate_keys
+from aleph.crypto import ThresholdCoin, generate_keys
 
 n_parties, threshold = 1000, 667
 VK, SKs = generate_keys(n_parties, threshold)

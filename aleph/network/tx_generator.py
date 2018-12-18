@@ -3,7 +3,7 @@ import random
 import socket
 import time
 
-from aleph.crypto.keys import SigningKey, VerifyKey
+from aleph.crypto import SigningKey, VerifyKey
 from aleph.data_structures import tx_to_message
 
 

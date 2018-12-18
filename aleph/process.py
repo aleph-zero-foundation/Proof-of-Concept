@@ -4,8 +4,7 @@ import logging
 import multiprocessing
 import random
 
-from aleph.data_structures.poset import Poset
-from aleph.data_structures.userDB import UserDB
+from aleph.data_structures import Poset, UserDB
 from aleph.network import listener, sync, tx_listener
 from aleph.config import CREATE_FREQ, SYNC_INIT_FREQ, LOGGER_NAME
 

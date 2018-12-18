@@ -20,18 +20,20 @@ class SigningKey:
     def to_hex(self):
         return nacl.encoding.HexEncoder.encode(self.secret_key._seed)
 
+
+
 class VerifyKey:
     def __init__(self, verify_key):
         assert isinstance(verify_key, nacl.signing.VerifyKey)
         self.verify_key = verify_key
 
-    @classmethod
-    def from_SigningKey(cls, secret_key):
+    @staticmethod
+    def from_SigningKey(secret_key):
         verify_key = secret_key.secret_key.verify_key
         return VerifyKey(verify_key)
 
-    @classmethod
-    def from_hex(cls, verify_key_hex):
+    @staticmethod
+    def from_hex(verify_key_hex):
         verify_key = nacl.signing.VerifyKey(verify_key_hex, encoder=nacl.encoding.HexEncoder)
         return VerifyKey(verify_key)
 

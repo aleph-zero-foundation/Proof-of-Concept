@@ -1,4 +1,5 @@
-from itertools import cycle
+from .xor import xor
+
 import hashlib
 
 class CommonRandomPermutation:
@@ -12,17 +13,6 @@ class CommonRandomPermutation:
         self.public_keys = [bytes.fromhex(key_hex) for key_hex in public_keys_hex]
         self.hashing_function = hashing_function
 
-    def _xor(self, bytes1, bytes2):
-        '''
-        Returns a xor of two bytestrings bytes1, bytes2. The length of the result is the max of their lengths.
-        If one of them is shorter it is rotated cyclically to obtain a string of matching length.
-        '''
-        assert len(bytes1) > 0 and len(bytes2) > 0, "An attempt to xor an empty bytestring"
-        if len(bytes1) < len(bytes2):
-            bytes1, bytes2 = bytes2, bytes1
-
-        return bytes(a ^ b for (a, b) in zip(bytes1, cycle(bytes2)))
-
     def _hash(self, bytestring):
         if self.hashing_function is None:
             return hashlib.sha512(bytestring).digest()
@@ -33,10 +23,10 @@ class CommonRandomPermutation:
         """Return k-th common random permutation."""
         xor_all = bytes([0])
         for pk in self.public_keys:
-            xor_all = self._xor(xor_all, pk)
+            xor_all = xor(xor_all, pk)
 
         seeds = [self._hash(pk + (str(k).encode())) for pk in self.public_keys]
-        seeds = [self._xor(xor_all, x) for x in seeds]
+        seeds = [xor(xor_all, x) for x in seeds]
 
         indexed_seeds = zip(seeds, range(len(seeds)))
         indexed_seeds = sorted(list(indexed_seeds))

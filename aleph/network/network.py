@@ -7,7 +7,7 @@ from time import time
 
 from aleph.data_structures import Unit, unit_to_message, Tx
 from aleph.config import *
-from aleph.crypto.keys import VerifyKey
+from aleph.crypto import VerifyKey
 
 
 def tx_listener(listen_addr, queue):

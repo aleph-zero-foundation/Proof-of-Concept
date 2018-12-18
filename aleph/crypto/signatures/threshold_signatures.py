@@ -44,7 +44,7 @@ def generate_keys(n_parties, threshold):
 
     return verification_key, secret_keys
 
-class VerificationKey():
+class VerificationKey:
     '''
     An object used for verifying shares and signatures and for combining shares into signatures.
     '''
@@ -98,7 +98,7 @@ class VerificationKey():
         '''
         return self.hash_fct(msg)
 
-class SecretKey():
+class SecretKey:
     '''
     An object used for generating shares of a signature of a message.
     '''
