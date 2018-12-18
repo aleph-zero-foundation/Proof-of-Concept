@@ -10,14 +10,19 @@ class TestThresholdCoin():
         VK, SKs = generate_keys(n_parties, threshold)
 
         dealer_id = random.randint(0, n_parties)
-        TCs = [ThresholdCoin(dealer_id, n_parties, threshold, VK, SK) for SK in SKs]
+        TCs = [ThresholdCoin(dealer_id, pid, n_parties, threshold, SK, VK) for pid, SK in enumerate(SKs)]
 
         nonce = random.randint(0, 100000)
 
         # generate coin shares of all parties
-        shares = [TC.create_share(nonce) for TC in TCs]
+        shares = [TC.create_coin_share(nonce) for TC in TCs]
+
+        # verify all shares
+        for i, share in enumerate(shares):
+            pid = random.randrange(n_parties)
+            assert TCs[pid].verify_coin_share(share, i, nonce)
+
         _shares = {i:shares[i] for i in random.sample(range(n_parties), threshold)}
 
-        assert TCs[0].combine_shares(_shares) in [0, 1]
-
-
+        pid = random.randrange(n_parties)
+        assert TCs[pid].combine_coin_shares(_shares) in [0, 1]
