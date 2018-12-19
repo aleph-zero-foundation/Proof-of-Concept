@@ -30,7 +30,9 @@ class Poset:
         self.crp = crp
 
         self.level_reached = 0
-        self.level_timing_established = 0
+        # threshold coins dealt by each process; initialized from dealing units
+        self.threshold_coins = [None for _ in range(n_processes)]
+
         self.prime_units_by_level = {}
 
         # The list of dealing units for every process -- in a healthy situation (absence of forkers) there should be one per process
@@ -50,10 +52,8 @@ class Poset:
         self.timing_partial_results = {}
 
 
-
         # For every unit U maintain a list of processes that can be proved forking by looking at the lower-cone of U
         #self.known_forkers_by_unit = {}
-
 
 
 #===============================================================================================================================
@@ -61,19 +61,20 @@ class Poset:
 #===============================================================================================================================
 
 
-
     def add_unit(self, U, newly_validated = None):
         '''
         Add a unit compliant with the rules, what was checked by check_compliance.
         This method does the following:
-            0. set U's self_predecessor, height, and floor fields (temporary!)
-            1. add the unit U to the poset,
+            0. set U's self_predecessor and height
+            1. add the unit U to the poset
             2. update the lists of maximal elements in the poset.
-            3. update forking_height
             3. set floor attribute of U
-            3. set ceil attribute of U and update ceil of predecessors of U
-            6. validates units using U if possible and updates the border between validated and non-validated units
-            7. If required, adds U to memoized_units
+            4. set U's level
+            5. if U is prime, add coin shares to U
+            6. set floor field
+            7. set ceil attribute of U and update ceil of predecessors of U
+            8. validate units using U if possible and updates the border between validated and non-validated units
+            9. if required, adds U to memoized_units
 
         :param unit U: unit to be added to the poset
         :returns: It does not return anything explicitly but modifies the newly_validated list: adds the units validated by U
@@ -82,12 +83,13 @@ class Poset:
         # TOTHINK: maybe we should do check_compliance here????
 
         # TODO: calling this function here is only a temporary solution for initial tests
+        # 0. set U's self_predecessor and height
         self.set_self_predecessor_and_height(U)
 
+        # 1. add the unit U to the poset
         self.units[U.hash()] = U
 
         # 2. updates the lists of maximal elements in the poset and
-        # 3. update forking_height
         if len(U.parents) == 0:
             assert self.max_units_per_process[U.creator_id] == [], "A second dealing unit is attempted to be added to the poset"
             self.max_units_per_process[U.creator_id] = [U]
@@ -96,20 +98,28 @@ class Poset:
                 self.max_units_per_process[U.creator_id].remove(U.self_predecessor)
                 self.max_units_per_process[U.creator_id].append(U)
             else:
-                # a new fork is detected
+                # 3. update forking_height
                 self.max_units_per_process[U.creator_id].append(U)
                 self.forking_height[U.creator_id] = min(self.forking_height[U.creator_id], U.height)
 
+        # 4. set U's level
+        U.level = self.level(U)
+
+        # 5. if U is prime, add coin shares to U
+        if self.is_prime(U):
+            self.add_coin_shares(U)
+
+        # 6. set floor field
         U.floor = [[] for _ in range(self.n_processes)]
         self.update_floor(U)
 
+        # 7. set ceil attribute of U and update ceil of predecessors of U
         U.ceil = [[] for _ in range(self.n_processes)]
         U.ceil[U.creator_id] = [U]
         for parent in U.parents:
             self.update_ceil(U, parent)
 
-
-        # 6. validate units and update the "border" of non_validated units
+        # 8. validate units and update the "border" of non_validated units
         if newly_validated is not None:
             newly_validated.extend(self.validate_using_new_unit(U))
 
@@ -118,7 +128,7 @@ class Poset:
         if not any(self.below_within_process(V, U) for V in  self.min_non_validated[U.creator_id]):
             self.min_non_validated[U.creator_id].append(U)
 
-        # 7. Update memoized_units
+        # 9. Update memoized_units
         if U.height % self.memo_height == 0:
             n_units_memoized = len(self.memoized_units[U.creator_id])
             U_no = U.height//self.memo_height
@@ -128,8 +138,6 @@ class Poset:
             else:
                 assert n_units_memoized == U_no, f"The number of units memoized is {n_units_memoized} while it should be {U_no}."
                 self.memoized_units[U.creator_id].append(U)
-
-
 
 
     def create_unit(self, creator_id, txs, strategy = "link_self_predecessor", num_parents = 2):
@@ -214,18 +222,6 @@ class Poset:
         return U
 
 
-
-    #def sign_unit(self, U):
-    #    '''
-    #    Signs the unit.
-    #    TODO This method should be probably a part of a process class which we don't have right now.
-    #    '''
-
-    #    message = str([U.creator_id, U.parents, U.txs, U.coinshares]).encode()
-    #    U.signature = self.secret_key.sign(message)
-
-
-
     def level(self, U):
         '''
         Calculates the level in the poset of the unit U.
@@ -256,8 +252,7 @@ class Poset:
         return U.level
 
 
-
-    def check_primeness(self, U):
+    def is_prime(self, U):
         '''
         Check if the unit is prime.
         :param unit U: the unit to be checked for being prime
@@ -265,6 +260,44 @@ class Poset:
         # U is prime iff it's a bottom unit or its self_predecessor level is strictly smaller
         return len(U.parents) == 0 or self.level(U) > self.level(U.self_predecessor)
 
+
+    def determine_coin_shares(self, U):
+        '''
+        Determines which coin shares should be added to the prime unit U as described in arxiv whitepaper.
+        :param unit U: prime unit to which coin shares should be added
+        :returns: list of pairs of indices such that for (i,j) in the list the coin share TC^j_i(L(U)) should be added to U
+        '''
+
+        indicies = []
+
+        share_id = U.creator_id
+        # 1. create F
+
+        # 2. run through processes in order given by sigma(L(U)) until a sigma-transversal is created
+        sigma = self.crp[U.level]
+        trans = []
+
+        for dealer_id in sigma:
+            # TODO add handling forkers
+            dunit = self.dealing_untis[dealer_id][0]
+
+        return indicies
+
+
+    def add_coin_shares(self, U):
+        '''
+        Adds coin shares to the prime unit U as described in arxiv whitepaper.
+        :param unit U: prime unit to which coin shares are added
+        '''
+
+        coin_shares = []
+        indicies = self.determine_coin_shares(U)
+        assert indicies != [] and indicies is not None
+
+        for dealer_id, _ in indicies:
+            coin_shares.append(self.threshold_coins[dealer_id].create_share(U.level))
+
+        U.coin_shares = coin_shares
 
 
     def get_prime_units_by_level(self, level):
@@ -275,7 +308,6 @@ class Poset:
         # TODO: this is a naive implementation
         # TODO: make sure that at creation of a prime unit it is added to the dict self.prime_units_by_level
         return self.prime_units_by_level[level]
-
 
 
     def set_self_predecessor_and_height(self, U):
@@ -330,6 +362,7 @@ class Poset:
 
         return reversed(units)
 
+
     def get_max_heights_hashes(self):
         '''
         Simple function for testing listener.
@@ -361,7 +394,7 @@ class Poset:
         prev_hashes = set(U.hash() for U in prev)
         while len(curr_hashes) > 0:
             U_hash = curr_hashes.pop()
-            U = self.units[U]
+            U = self.units[U_hash]
             if U_hash not in prev_hashes and U_hash not in diff_hashes:
                 diff_hashes.add(U_hash)
                 if U.self_predecessor is not None:
@@ -370,16 +403,9 @@ class Poset:
         return [self.units[U_hash] for U_hash in diff_hashes]
 
 
-
-
-
-
-
-
 #===============================================================================================================================
 # COMPLIANCE
 #===============================================================================================================================
-
 
 
     def check_compliance(self, U):
@@ -435,10 +461,10 @@ class Poset:
             return False
 
         # 7. Coinshares are OK.
-        # TODO: implementation missing
+        if self.is_prime(U) and not self.check_coin_shares(U):
+            return False
 
         return True
-
 
 
     def check_growth(self, U):
@@ -483,7 +509,6 @@ class Poset:
         return True
 
 
-
     def check_signature_correct(self, U):
         '''
         Checks if the signature of a unit U is correct.
@@ -494,7 +519,6 @@ class Poset:
         #TODO: need to complete this code once the signature method is decided on
 
         return True
-
 
 
     def check_parent_correctness(self, U):
@@ -516,7 +540,6 @@ class Poset:
                 return False
 
         return True
-
 
 
     def check_parent_diversity(self, U):
@@ -580,11 +603,27 @@ class Poset:
         return True
 
 
+    def check_coin_shares(self, U):
+        '''
+        Checks if coin shares stored in U are OK.
+        :param unit U: unit which coin shares are checked
+        :returns: True if everything works and False otherwise
+        '''
+
+        indicies = self.determine_coin_shares(U)
+        if len(indicies) != len(U.coin_shares):
+            return False
+
+        for (dealer_id, share_id), coin_share in zip(indicies, U.coin_shares):
+            if not self.threshold_coins[dealer_id].verify_coin_share(coin_share, share_id, U.level):
+                return False
+
+        return True
+
 
 #===============================================================================================================================
 # FLOOR AND CEIL
 #===============================================================================================================================
-
 
 
     def update_floor(self, U):
@@ -596,7 +635,6 @@ class Poset:
             for process_id in range(self.n_processes):
                 if process_id != U.creator_id:
                     U.floor[process_id] = self.combine_floors_per_process(U.parents, process_id)
-
 
 
     def update_ceil(self, U, V):
@@ -615,7 +653,6 @@ class Poset:
         V.ceil[U.creator_id].append(U)
         for parent in V.parents:
             self.update_ceil(U, parent)
-
 
 
     def combine_floors_per_process(self, units_list, process_id):
@@ -657,7 +694,6 @@ class Poset:
         return forks
 
 
-
     def has_forking_evidence(self, unit, process_id):
         '''
         Checks if a unit has in its lower cone an evidence that process_id is forking.
@@ -672,7 +708,6 @@ class Poset:
 #===============================================================================================================================
 # RELATIONS
 #===============================================================================================================================
-
 
 
     def below_within_process(self, U, V):
@@ -1158,19 +1193,12 @@ class Poset:
         pass
 
 
-
-
-
-
-
-
     def rand_maximal(self):
         '''
         Returns a randomly chosen maximal unit in the poset.
         '''
 
         pass
-
 
 
     def my_maximal(self):
@@ -1181,7 +1209,6 @@ class Poset:
         pass
 
 
-
     def get_prime_units(self):
         '''
         Returns the set of all prime units.
@@ -1190,12 +1217,9 @@ class Poset:
         pass
 
 
-
     def timing_units(self):
         '''
         Returns a set of all timing units.
         '''
 
         pass
-
-
