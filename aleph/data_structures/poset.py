@@ -13,7 +13,7 @@ class Poset:
     '''This class is the core data structure of the Aleph protocol.'''
 
 
-    def __init__(self, n_processes, compliance_rules = None, memo_height = 10):
+    def __init__(self, n_processes, crp = None, compliance_rules = None, memo_height = 10):
         '''
         :param int n_processes: the committee size
         :param list compliance_rules: list of strings defining which compliance rules are followed by this poset
@@ -26,13 +26,28 @@ class Poset:
         self.min_non_validated = [[] for _ in range(n_processes)]
         self.forking_height = [float('inf')] * n_processes
 
-        #self.level_reached = 0
+        #common random permutation
+        self.crp = crp
+
+        self.level_reached = 0
+        self.level_timing_established = 0
         self.prime_units_by_level = {}
+
+        # The list of dealing units for every process -- in a healthy situation (absence of forkers) there should be one per process
+        self.dealing_units = [[] for _ in range(n_processes)]
+
+        #timing units
+        self.timing_units = []
 
         #a structure for efficiently executing  the units_by_height method, for every process this is a sparse list of units sorted by height
         #every unit of height memo_height*k for some k>=0 is memoized, in case of forks only one unit is added
         self.memoized_units = [[] for _ in range(n_processes)]
         self.memo_height = memo_height
+
+        #a structure for memoizing partial results about the computation of pi/delta
+        # it has the form of a dict with keys being unit hashes (U_c.hash) and values being dicts indexed by pairs (fun, U.hash)
+        # whose value is the memoized value of computing fun(U_c, U) where fun in {pi, delta}
+        self.timing_partial_results = {}
 
 
 
@@ -778,6 +793,195 @@ class Poset:
         :param unit V: second unit to be tested
         '''
         return self.high_below(V, U)
+
+#===============================================================================================================================
+# PI AND DELTA FUNCTIONS
+#===============================================================================================================================
+
+    def r_function(self, U_c, U):
+    '''
+    The R function from the paper
+    :returns: a value in {-1,0,1}, -1 is equivalent to bottom (undefined).
+    '''
+        if U.level <= U_c.level +1:
+            return -1
+        return (U.level - U_c.level) % 2
+
+    def first_available_index(self, V):
+        permutation = self.crp[V.level]
+
+        for process_id in permutation:
+            if any(self.below(U,V) for U in self.dealing_units[process_id]):
+                return process_id
+
+        #This is clearly a problem... Should not happen
+        return None
+
+    def toss_coin(self, U_c, level, tossing_unit):
+        fai = self.first_available_index(U_c)
+        if self.has_forking_evidence(tossing_unit, fai):
+            #the coin comes from a forker: we are allowed to not toss a coin here
+            return 0
+
+        # TODO: compose shares and use the common treshold coin...
+        # For now let's just make something arbitrary but deterministic
+        return tossing_unit.hash()[0]%2
+
+    def exists_tc(self, list_vals, U_c, level, tossing_unit):
+        if 1 in list_vals:
+            return 1
+        if 0 in list_vals:
+            return 0
+        return self.toss_coin(U_c, level, tossing_unit)
+
+    def super_majority(self, list_vals):
+        treshold_majority = (2*self.n_processes + 2)//3
+        if list_vals.count(1) >= treshold_majority:
+            return 1
+        if list_vals.count(0) >= treshold_majority:
+            return 0
+
+        return -1
+
+    def compute_pi(self, U_c, U):
+    '''
+    Computes the value of the Pi function from the paper. The value -1 is equivalent to bottom (undefined).
+    '''
+        U_c_hash = U_c.hash()
+        U_hash = U.hash()
+        memo = self.timing_partial_results[U_c_hash]
+        if ('pi', U_hash) in memo.keys():
+            return memo[('pi', U_hash)]
+
+        r_value = r_function(U_c, U)
+
+        if r_value == -1:
+            if self.below(U_c, U):
+                memo[('pi', U_hash)] = 1
+                return 1
+            else:
+                memo[('pi', U_hash)] = 1
+                return 0
+
+        pi_values_level_below = []
+
+        for V in self.prime_units_by_level[U.level-1]:
+            if self.high_below(V, U):
+                pi_values_level_below.append(self.compute_pi(U_c, V))
+
+        if r_value == 0:
+            memo[('pi', U_hash)] = self.exists_tc(pi_values_level_below, U_c, U.level, U)
+            return memo[('pi', U_hash)]
+
+        if r_value == 1:
+            memo[('pi', U_hash)] = self.super_majority(pi_values_level_below)
+            return memo[('pi', U_hash)]
+
+    def compute_delta(self, U_c, U):
+    '''
+    Computes the value of the Delta function from the paper. The value -1 is equivalent to bottom (undefined).
+    '''
+        U_c_hash = U_c.hash()
+        U_hash = U.hash()
+        memo = self.timing_partial_results[U_c_hash]
+        if ('delta', U_hash) in memo.keys():
+            return memo[('delta', U_hash)]
+
+        r_value = r_function(U_c, U)
+
+        if r_value == -1:
+            return -1
+
+        assert r_value == 0, "Delta is attempted to be evaluated at an even level. This is unnecessary and should not be done."
+
+        if r_value == 0:
+            pi_values_level_below = []
+            for V in self.prime_units_by_level[U.level-1]:
+            if self.high_below(V, U):
+                pi_values_level_below.append(self.compute_pi(U_c, V))
+            memo[('delta', U_hash)] = self.super_majority(pi_values_level_below)
+            return self.super_majority(pi_values_level_below)
+
+    def decide_unit_is_timing(self, U_c):
+        # go over even levels starting from U_c.level + 2
+        U_c_hash = U_c.hash()
+
+        if U_c_hash not in self.timing_partial_results:
+            self.timing_partial_results[U_c_hash] = {}
+
+        memo = self.timing_partial_results[U_c_hash]
+        if 'decision' in memo.keys():
+            return memo['decision']
+
+        for level in range(U_c.level + 2, self.level_reached + 1, 2):
+            for U in self.prime_units_by_level[level]:
+                decision = self.compute_delta(U_c, U)
+                if decision != -1:
+                    memo['decision'] = decision
+                    return decision
+        return -1
+
+    def decide_timing_on_level(self, level):
+        # NOTE: this is perhaps not the most efficient way of doing it but it's arguably the cleanest
+        # also, the redundant computations here are not that significant for the "big picture"
+
+        sigma = self.crp[level]
+
+        for process_id in sigma:
+            prime_units_by_curr_process = [U for U in self.prime_units_by_level[level] if U.creator_id == process_id]
+
+
+            if len(prime_units_by_curr_process) == 0:
+                # we have not seen any prime unit of this process at that level
+                # there might still come one, so we need to wait, but no longer than till the level grows >= level+4
+                # in which case a negative decision is guaranteed
+                if self.level_reached >= level + 4:
+                    #we can safely skip this process
+                    continue
+                else:
+                    #no decision can be made, need to wait
+                    return -1
+
+            #TODO: the case when there are multiple units in this list is especially tricky (caused by forking)
+            #TODO: there can be hidden conceptual bugs in here
+
+            #In case there are multiple (more than one) units to consider (forking) we sort them by hashes (to break ties)
+            prime_units_by_curr_process.sort(key = lambda U: U.hash())
+            for U_c in prime_units_by_curr_process:
+                decision = self.decide_unit_is_timing(U_c)
+                if decision == 1:
+                    return U_c
+                if decision == -1:
+                    #we need to wait until the decision about this unit is made
+                    return -1
+
+        assert False, f"Something terrible happened: no timing unit was chosen at level {level}."
+
+
+    def attempt_timing_decision(self):
+        '''
+        Tries to find timing units for levels which currently don't have one.
+        :returns: List of levels for which a timing unit has been established by this function call
+        '''
+        timing_established = []
+
+        for level in range(self.level_timing_established + 1, self.level_reached + 1):
+            U_t = self.decide_timing_on_level(level)
+            if U_t != -1:
+                timing_established.append(level)
+                self.timing_units.append(U_t)
+                # need to clean up the memoized results about this level
+                for U in self.prime_units_by_level[level]:
+                    self.timing_partial_results.pop(U.hash(), None)
+                assert len(self.timing_units) == level, "The length of the list of timing units does not match the level of the currently added unit"
+            else:
+                # don't need to consider next level if there is already no timing unit chosen for the current level
+                break
+
+        return timing_established
+
+
+
 
 #===============================================================================================================================
 # HELPER FUNCTIONS LOOSELY RELATED TO POSETS
