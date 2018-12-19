@@ -1,6 +1,7 @@
 '''This module implements a poset - a core data structure.'''
 
-from itertools import product, reduce
+from itertools import product
+from functools import reduce
 import random
 import logging
 
