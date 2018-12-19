@@ -1,6 +1,6 @@
 '''This module implements a poset - a core data structure.'''
 
-from itertools import product
+from itertools import product, reduce
 import random
 import logging
 
@@ -800,7 +800,7 @@ class Poset:
                 if color == 0:
                     unit_stack.append((V,1))
                     for W in V.parents:
-                        if W in set(units_list) and W not in units_added:
+                        if W in units_set and W not in units_added:
                             unit_stack.append((W,0))
                             units_added.add(W)
                 if color == 1:
@@ -883,11 +883,41 @@ class Poset:
 
 
 
-
-    def break_ties(self, level):
+    def break_ties(self, units_list):
         '''
+        Break ties. Break them gooooood.
+        I love the sound of breaking ties in the morning.
         '''
 
+        R = reduce(xor, map(lambda x: x.hash(), units_list))
+
+        #TODO: might be a good idea to precalculate those?
+        tiebraker = lambda U: xor(R, U.hash())
+
+        children = {U:0 for U in units_list}
+        childless = set(units_list)
+        ret = []
+
+        for U in units_list:
+            for P in U.parents:
+                if P in children:
+                    children[P] += 1
+                if P in childless:
+                    childless.remove(P)
+
+        while childless:
+            ret += sorted(childless, key=tiebraker)
+
+            new_childless = []
+            for U in childless:
+                for P in U.parents:
+                    if P in children:
+                        children[P] -= 1
+                        if children[P] == 0:
+                            new_childless.append(P)
+            childless = set(new_childless)
+
+        return ret
 
 
 
