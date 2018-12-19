@@ -903,56 +903,82 @@ class Poset:
             return self.super_majority(pi_values_level_below)
 
     def decide_unit_is_timing(self, U_c):
-        #TODO: need to add memoization for this function
-        # go over even level starting from U_c.level + 2
-        if U_c.hash() not in self.timing_partial_results.keys():
-            self.timing_partial_results[U_c.hash()] = {}
+        # go over even levels starting from U_c.level + 2
+        U_c_hash = U_c.hash()
+
+        if U_c_hash not in self.timing_partial_results:
+            self.timing_partial_results[U_c_hash] = {}
+
+        memo = self.timing_partial_results[U_c_hash]
+        if 'decision' in memo.keys():
+            return memo['decision']
+
         for level in range(U_c.level + 2, self.level_reached + 1, 2):
             for U in self.prime_units_by_level[level]:
                 decision = self.compute_delta(U_c, U)
                 if decision != -1:
+                    memo['decision'] = decision
                     return decision
         return -1
 
     def decide_timing_on_level(self, level):
+        # NOTE: this is perhaps not the most efficient way of doing it but it's arguably the cleanest
+        # also, the redundant computations here are not that significant for the "big picture"
+
         sigma = self.crp[level]
 
         for process_id in sigma:
             prime_units_by_curr_process = [U for U in self.prime_units_by_level[level] if U.creator_id == process_id]
-            decision = -1
+
+
+            if len(prime_units_by_curr_process) == 0:
+                # we have not seen any prime unit of this process at that level
+                # there might still come one, so we need to wait, but no longer than till the level grows >= level+4
+                # in which case a negative decision is guaranteed
+                if self.level_reached >= level + 4:
+                    #we can safely skip this process
+                    continue
+                else:
+                    #no decision can be made, need to wait
+                    return -1
+
             #TODO: the case when there are multiple units in this list is especially tricky (caused by forking)
-            #TODO: need to rethink this code deeply
+            #TODO: there can be hidden conceptual bugs in here
+
+            #In case there are multiple (more than one) units to consider (forking) we sort them by hashes (to break ties)
+            prime_units_by_curr_process.sort(key = lambda U: U.hash())
             for U_c in prime_units_by_curr_process:
                 decision = self.decide_unit_is_timing(U_c)
                 if decision == 1:
-                    #TODO: not sure about this when forks present
                     return U_c
-                if decision == 0:
-                    #TODO: again, not sure
-                    break
-            if decision == -1:
-                #we don't have a decision about process_id yet, need to wait
-                #this can also mean that there is no prime unit for process_id at this level
-                #TODO: should probably wait only until self.level_reached > level + 4 or so
-                return None
+                if decision == -1:
+                    #we need to wait until the decision about this unit is made
+                    return -1
 
         assert False, f"Something terrible happened: no timing unit was chosen at level {level}."
 
-        return None
 
     def attempt_timing_decision(self):
+        '''
+        Tries to find timing units for levels which currently don't have one.
+        :returns: List of levels for which a timing unit has been established by this function call
+        '''
+        timing_established = []
 
         for level in range(self.level_timing_established + 1, self.level_reached + 1):
             U_t = self.decide_timing_on_level(level)
-            if U_t is not None:
+            if U_t != -1:
+                timing_established.append(level)
                 self.timing_units.append(U_t)
+                # need to clean up the memoized results about this level
+                for U in self.prime_units_by_level[level]:
+                    self.timing_partial_results.pop(U.hash(), None)
                 assert len(self.timing_units) == level, "The length of the list of timing units does not match the level of the currently added unit"
-                #TODO: this should also trigger cleaning up the memoized results for level
             else:
+                # don't need to consider next level if there is already no timing unit chosen for the current level
                 break
 
-
-
+        return timing_established
 
 
 
