@@ -5,7 +5,7 @@ import random
 import logging
 
 from aleph.data_structures.unit import Unit
-from aleph.crypto import SigningKey, VerifyKey
+from aleph.crypto import SigningKey, VerifyKey, xor
 from aleph.config import *
 
 
@@ -34,10 +34,6 @@ class Poset:
         self.memoized_units = [[] for _ in range(n_processes)]
         self.memo_height = memo_height
 
-
-
-        # For every unit U maintain a list of processes that can be proved forking by looking at the lower-cone of U
-        #self.known_forkers_by_unit = {}
 
 
 
@@ -200,17 +196,6 @@ class Poset:
 
 
 
-    #def sign_unit(self, U):
-    #    '''
-    #    Signs the unit.
-    #    TODO This method should be probably a part of a process class which we don't have right now.
-    #    '''
-
-    #    message = str([U.creator_id, U.parents, U.txs, U.coinshares]).encode()
-    #    U.signature = self.secret_key.sign(message)
-
-
-
     def level(self, U):
         '''
         Calculates the level in the poset of the unit U.
@@ -291,12 +276,14 @@ class Poset:
                 return False
 
 
+
     def unit_by_hash(self, unit_hash):
         '''
         Returns a unit in the poset given by its hash, or None if not present.
         '''
 
         return self.units.get(unit_hash, None)
+
 
 
     def units_by_height_interval(self, creator_id, min_height, max_height):
@@ -315,6 +302,8 @@ class Poset:
 
         return reversed(units)
 
+
+
     def get_max_heights_hashes(self):
         '''
         Simple function for testing listener.
@@ -332,6 +321,7 @@ class Poset:
                 hashes.append(None)
 
         return heights, hashes
+
 
 
     def get_diff(self, process_id, current, prev):
@@ -353,11 +343,6 @@ class Poset:
                     curr_hashes.add(U.self_predecessor.hash())
 
         return [self.units[U_hash] for U_hash in diff_hashes]
-
-
-
-
-
 
 
 
@@ -444,6 +429,7 @@ class Poset:
             if (V is not U.self_predecessor) and self.below(V, U.self_predecessor):
                 return False
         return True
+
 
 
     def check_forker_muting(self, U):
@@ -779,9 +765,13 @@ class Poset:
         '''
         return self.high_below(V, U)
 
+
+
 #===============================================================================================================================
 # HELPER FUNCTIONS LOOSELY RELATED TO POSETS
 #===============================================================================================================================
+
+
 
     def order_units_topologically(self, units_list):
         '''
@@ -817,6 +807,7 @@ class Poset:
                     top_list.append(V)
 
         return top_list
+
 
 
     def validate_using_new_unit(self, U):
@@ -867,8 +858,6 @@ class Poset:
                 U = U.self_predecessor
             return [U]
 
-
-
         # we need to be especially careful because the query is about a fork
         # thus we go all the way from the top to not miss anything
         result_list = []
@@ -883,12 +872,22 @@ class Poset:
         #remove possible duplicates -- process_id is a forker
         return list(set(result_list))
 
+
+
     def get_self_children(self, U):
         '''
         Returns the set of all units V in the poset such that V.self_predecessor == U
         NOTE: inefficient because units_by_height is inefficient.
         '''
         return self.units_by_height(U.creator_id, U.height + 1)
+
+
+
+
+    def break_ties(self, level):
+        '''
+        '''
+
 
 
 
@@ -952,11 +951,6 @@ class Poset:
         '''
 
         pass
-
-
-
-
-
 
 
 
