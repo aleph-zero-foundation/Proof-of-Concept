@@ -296,6 +296,7 @@ def poset_from_dag(dag):
 
         U = Unit(creator_id = creator_id, parents = [unit_dict[parent] for parent in dag.parents(unit_name)],
                 txs = [])
+        poset.prepare_unit(U)
         poset.add_unit(U)
         unit_dict[unit_name] = U
 

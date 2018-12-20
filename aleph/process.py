@@ -71,6 +71,7 @@ class Process:
         if U.hash() in self.poset.units.keys():
             return True
 
+        self.poset.prepare_unit(U)
         if self.poset.check_compliance(U):
             list_of_validated_units = []
             self.poset.add_unit(U, list_of_validated_units)

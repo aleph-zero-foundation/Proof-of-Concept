@@ -39,11 +39,11 @@ def check_create_unit(n_processes, n_units, n_forkers, strategy, verify_fails = 
         for process_id in non_forkers:
             parent_units = [name_to_unit[process_id][parent_name] for parent_name in parents]
             U = Unit(creator_id = creator_id, parents = parent_units, txs = [])
+            posets[process_id].prepare_unit(U)
             assert posets[process_id].check_compliance(U)
             posets[process_id].add_unit(U)
             name_to_unit[process_id][name] = U
             unit_to_name[process_id][U] = name
-
 
 
 def test_create_unit_small():
@@ -57,7 +57,6 @@ def test_create_unit_small():
             check_create_unit(n_processes, n_units, n_forkers, strategy, verify_fails = True)
 
 
-
 def test_create_unit_large():
     random.seed(123456789)
     repetitions = 5
@@ -67,5 +66,3 @@ def test_create_unit_large():
             n_units = random.randint(0, n_processes*3)
             n_forkers = random.randint(0,n_processes//3)
             check_create_unit(n_processes, n_units, n_forkers, strategy, verify_fails = True)
-
-

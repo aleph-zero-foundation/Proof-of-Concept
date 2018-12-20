@@ -60,31 +60,41 @@ class Poset:
 # UNITS
 #===============================================================================================================================
 
+    def prepare_unit(self, U):
+        '''
+        Sets basic fields of U; should be called prior to check_compliance and add_unit methods.
+        This method does the following:
+            0. set U's self_predecessor and height
+            1. set floor field
+            2. set U's level
+        :param unit U: unit which fields are about to be set
+        '''
+
+        # 0. set U's self_predecessor and height
+        self.set_self_predecessor_and_height(U)
+
+        # 2. set floor field
+        U.floor = [[] for _ in range(self.n_processes)]
+        self.update_floor(U)
+
+        # 1. set U's level
+        U.level = self.level(U)
+
 
     def add_unit(self, U, newly_validated = None):
         '''
         Add a unit compliant with the rules, what was checked by check_compliance.
         This method does the following:
-            0. set U's self_predecessor and height
             1. add the unit U to the poset
             2. update the lists of maximal elements in the poset.
-            3. set floor attribute of U
-            4. set U's level
-            5. if U is prime, add coin shares to U
-            6. set floor field
-            7. set ceil attribute of U and update ceil of predecessors of U
-            8. validate units using U if possible and updates the border between validated and non-validated units
-            9. if required, adds U to memoized_units
-
+            3. update forking_height
+            4. if U is prime, add it to prime_units_by_level and add coin_shares to it
+            5. set ceil attribute of U and update ceil of predecessors of U
+            6. validate units using U if possible and updates the border between validated and non-validated units
+            7. if required, adds U to memoized_units
         :param unit U: unit to be added to the poset
         :returns: It does not return anything explicitly but modifies the newly_validated list: adds the units validated by U
         '''
-
-        # TOTHINK: maybe we should do check_compliance here????
-
-        # TODO: calling this function here is only a temporary solution for initial tests
-        # 0. set U's self_predecessor and height
-        self.set_self_predecessor_and_height(U)
 
         # 1. add the unit U to the poset
         self.units[U.hash()] = U
@@ -102,10 +112,7 @@ class Poset:
                 self.max_units_per_process[U.creator_id].append(U)
                 self.forking_height[U.creator_id] = min(self.forking_height[U.creator_id], U.height)
 
-        # 4. set U's level
-        U.level = self.level(U)
-
-        # 5. if U is prime, add update prime units by level
+        # 4. if U is prime, update prime_units_by_level
         if self.is_prime(U):
             if U.level not in self.prime_units_by_level:
                 self.prime_units_by_level[U.level] = [[] for _ in range(self.n_processes)]
@@ -115,17 +122,13 @@ class Poset:
             if U.level >= 4:
                 self.add_coin_shares(U)
 
-        # 6. set floor field
-        U.floor = [[] for _ in range(self.n_processes)]
-        self.update_floor(U)
-
-        # 7. set ceil attribute of U and update ceil of predecessors of U
+        # 5. set ceil attribute of U and update ceil of predecessors of U
         U.ceil = [[] for _ in range(self.n_processes)]
         U.ceil[U.creator_id] = [U]
         for parent in U.parents:
             self.update_ceil(U, parent)
 
-        # 8. validate units and update the "border" of non_validated units
+        # 6. validate units and update the "border" of non_validated units
         if newly_validated is not None:
             newly_validated.extend(self.validate_using_new_unit(U))
 
@@ -134,7 +137,7 @@ class Poset:
         if not any(self.below_within_process(V, U) for V in  self.min_non_validated[U.creator_id]):
             self.min_non_validated[U.creator_id].append(U)
 
-        # 9. Update memoized_units
+        # 7. Update memoized_units
         if U.height % self.memo_height == 0:
             n_units_memoized = len(self.memoized_units[U.creator_id])
             U_no = U.height//self.memo_height
@@ -466,6 +469,7 @@ class Poset:
 
     def check_compliance(self, U):
         '''
+        Assumes that prepare_unit(U) has been already called.
         Checks if the unit U is correct and follows the rules of creating units, i.e.:
             1. Parents of U are correct (exist in the poset, etc.)
             2. Has correct signature.
@@ -667,6 +671,9 @@ class Poset:
         '''
 
         indicies = self.determine_coin_shares(U)
+        if U.coin_shares is None and len(indicies)==0:
+            return True
+
         if len(indicies) != len(U.coin_shares):
             return False
 

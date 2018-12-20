@@ -4,22 +4,22 @@ import hashlib
 class Unit(object):
     '''This class is the building block for the poset'''
 
-    __slots__ = ['creator_id', 'parents', 'txs', 'signature', 'coinshares',
+    __slots__ = ['creator_id', 'parents', 'txs', 'signature', 'coin_shares',
                  'level', 'floor', 'ceil', 'height', 'self_predecessor', 'hash_value']
 
-    def __init__(self, creator_id, parents, txs, signature=None, coinshares=None, level=None):
+    def __init__(self, creator_id, parents, txs, signature=None, coin_shares=None, level=None):
         '''
         :param int creator_id: indentification number of a process creating this unit
         :param list parents: list of hashes of parent units; first parent has to be above a unit created by the process creator_id
         :param list txs: list of transactions
         :param int signature: signature made by a process creating this unit preventing forging units by Byzantine processes
-        :param list coinshares: list of coinshares if this is a prime unit, null otherwise
+        :param list coin_shares: list of coin_shares if this is a prime unit, null otherwise
         '''
         self.creator_id = creator_id
         self.parents = parents
         self.txs = txs
         self.signature = signature
-        self.coinshares = coinshares
+        self.coin_shares = coin_shares
         self.level = level
         self.hash_value = None
 
@@ -30,7 +30,7 @@ class Unit(object):
         '''
         # TODO: this is only a temporary implementation!
         # TODO: need to be updated at some point!
-        # TODO: should coinshares be hashed?
+        # TODO: should coin_shares be hashed?
         # TODO: should order of parents (or txs) influence the hash value?
 
         if self.hash_value is not None:
@@ -47,7 +47,7 @@ class Unit(object):
     def to_message(self):
         '''Generates message used for signing units'''
         dict_txs = [tx.to_dict() for tx in self.txs]
-        return unit_to_message(self.creator_id, self.parents_hashes(), dict_txs, self.coinshares)
+        return unit_to_message(self.creator_id, self.parents_hashes(), dict_txs, self.coin_shares)
 
     def __hash__(self):
         return hash(self.hash())
@@ -65,7 +65,7 @@ class Unit(object):
         str_repr += str(self.creator_id)
         str_repr += str(self.parents_hashes())
         str_repr += str(self.txs)
-        str_repr += str(self.coinshares)
+        str_repr += str(self.coin_shares)
 
         return str_repr
 
@@ -76,7 +76,7 @@ class Unit(object):
         str_repr += str(self.creator_id)
         str_repr += str(self.parents_hashes())
         str_repr += str(self.txs)
-        str_repr += str(self.coinshares)
+        str_repr += str(self.coin_shares)
         str_repr += str(self.level)
         str_repr += str(self.height)
         #str_repr += str(self.self_predecessor.hash())
@@ -86,5 +86,5 @@ class Unit(object):
         return str_repr
 
 
-def unit_to_message(creator_id, parents, dics_txs, coinshares):
-    return str([creator_id, parents, dics_txs, coinshares]).encode()
+def unit_to_message(creator_id, parents, dics_txs, coin_shares):
+    return str([creator_id, parents, dics_txs, coin_shares]).encode()
