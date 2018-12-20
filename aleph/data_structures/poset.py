@@ -105,9 +105,15 @@ class Poset:
         # 4. set U's level
         U.level = self.level(U)
 
-        # 5. if U is prime, add coin shares to U
+        # 5. if U is prime, add update prime units by level
         if self.is_prime(U):
-            self.add_coin_shares(U)
+            if U.level not in self.prime_units_by_level:
+                self.prime_units_by_level[U.level] = [[] for _ in range(self.n_processes)]
+            self.prime_units_by_level[U.level][U.creator_id].append(U)
+
+            # add coin shares to U
+            if U.level >= 4:
+                self.add_coin_shares(U)
 
         # 6. set floor field
         U.floor = [[] for _ in range(self.n_processes)]
@@ -156,7 +162,6 @@ class Poset:
         logger = logging.getLogger(LOGGER_NAME)
         U = Unit(creator_id, [], txs)
         logger.info(f"create: {creator_id} attempting to create a unit.")
-        #print(f"create: {creator_id} attempting to create a unit.")
         if len(self.max_units_per_process[creator_id]) == 0:
             # this is going to be our dealing unit
 
@@ -243,9 +248,10 @@ class Poset:
         # we can limit ourselves to prime units V
         processes_high_below = 0
 
-        for V in self.get_prime_units_by_level(m):
-            if self.high_below(V, U):
-                processes_high_below += 1
+        for Vs in self.get_prime_units_by_level(m):
+            for V in Vs:
+                if self.high_below(V, U):
+                    processes_high_below += 1
 
         # same as (...)>=2/3*(...) but avoids floating point division
         U.level = m+1 if 3*processes_high_below >= 2*self.n_processes else m
@@ -268,18 +274,67 @@ class Poset:
         :returns: list of pairs of indices such that for (i,j) in the list the coin share TC^j_i(L(U)) should be added to U
         '''
 
+        # don't add coin shares for prime units of level lower than 4
+        if U.level < 4:
+            return []
+
         indicies = []
 
-        share_id = U.creator_id
-        # 1. create F
+        # don't add coin shares of dealers with forked dealing units that are below U
+        skip_dealer_ind = set()
+        for dealer_id in range(self.n_processes):
+            # check if dealer_id forked the dealing unit
+            if self.forking_height[dealer_id]==0:
+                seen_below = 0
+                for dU in self.forking_height[dealer_id]:
+                    if self.below(dU, U):
+                        seen_below += 1
+                    if seen_below == 2:
+                        skip_dealer_ind.add(dealer_id)
+                        break
+            else:
+                skip_dealer_ind.add(dealer_id)
 
-        # 2. run through processes in order given by sigma(L(U)) until a sigma-transversal is created
+        share_id = U.creator_id
+
+        # TODO optimize the below by taking prime units from as high level as possible
+        level = 1
+        # create a list of all prime units on level level that are below U
+        dealing_F = [V for Vs in self.prime_units_by_level[level] for V in Vs if self.below(V, U)]
+
         sigma = self.crp[U.level]
-        trans = []
+
+        # list of indicies of prime units which lower cones are disjoint with the sigma-transversal
+        disjoint_ind = list(set([V.creator_id for V in dealing_F]))
 
         for dealer_id in sigma:
-            # TODO add handling forkers
-            dunit = self.dealing_untis[dealer_id][0]
+            # don't add shares for forking dealing units
+            if dealer_id in skip_dealer_ind:
+                continue
+
+            # haven't seen a dealing unit created by this dealer
+            if not self.dealing_units[dealer_id]:
+                continue
+
+            # check if dealing unit of dealer_id is in the lower cone of some unit in dealing_F
+            for V in dealing_F:
+                # check if dealing unit dealt by dealer_id is under V
+                if not V.floor[dealer_id]:
+                    continue
+
+                # remove all sets that started intersecting with the sigma-transversal
+                disjoint_ind.remove(V.creator_id)
+                dU = self.dealing_units[dealer_id]
+                # check if dU is in some lower cone
+                disjoint_ind = [di for di in disjoint_ind if any(self.below(dU, V) for V in self.prime_units_by_level[level][di])]
+
+                indicies.append((share_id, dealer_id))
+
+                break
+
+            # check if we have constructed a sigma-transversal
+            if not disjoint_ind:
+                break
 
         return indicies
 
@@ -292,7 +347,8 @@ class Poset:
 
         coin_shares = []
         indicies = self.determine_coin_shares(U)
-        assert indicies != [] and indicies is not None
+        if U.level >= 4:
+            assert indicies != [] and indicies is not None
 
         for dealer_id, _ in indicies:
             coin_shares.append(self.threshold_coins[dealer_id].create_share(U.level))
@@ -736,7 +792,6 @@ class Poset:
         return (W is U)
 
 
-
     def strictly_below_within_process(self, U, V):
         '''
         Checks if there exists a path from U to V going only through units created by their creator process.
@@ -748,7 +803,6 @@ class Poset:
         return (U is not V) and self.below_within_process(U,V)
 
 
-
     def above_within_process(self, U, V):
         '''
         Checks if there exists a path (possibly U = V) from V to U going only through units created by their creator process.
@@ -757,7 +811,6 @@ class Poset:
         :param unit V: second unit to be tested
         '''
         return self.below_within_process(V, U)
-
 
 
     def below(self, U, V):
@@ -772,7 +825,6 @@ class Poset:
         return False
 
 
-
     def above(self, U, V):
         '''
         Checks if U >= V.
@@ -780,7 +832,6 @@ class Poset:
         :param unit V: second unit to be tested
         '''
         return self.below(V, U)
-
 
 
     def high_below(self, U, V):
@@ -818,7 +869,6 @@ class Poset:
 
         # same as processes_in_support>=2/3 n_procesees but avoids floating point division
         return 3*processes_in_support >= 2*self.n_processes
-
 
 
     def high_above(self, U, V):
@@ -1080,7 +1130,6 @@ class Poset:
         return validated
 
 
-
     def units_by_height(self, process_id, height):
         '''
         Returns list of units created by a given process of a given height.
@@ -1122,19 +1171,13 @@ class Poset:
         #remove possible duplicates -- process_id is a forker
         return list(set(result_list))
 
+
     def get_self_children(self, U):
         '''
         Returns the set of all units V in the poset such that V.self_predecessor == U
         NOTE: inefficient because units_by_height is inefficient.
         '''
         return self.units_by_height(U.creator_id, U.height + 1)
-
-
-
-
-
-
-
 
 
 #===============================================================================================================================
@@ -1183,14 +1226,6 @@ class Poset:
 #        assert (U.hash() in self.known_forkers_by_unit.keys()), "Unit U has not yet been added to known_forkers_by_unit"
 #
 #        return self.known_forkers_by_unit[U.hash()]
-
-
-    def choose_coinshares(self, unit):
-        '''
-        Implements threshold_coin algorithm from the paper.
-        '''
-
-        pass
 
 
     def rand_maximal(self):
