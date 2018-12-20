@@ -1095,32 +1095,31 @@ class Poset:
         '''
 
         R = reduce(xor, map(lambda x: x.hash(), units_list))
-
         #TODO: might be a good idea to precalculate those?
         tiebraker = lambda U: xor(R, U.hash())
 
-        children = {U:0 for U in units_list}
-        childless = set(units_list)
-        ret = []
-
+        children = {U:[] for U in units_list} #lists of children
+        parents  = {U:0  for U in units_list} #number of parents
+        orphans  = set(units_list)
         for U in units_list:
             for P in U.parents:
-                if P in children:
-                    children[P] += 1
-                if P in childless:
-                    childless.remove(P)
+                if P in children: #same as "if P in units_list", but faster
+                    children[P].append(U)
+                    parents[U] += 1
+                    orphans.remove(U)
 
-        while childless:
-            ret += sorted(childless, key=tiebraker)
+        ret = []
 
-            new_childless = []
-            for U in childless:
-                for P in U.parents:
-                    if P in children:
-                        children[P] -= 1
-                        if children[P] == 0:
-                            new_childless.append(P)
-            childless = set(new_childless)
+        while orphans:
+            ret += sorted(orphans, key=tiebraker)
+
+            out = list(orphans)
+            orphans = set()
+            for U in out:
+                for child in children[U] in:
+                    parents[child] -= 1
+                    if parents[child] == 0:
+                        orphans.add(child)
 
         return ret
 
