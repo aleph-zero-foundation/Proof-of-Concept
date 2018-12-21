@@ -1131,13 +1131,13 @@ class Poset:
         In other words, all U such that U < T_k but not U < T_(k-1) where T_i is the i-th timing unit.
         '''
         T_k = self.timing_units[k]
-        T_k_1 = self.timing_units[k-1]
+        T_k_1 = self.timing_units[k-1] if k > 0 else None
 
         ret = []
         Q = set([T_k])
         while Q:
             U = Q.pop()
-            if not self.below(U, T_k_1):
+            if T_k_1 is None or not self.below(U, T_k_1):
                 ret.append(U)
                 for P in U.parents:
                     Q.add(P)
