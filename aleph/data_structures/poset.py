@@ -6,7 +6,7 @@ import random
 import logging
 
 from aleph.data_structures.unit import Unit
-from aleph.crypto import SigningKey, VerifyKey, xor
+from aleph.crypto import xor
 from aleph.config import *
 
 
@@ -1125,8 +1125,24 @@ class Poset:
 
 
 
+    def timing_round(self, k):
+        '''
+        Return a list of all units with timing round equal k.
+        In other words, all U such that U < T_k but not U < T_(k-1) where T_i is the i-th timing unit.
+        '''
+        T_k = self.timing_units[k]
+        T_k_1 = self.timing_units[k-1]
 
+        ret = []
+        Q = set([T_k])
+        while Q:
+            U = Q.pop()
+            if not self.below(U, T_k_1):
+                ret.append(U)
+                for P in U.parents:
+                    Q.add(P)
 
+        return ret
 
 
 
