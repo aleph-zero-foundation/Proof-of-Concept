@@ -49,6 +49,7 @@ class Unit(object):
         dict_txs = [tx.to_dict() for tx in self.txs]
         return unit_to_message(self.creator_id, self.parents_hashes(), dict_txs, self.coinshares)
 
+
     def __hash__(self):
         return hash(self.hash())
 
@@ -80,8 +81,8 @@ class Unit(object):
         str_repr += str(self.level)
         str_repr += str(self.height)
         #str_repr += str(self.self_predecessor.hash())
-        str_repr += str(self.floor)
-        str_repr += str(self.ceil)
+        #str_repr += str(self.floor)
+        #str_repr += str(self.ceil)
 
         return str_repr
 

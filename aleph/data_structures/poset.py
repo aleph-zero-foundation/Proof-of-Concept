@@ -788,10 +788,10 @@ class Poset:
 #===============================================================================================================================
 
     def r_function(self, U_c, U):
-    '''
-    The R function from the paper
-    :returns: a value in {-1,0,1}, -1 is equivalent to bottom (undefined).
-    '''
+        '''
+        The R function from the paper
+        :returns: a value in {-1,0,1}, -1 is equivalent to bottom (undefined).
+        '''
         if U.level <= U_c.level +1:
             return -1
         return (U.level - U_c.level) % 2
@@ -833,9 +833,9 @@ class Poset:
         return -1
 
     def compute_pi(self, U_c, U):
-    '''
-    Computes the value of the Pi function from the paper. The value -1 is equivalent to bottom (undefined).
-    '''
+        '''
+        Computes the value of the Pi function from the paper. The value -1 is equivalent to bottom (undefined).
+        '''
         U_c_hash = U_c.hash()
         U_hash = U.hash()
         memo = self.timing_partial_results[U_c_hash]
@@ -867,9 +867,9 @@ class Poset:
             return memo[('pi', U_hash)]
 
     def compute_delta(self, U_c, U):
-    '''
-    Computes the value of the Delta function from the paper. The value -1 is equivalent to bottom (undefined).
-    '''
+        '''
+        Computes the value of the Delta function from the paper. The value -1 is equivalent to bottom (undefined).
+        '''
         U_c_hash = U_c.hash()
         U_hash = U.hash()
         memo = self.timing_partial_results[U_c_hash]
@@ -886,8 +886,8 @@ class Poset:
         if r_value == 0:
             pi_values_level_below = []
             for V in self.prime_units_by_level[U.level-1]:
-            if self.high_below(V, U):
-                pi_values_level_below.append(self.compute_pi(U_c, V))
+                if self.high_below(V, U):
+                    pi_values_level_below.append(self.compute_pi(U_c, V))
             memo[('delta', U_hash)] = self.super_majority(pi_values_level_below)
             return self.super_majority(pi_values_level_below)
 
@@ -1093,10 +1093,9 @@ class Poset:
         Break ties. Break them gooooood.
         I love the sound of breaking ties in the morning.
         '''
-
-        R = reduce(xor, map(lambda x: x.hash(), units_list))
+        R = reduce(xor, map(lambda x: x.hash().encode(), units_list))
         #TODO: might be a good idea to precalculate those?
-        tiebraker = lambda U: xor(R, U.hash())
+        tiebraker = lambda U: xor(R, U.hash().encode())
 
         children = {U:[] for U in units_list} #lists of children
         parents  = {U:0  for U in units_list} #number of parents
@@ -1106,7 +1105,7 @@ class Poset:
                 if P in children: #same as "if P in units_list", but faster
                     children[P].append(U)
                     parents[U] += 1
-                    orphans.remove(U)
+                    orphans.discard(U)
 
         ret = []
 
@@ -1116,7 +1115,7 @@ class Poset:
             out = list(orphans)
             orphans = set()
             for U in out:
-                for child in children[U] in:
+                for child in children[U]:
                     parents[child] -= 1
                     if parents[child] == 0:
                         orphans.add(child)
