@@ -6,6 +6,7 @@ import random
 
 from aleph.data_structures.poset import Poset
 from aleph.data_structures.userDB import UserDB
+from aleph.crypto.crp import CommonRandomPermutation
 from aleph.network import listener, sync, tx_listener
 from aleph.config import CREATE_FREQ, SYNC_INIT_FREQ, LOGGER_NAME
 
@@ -37,7 +38,8 @@ class Process:
         self.tx_receiver_address = tx_receiver_address
         self.prepared_txs = []
 
-        self.poset = Poset(self.n_processes)
+        self.crp = CommonRandomPermutation([pk.to_hes() for pk in public_key_list])
+        self.poset = Poset(self.n_processes, self.crp)
         self.userDB = userDB
         if self.userDB is None:
             self.userDB = UserDB()
@@ -51,6 +53,7 @@ class Process:
         self.syncing_tasks = []
 
         self.validated_transactions = []
+
 
     def sign_unit(self, U):
         '''

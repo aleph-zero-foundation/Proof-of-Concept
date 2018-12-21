@@ -1,7 +1,11 @@
-import networkx as nx
-import numpy as np
-from networkx.drawing.nx_agraph import graphviz_layout
+import warnings
 
+with warnings.catch_warnings():
+    warnings.filterwarnings("ignore",category=DeprecationWarning)
+    import networkx as nx
+    from networkx.drawing.nx_agraph import graphviz_layout
+
+import numpy as np
 import logging
 logging.getLogger('matplotlib').setLevel(logging.WARNING)
 import matplotlib.pyplot as plt

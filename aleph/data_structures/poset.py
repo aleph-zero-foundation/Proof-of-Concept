@@ -6,6 +6,7 @@ import logging
 
 from aleph.data_structures.unit import Unit
 from aleph.crypto.keys import SigningKey, VerifyKey
+from aleph.crypto.threshold_coin import ThresholdCoin
 from aleph.config import *
 
 
@@ -31,7 +32,7 @@ class Poset:
 
         self.level_reached = 0
         # threshold coins dealt by each process; initialized from dealing units
-        self.threshold_coins = [None for _ in range(n_processes)]
+        self.threshold_coins = [[] for _ in range(n_processes)]
 
         self.prime_units_by_level = {}
 
@@ -60,35 +61,41 @@ class Poset:
 # UNITS
 #===============================================================================================================================
 
-    def prepare_unit(self, U):
+    def prepare_unit(self, U, add_coin_shares=False):
         '''
         Sets basic fields of U; should be called prior to check_compliance and add_unit methods.
         This method does the following:
             0. set U's self_predecessor and height
             1. set floor field
             2. set U's level
+            3. if it is prime and of level >=4, add coin shares to it
         :param unit U: unit which fields are about to be set
         '''
 
         # 0. set U's self_predecessor and height
         self.set_self_predecessor_and_height(U)
 
-        # 2. set floor field
+        # 1. set floor field
         U.floor = [[] for _ in range(self.n_processes)]
         self.update_floor(U)
 
-        # 1. set U's level
+        # 2. set U's level
         U.level = self.level(U)
+
+        # 3. if it is prime and of level >=4, add coin shares to it
+        if add_coin_shares and self.is_prime(U) and U.level >= 4:
+            self.add_coin_shares(U)
 
 
     def add_unit(self, U, newly_validated = None):
         '''
         Add a unit compliant with the rules, what was checked by check_compliance.
         This method does the following:
-            1. add the unit U to the poset
+            0. add the unit U to the poset
+            1. if it is a dealing unit, add it to self.dealing_units
             2. update the lists of maximal elements in the poset.
             3. update forking_height
-            4. if U is prime, add it to prime_units_by_level and add coin_shares to it
+            4. if U is prime, add it to prime_units_by_level
             5. set ceil attribute of U and update ceil of predecessors of U
             6. validate units using U if possible and updates the border between validated and non-validated units
             7. if required, adds U to memoized_units
@@ -96,8 +103,12 @@ class Poset:
         :returns: It does not return anything explicitly but modifies the newly_validated list: adds the units validated by U
         '''
 
-        # 1. add the unit U to the poset
+        # 0. add the unit U to the poset
         self.units[U.hash()] = U
+
+        # if it is a dealing unit, add it to self.dealing_units
+        if not U.parents and not U in self.dealing_units[U.creator_id]:
+            self.dealing_units[U.creator_id].append(U)
 
         # 2. updates the lists of maximal elements in the poset and
         if len(U.parents) == 0:
@@ -117,10 +128,6 @@ class Poset:
             if U.level not in self.prime_units_by_level:
                 self.prime_units_by_level[U.level] = [[] for _ in range(self.n_processes)]
             self.prime_units_by_level[U.level][U.creator_id].append(U)
-
-            # add coin shares to U
-            if U.level >= 4:
-                self.add_coin_shares(U)
 
         # 5. set ceil attribute of U and update ceil of predecessors of U
         U.ceil = [[] for _ in range(self.n_processes)]
@@ -281,36 +288,41 @@ class Poset:
         if U.level < 4:
             return []
 
-        indicies = []
+        indices = []
 
         # don't add coin shares of dealers with forked dealing units that are below U
         skip_dealer_ind = set()
         for dealer_id in range(self.n_processes):
             # check if dealer_id forked the dealing unit
-            if self.forking_height[dealer_id]==0:
+            if self.forking_height[dealer_id] == 0:
                 seen_below = 0
-                for dU in self.forking_height[dealer_id]:
+                for dU in self.dealing_units[dealer_id]:
                     if self.below(dU, U):
                         seen_below += 1
                     if seen_below == 2:
                         skip_dealer_ind.add(dealer_id)
                         break
-            else:
-                skip_dealer_ind.add(dealer_id)
 
         share_id = U.creator_id
 
-        # TODO optimize the below by taking prime units from as high level as possible
+        # starting from level 3 there is negligible probability that the transversal will have more than 1 element
+        # if U.level == 4:
+        #     level = 1
+        # elif U.level == 5:
+        #     level = 2
+        # else:
+        #     level = 3
         level = 1
+
         # create a list of all prime units on level level that are below U
         dealing_F = [V for Vs in self.prime_units_by_level[level] for V in Vs if self.below(V, U)]
 
         sigma = self.crp[U.level]
 
-        # list of indicies of prime units which lower cones are disjoint with the sigma-transversal
+        # list of indices of prime units which lower cones are disjoint with the sigma-transversal
         disjoint_ind = list(set([V.creator_id for V in dealing_F]))
 
-        for dealer_id in sigma:
+        for i, dealer_id in enumerate(sigma):
             # don't add shares for forking dealing units
             if dealer_id in skip_dealer_ind:
                 continue
@@ -321,17 +333,21 @@ class Poset:
 
             # check if dealing unit of dealer_id is in the lower cone of some unit in dealing_F
             for V in dealing_F:
+                # check if some dealing unit in the lower cone on V is already in the transversal
+                if V.creator_id not in disjoint_ind:
+                    continue
+
                 # check if dealing unit dealt by dealer_id is under V
                 if not V.floor[dealer_id]:
                     continue
 
                 # remove all sets that started intersecting with the sigma-transversal
                 disjoint_ind.remove(V.creator_id)
-                dU = self.dealing_units[dealer_id]
+                dU = self.dealing_units[dealer_id][0]
                 # check if dU is in some lower cone
-                disjoint_ind = [di for di in disjoint_ind if any(self.below(dU, V) for V in self.prime_units_by_level[level][di])]
+                disjoint_ind = [di for di in disjoint_ind if not any(self.below(dU, V) for V in self.prime_units_by_level[level][di])]
 
-                indicies.append((share_id, dealer_id))
+                indices.append((share_id, dealer_id))
 
                 break
 
@@ -339,7 +355,7 @@ class Poset:
             if not disjoint_ind:
                 break
 
-        return indicies
+        return indices
 
 
     def add_coin_shares(self, U):
@@ -349,12 +365,17 @@ class Poset:
         '''
 
         coin_shares = []
-        indicies = self.determine_coin_shares(U)
+        indices = self.determine_coin_shares(U)
         if U.level >= 4:
-            assert indicies != [] and indicies is not None
+            assert indices != [] and indices is not None
 
-        for dealer_id, _ in indicies:
-            coin_shares.append(self.threshold_coins[dealer_id].create_share(U.level))
+        # check if process that created U is owner of the threshold coin we are about to use
+        dealer_id = indices[0][1]
+        assert U.creator_id == self.threshold_coins[dealer_id][0].process_id
+
+        for _, dealer_id in indices:
+            # TODO choosing 0 here is wrong, should determine which forked threshold coin to use
+            coin_shares.append(self.threshold_coins[dealer_id][0].create_coin_share(U.level))
 
         U.coin_shares = coin_shares
 
@@ -670,15 +691,19 @@ class Poset:
         :returns: True if everything works and False otherwise
         '''
 
-        indicies = self.determine_coin_shares(U)
-        if U.coin_shares is None and len(indicies)==0:
-            return True
+        indices = self.determine_coin_shares(U)
+        if U.coin_shares is None:
+            if indices:
+                return False
+            else:
+                return True
 
-        if len(indicies) != len(U.coin_shares):
+        if len(indices) != len(U.coin_shares):
             return False
 
-        for (dealer_id, share_id), coin_share in zip(indicies, U.coin_shares):
-            if not self.threshold_coins[dealer_id].verify_coin_share(coin_share, share_id, U.level):
+        for (share_id, dealer_id), coin_share in zip(indices, U.coin_shares):
+            # TODO choosing 0 here is wrong, should determine which forked threshold coin to use
+            if not self.threshold_coins[dealer_id][0].verify_coin_share(coin_share, share_id, U.level):
                 return False
 
         return True
@@ -886,9 +911,11 @@ class Poset:
         '''
         return self.high_below(V, U)
 
+
 #===============================================================================================================================
 # PI AND DELTA FUNCTIONS
 #===============================================================================================================================
+
 
     def r_function(self, U_c, U):
         '''
@@ -899,15 +926,18 @@ class Poset:
             return -1
         return (U.level - U_c.level) % 2
 
+
     def first_available_index(self, V):
         permutation = self.crp[V.level]
 
         for process_id in permutation:
+            # TODO it should skip forking dealing units
             if any(self.below(U,V) for U in self.dealing_units[process_id]):
                 return process_id
 
         #This is clearly a problem... Should not happen
         return None
+
 
     def toss_coin(self, U_c, level, tossing_unit):
         fai = self.first_available_index(U_c)
@@ -919,12 +949,14 @@ class Poset:
         # For now let's just make something arbitrary but deterministic
         return tossing_unit.hash()[0]%2
 
+
     def exists_tc(self, list_vals, U_c, level, tossing_unit):
         if 1 in list_vals:
             return 1
         if 0 in list_vals:
             return 0
         return self.toss_coin(U_c, level, tossing_unit)
+
 
     def super_majority(self, list_vals):
         treshold_majority = (2*self.n_processes + 2)//3
@@ -934,6 +966,7 @@ class Poset:
             return 0
 
         return -1
+
 
     def compute_pi(self, U_c, U):
         '''
@@ -969,6 +1002,7 @@ class Poset:
             memo[('pi', U_hash)] = self.super_majority(pi_values_level_below)
             return memo[('pi', U_hash)]
 
+
     def compute_delta(self, U_c, U):
         '''
         Computes the value of the Delta function from the paper. The value -1 is equivalent to bottom (undefined).
@@ -994,6 +1028,7 @@ class Poset:
                 memo[('delta', U_hash)] = self.super_majority(pi_values_level_below)
             return self.super_majority(pi_values_level_below)
 
+
     def decide_unit_is_timing(self, U_c):
         # go over even levels starting from U_c.level + 2
         U_c_hash = U_c.hash()
@@ -1012,6 +1047,7 @@ class Poset:
                     memo['decision'] = decision
                     return decision
         return -1
+
 
     def decide_timing_on_level(self, level):
         # NOTE: this is perhaps not the most efficient way of doing it but it's arguably the cleanest
@@ -1073,7 +1109,8 @@ class Poset:
         return timing_established
 
 
-
+    def add_threshold_coin(self, threshold_coin):
+        self.threshold_coins[threshold_coin.dealer_id].append(threshold_coin)
 
 #===============================================================================================================================
 # HELPER FUNCTIONS LOOSELY RELATED TO POSETS
