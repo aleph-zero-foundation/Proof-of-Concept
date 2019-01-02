@@ -5,7 +5,7 @@ from functools import reduce
 import random
 import logging
 
-from aleph.data_structures import Unit
+from aleph.data_structures.unit import Unit
 from aleph.crypto import xor, ThresholdCoin
 from aleph.config import *
 
