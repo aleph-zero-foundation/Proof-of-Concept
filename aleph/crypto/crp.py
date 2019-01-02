@@ -10,7 +10,7 @@ class CommonRandomPermutation:
         :param hashing_function: hashing function used for generating common random permutations -- assumed to input and output a bytestring
         if None hashing_function is provided then it uses hashlib.sha512
         """
-        self.public_keys = [bytes.fromhex(key_hex) for key_hex in public_keys_hex]
+        self.public_keys_hex = public_keys_hex
         self.hashing_function = hashing_function
 
     def _hash(self, bytestring):
@@ -22,10 +22,10 @@ class CommonRandomPermutation:
     def __getitem__(self, k):
         """Return k-th common random permutation."""
         xor_all = bytes([0])
-        for pk in self.public_keys:
+        for pk in self.public_keys_hex:
             xor_all = xor(xor_all, pk)
 
-        seeds = [self._hash(pk + (str(k).encode())) for pk in self.public_keys]
+        seeds = [self._hash(pk + (str(k).encode())) for pk in self.public_keys_hex]
         seeds = [xor(xor_all, x) for x in seeds]
 
         indexed_seeds = zip(seeds, range(len(seeds)))

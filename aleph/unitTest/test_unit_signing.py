@@ -16,9 +16,10 @@ class TestSignatures():
         n_processes = 100
         sk = SigningKey()
         vk = VerifyKey.from_SigningKey(sk)
-        dummy_keys = [None for _ in range(n_processes)]
+        dummy_keys = [VerifyKey.from_SigningKey(SigningKey()) for _ in range(n_processes)]
+        dummy_keys[0] = vk
         dummy_addresses = [(None, None) for _ in range(n_processes)]
-        process = Process(n_processes, process_id, sk, vk, dummy_addresses, dummy_keys)
+        process = Process(n_processes, process_id, sk, vk, dummy_addresses, dummy_keys, None)
         U = Unit(0,[],[])
         process.sign_unit(U)
 

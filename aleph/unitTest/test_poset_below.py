@@ -9,6 +9,7 @@ def test_trivial_single_level_below():
 
     bottom_units_per_process = [Unit(creator_id = i, parents = [], txs = []) for i in range(n_processes)]
     for i in range(n_processes):
+        poset.prepare_unit(bottom_units_per_process[i])
         poset.add_unit(bottom_units_per_process[i])
 
     for i in range(n_processes):
@@ -21,6 +22,7 @@ def test_trivial_single_level_below():
 
     U = Unit(creator_id = 0, parents = [U0, U1], txs = [])
 
+    poset.prepare_unit(U)
     poset.add_unit(U)
     assert poset.below(U0, U)
     assert poset.above(U, U0)
