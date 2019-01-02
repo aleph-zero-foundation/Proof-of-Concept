@@ -47,7 +47,6 @@ def check_create_unit(n_processes, n_units, n_forkers, strategy, verify_fails = 
                 continue
             parents = [unit_to_name[creator_id][V] for V in U.parents]
             name = dag_utils.generate_unused_name(dag, creator_id)
-            #print(name)
 
         dag.add(name, creator_id, parents)
 
@@ -80,9 +79,10 @@ def run(repetitions, min_proc, max_proc, units_per_process):
             n_processes = random.randint(min_proc, max_proc)
             n_units = random.randint(0, units_per_process)
             n_forkers = random.randint(0,n_processes//3)
-            print(rep, n_processes, n_units, n_forkers)
+            print('test setting', rep, n_processes, n_units, n_forkers)
+            print('level, size')
             check_create_unit(n_processes, n_units, n_forkers, strategy, verify_fails = True)
 
 
 def test_level():
-    run(10, 6, 6, 100)
+    run(10, 6, 6, 300)

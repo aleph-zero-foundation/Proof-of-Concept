@@ -11,6 +11,8 @@ HOST_PORT = 8888
 N_RECV_SYNC = 5
 LOGGER_NAME = 'aleph'
 
+ADD_SHARES = 6
+
 import logging
 
 log_format = '[%(asctime)s] [%(levelname)-8s] [%(name)-10s] %(message)s [%(filename)s:%(lineno)d]'

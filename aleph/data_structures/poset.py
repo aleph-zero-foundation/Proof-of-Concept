@@ -80,7 +80,7 @@ class Poset:
         U.level = self.level(U)
 
         # 3. if it is prime and of level >=4, add coin shares to it
-        if add_coin_shares and self.is_prime(U) and U.level >= 4:
+        if add_coin_shares and self.is_prime(U) and U.level >= ADD_SHARES:
             self.add_coin_shares(U)
 
 
@@ -282,46 +282,39 @@ class Poset:
         :returns: list of pairs of indices such that for (i,j) in the list the coin share TC^j_i(L(U)) should be added to U
         '''
 
-        # don't add coin shares for prime units of level lower than 4
-        if U.level < 4:
+        # TODO there is a problem with lemma 3.16 (there could be no such W), i.e. there could be not enough coin shares to toss a coin.
+        # as a solution on level +4 don't use threshold coin, just toss a hash of U, and on level +6 we know there are enough shares
+        # TODO we skip coin shares for dealer that are proven by U to be forkers.
+
+        # don't add coin shares for prime units of level lower than 6
+        # this is due to the fact that we want to build transversal for a family
+        # of sets of dealing units in lower cones of prime units of level 3
+        if U.level < ADD_SHARES:
             return []
 
+        # the to-be-constructed list of pairs of indices such that for (i,j) in the list the coin share TC^j_i(L(U)) should be added to U
         indices = []
 
-        # don't add coin shares of dealers with forked dealing units that are below U
-        skip_dealer_ind = set()
-        for dealer_id in range(self.n_processes):
-            # check if dealer_id forked the dealing unit
-            if self.forking_height[dealer_id] == 0:
-                seen_below = 0
-                for dU in self.dealing_units[dealer_id]:
-                    if self.below(dU, U):
-                        seen_below += 1
-                    if seen_below == 2:
-                        skip_dealer_ind.add(dealer_id)
-                        break
+        # don't add coin shares of dealers that are proved by U to be forkers
+        skip_dealer_ind = set(dealer_id for dealer_id in range(self.n_processes) if self.forking_height[dealer_id] < float('inf'))
 
         share_id = U.creator_id
 
         # starting from level 3 there is negligible probability that the transversal will have more than 1 element
-        # if U.level == 4:
-        #     level = 1
-        # elif U.level == 5:
-        #     level = 2
-        # else:
-        #     level = 3
-        level = 1
+        # as we start adding coin shares to units of level 6, everything is just fine
+        level = 3
 
         # create a list of all prime units on level level that are below U
-        dealing_F = [V for Vs in self.prime_units_by_level[level] for V in Vs if self.below(V, U)]
+        # threshold coins dealt by forkers are not considered, hence we omit them
+        dealing_F = [V for Vs in self.prime_units_by_level[level] for V in Vs if V.creator_id not in skip_dealer_ind and self.below(V, U)]
 
         sigma = self.crp[U.level]
 
-        # list of indices of prime units which lower cones are disjoint with the sigma-transversal
-        disjoint_ind = list(set([V.creator_id for V in dealing_F]))
+        # set of indices of prime units which lower cones are disjoint with the sigma-transversal
+        disjoint_ind = set(V.creator_id for V in dealing_F)
 
         for i, dealer_id in enumerate(sigma):
-            # don't add shares for forking dealing units
+            # don't add shares for forking dealers
             if dealer_id in skip_dealer_ind:
                 continue
 
@@ -329,21 +322,22 @@ class Poset:
             if not self.dealing_units[dealer_id]:
                 continue
 
-            # check if dealing unit of dealer_id is in the lower cone of some unit in dealing_F
+            # check if a dealing unit of dealer_id is in the lower cone of some unit in dealing_F
             for V in dealing_F:
                 # check if some dealing unit in the lower cone on V is already in the transversal
                 if V.creator_id not in disjoint_ind:
                     continue
 
+                dU = self.dealing_units[dealer_id][0]
+
                 # check if dealing unit dealt by dealer_id is under V
-                if not V.floor[dealer_id]:
+                if not self.below(dU, V):
                     continue
 
                 # remove all sets that started intersecting with the sigma-transversal
                 disjoint_ind.remove(V.creator_id)
-                dU = self.dealing_units[dealer_id][0]
-                # check if dU is in some lower cone
-                disjoint_ind = [di for di in disjoint_ind if not any(self.below(dU, V) for V in self.prime_units_by_level[level][di])]
+                # check if dU is in some lower cone and remove it if so
+                disjoint_ind = set(di for di in disjoint_ind if not any(self.below(dU, V) for V in self.prime_units_by_level[level][di]))
 
                 indices.append((share_id, dealer_id))
 
@@ -364,7 +358,7 @@ class Poset:
 
         coin_shares = []
         indices = self.determine_coin_shares(U)
-        if U.level >= 4:
+        if U.level >= ADD_SHARES:
             assert indices != [] and indices is not None
 
         # check if process that created U is owner of the threshold coin we are about to use
