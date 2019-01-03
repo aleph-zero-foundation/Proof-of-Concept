@@ -13,8 +13,8 @@ from aleph.utils.plot import plot_poset, plot_dag
 
 
 
-n_processes = 6
-n_units = 150
+n_processes = 32
+n_units = 1600
 
 processes = []
 host_ports = [8900+i for i in range(n_processes)]
@@ -49,7 +49,7 @@ for process_id in range(n_processes):
 for unit_no in range(n_units):
     while True:
         creator_id = random.choice(range(n_processes))
-        gen_unit = generate_random_compliant_unit(dag, n_processes, process_id = creator_id, forking = False)
+        gen_unit = generate_random_compliant_unit(dag, n_processes, process_id = creator_id, forking = False, only_maximal_parents = True)
         if gen_unit is not None:
             name, parent_names = gen_unit
             break

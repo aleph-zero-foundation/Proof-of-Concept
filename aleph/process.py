@@ -101,8 +101,8 @@ class Process:
         if self.poset.is_prime(U):
             new_timing_units = self.poset.attempt_timing_decision()
             logger.info(f'Lin-order {self.process_id}: New prime unit added at level {U.level}')
-            for U_t in new_timing_units:
-                logger.info(f'Lin-order {self.process_id}: New timing unit at level {U_t.level} established.')
+            for U_timing in new_timing_units:
+                logger.info(f'Lin-order {self.process_id}: New timing unit at level {U_timing.level} established.')
             for U_timing in new_timing_units:
                 units_to_order = []
                 for V_hash in self.unordered_units:
@@ -110,7 +110,7 @@ class Process:
                     if self.poset.below(V, U_timing):
                         units_to_order.append(V)
                 units_to_order = [W.hash() for W in self.poset.break_ties(units_to_order)]
-                logger.info(f'Added {len(units_to_order)} units to the linear order.')
+                logger.info(f'Lin-order {self.process_id}: Added {len(units_to_order)} units to the linear order.')
                 self.linear_order += units_to_order
                 self.unordered_units = self.unordered_units.difference(units_to_order)
 
@@ -177,7 +177,7 @@ class Process:
     async def create_add(self, txs_queue, serverStarted):
         await serverStarted.wait()
     #while True:
-        for _ in range(50):
+        for _ in range(80):
             txs = self.prepared_txs
             new_unit = self.poset.create_unit(self.process_id, txs, strategy = "link_self_predecessor", num_parents = 2)
             if new_unit is not None:
@@ -196,7 +196,7 @@ class Process:
     async def keep_syncing(self, executor, serverStarted):
         await serverStarted.wait()
         #while True:
-        for _ in range(50):
+        for _ in range(80):
             sync_candidates = list(range(self.n_processes))
             sync_candidates.remove(self.process_id)
             target_id = random.choice(sync_candidates)

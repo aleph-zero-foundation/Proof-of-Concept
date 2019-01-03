@@ -153,14 +153,20 @@ def generate_random_forking(n_processes, n_units, n_forkers, file_name = None):
     return dag
 
 
-def generate_random_compliant_unit(dag, n_processes, process_id = None, forking = False):
+def generate_random_compliant_unit(dag, n_processes, process_id = None, forking = False, only_maximal_parents = False):
     '''
     Generates a random compliant unit created by a given process_id (or random process).
     '''
     if process_id is None:
         process_id = random.choice(range(n_processes))
+    if only_maximal_parents:
+        maximal_nodes = []
+        for process_gen_id in range(n_processes):
+            maximal_nodes.extend(dag.maximal_units_per_process(process_gen_id))
+        unit_pairs = list(combinations(maximal_nodes, 2))
+    else:
+        unit_pairs = list(combinations(dag.nodes.keys(), 2))
 
-    unit_pairs = list(combinations(dag.nodes.keys(), 2))
     random.shuffle(unit_pairs)
 
     for U1, U2 in unit_pairs:
