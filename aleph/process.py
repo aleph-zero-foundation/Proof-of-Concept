@@ -26,6 +26,7 @@ class Process:
 
         self.n_processes = n_processes
         self.process_id = process_id
+        self.validation_method = validation_method
 
         self.secret_key = secret_key
         self.public_key = public_key
@@ -96,10 +97,12 @@ class Process:
         '''
         logger = logging.getLogger(LOGGER_NAME)
         self.poset.add_unit(U)
-        self.unordered_units.append(U.hash())
+        self.unordered_units.add(U.hash())
         if self.poset.is_prime(U):
             new_timing_units = self.poset.attempt_timing_decision()
-            logger.info(f'New prime unit added. {len(new_timing_units)} new timing unit/s established.')
+            logger.info(f'Lin-order {self.process_id}: New prime unit added at level {U.level}')
+            for U_t in new_timing_units:
+                logger.info(f'Lin-order {self.process_id}: New timing unit at level {U_t.level} established.')
             for U_timing in new_timing_units:
                 units_to_order = []
                 for V_hash in self.unordered_units:
@@ -128,6 +131,8 @@ class Process:
                 self.add_unit_and_snap_validate(U)
             elif self.validation_method == 'LINEAR_ORDERING':
                 self.add_unit_and_extend_linear_order(U)
+            else:
+                self.poset.add_unit(U)
         else:
             return False
 
@@ -162,8 +167,7 @@ class Process:
                 if self.userDB.check_transaction_correctness(tx):
                     self.userDB.apply_transaction(tx)
                     validated_transactions.append(tx)
-            #else:
-            #    print("fork")
+
 
         for tx in validated_transactions:
             self.pending_txs[tx.issuer].discard((tx,U))
@@ -173,7 +177,7 @@ class Process:
     async def create_add(self, txs_queue, serverStarted):
         await serverStarted.wait()
     #while True:
-        for _ in range(10):
+        for _ in range(50):
             txs = self.prepared_txs
             new_unit = self.poset.create_unit(self.process_id, txs, strategy = "link_self_predecessor", num_parents = 2)
             if new_unit is not None:
@@ -192,7 +196,7 @@ class Process:
     async def keep_syncing(self, executor, serverStarted):
         await serverStarted.wait()
         #while True:
-        for _ in range(10):
+        for _ in range(50):
             sync_candidates = list(range(self.n_processes))
             sync_candidates.remove(self.process_id)
             target_id = random.choice(sync_candidates)
