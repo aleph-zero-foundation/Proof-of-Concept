@@ -1,6 +1,9 @@
 from charm.toolbox.pairinggroup import PairingGroup, ZR, G1, G2, pair
 from functools import reduce
 
+# The implementation is based on: Boldyreva, 2002 https://eprint.iacr.org/2002/118.pdf
+# Possible alternative implementation: Shoup, 2000 http://eprint.iacr.org/1999/011
+
 
 def generate_keys(n_parties, threshold):
     '''
