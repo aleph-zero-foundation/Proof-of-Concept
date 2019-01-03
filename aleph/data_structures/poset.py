@@ -5,9 +5,10 @@ from functools import reduce
 import random
 import logging
 
-from aleph.data_structures import Unit
+from aleph.data_structures.unit import Unit
 from aleph.crypto import xor, ThresholdCoin
 from aleph.config import *
+
 
 
 class Poset:
@@ -545,8 +546,8 @@ class Poset:
             return False
 
         # 7. Coinshares are OK.
-        if self.is_prime(U) and not self.check_coin_shares(U):
-            return False
+        #if self.is_prime(U) and not self.check_coin_shares(U):
+        #    return False
 
         return True
 

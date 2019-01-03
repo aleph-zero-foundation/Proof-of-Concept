@@ -14,13 +14,14 @@ class Process:
     '''This class is the main component of the Aleph protocol.'''
 
 
-    def __init__(self, n_processes, process_id, secret_key, public_key, address_list, public_key_list, tx_receiver_address, userDB=None):
+    def __init__(self, n_processes, process_id, secret_key, public_key, address_list, public_key_list, tx_receiver_address, userDB=None, validation_method='SNAP'):
         '''
         :param int n_processes: the committee size
         :param int process_id: the id of the current process
         :param string secret_key: the private key of the current process
         :param list addresses: the list of length n_processes containing addresses (host, port) of all committee members
         :param list public_keys: the list of public keys of all committee members
+        :param string validation_method: the method of validating transactions/units: either "SNAP" or "LINEAR_ORDERING" or None for no validation
         '''
 
         self.n_processes = n_processes
@@ -53,6 +54,12 @@ class Process:
 
         self.validated_transactions = []
 
+        # hashes of units that have not yet been linearly ordered
+        self.unordered_units = set()
+
+        # hashes of units in linear order
+        self.linear_order = []
+
 
     def sign_unit(self, U):
         '''
@@ -63,30 +70,64 @@ class Process:
         message = U.to_message()
         U.signature = self.secret_key.sign(message)
 
+
+    def add_unit_and_snap_validate(self, U):
+        '''
+        Add a (compliant) unit to the poset and attempt fast validation of transactions inside.
+        '''
+        logger = logging.getLogger(LOGGER_NAME)
+        list_of_validated_units = []
+        self.poset.add_unit(U, list_of_validated_units)
+        logger.info(f'add_unit_to_poset {self.process_id} -> Validated a set of {len(list_of_validated_units)} units.')
+        for tx in U.txs:
+            if tx.issuer not in self.pending_txs.keys():
+                self.pending_txs[tx.issuer] = set()
+            self.pending_txs[tx.issuer].add((tx,U))
+        for V in list_of_validated_units:
+            if V.txs:
+                newly_validated = self.validate_transactions_in_unit(V, U)
+                logger.info(f'add_unit_to_poset {self.process_id} -> Validated a set of {len(newly_validated)}/{len(V.txs)} transactions.')
+                self.validated_transactions.extend(newly_validated)
+
+
+    def add_unit_and_extend_linear_order(self, U):
+        '''
+        Add a (compliant) unit to the poset, try to find a new timing unit and if succeded, extend the linear order.
+        '''
+        logger = logging.getLogger(LOGGER_NAME)
+        self.poset.add_unit(U)
+        self.unordered_units.append(U.hash())
+        if self.poset.is_prime(U):
+            new_timing_units = self.poset.attempt_timing_decision()
+            logger.info(f'New prime unit added. {len(new_timing_units)} new timing unit/s established.')
+            for U_timing in new_timing_units:
+                units_to_order = []
+                for V_hash in self.unordered_units:
+                    V = self.poset.unit_by_hash(V_hash)
+                    if self.poset.below(V, U_timing):
+                        units_to_order.append(V)
+                units_to_order = [W.hash() for W in self.poset.break_ties(units_to_order)]
+                logger.info(f'Added {len(units_to_order)} units to the linear order.')
+                self.linear_order += units_to_order
+                self.unordered_units = self.unordered_units.difference(units_to_order)
+
+
     def add_unit_to_poset(self, U):
         '''
         Checks compliance of the unit U and adds it to the poset (unless already in the poset). Subsequently validates transactions using U.
         :param unit U: the unit to be added
         :returns: boolean value: True if succesfully added, False if unit is not compliant
         '''
-        logger = logging.getLogger(LOGGER_NAME)
+
         if U.hash() in self.poset.units.keys():
             return True
 
         self.poset.prepare_unit(U)
         if self.poset.check_compliance(U):
-            list_of_validated_units = []
-            self.poset.add_unit(U, list_of_validated_units)
-            logger.info(f'add_unit_to_poset {self.process_id} -> Validated a set of {len(list_of_validated_units)} units.')
-            for tx in U.txs:
-                if tx.issuer not in self.pending_txs.keys():
-                    self.pending_txs[tx.issuer] = set()
-                self.pending_txs[tx.issuer].add((tx,U))
-            for V in list_of_validated_units:
-                if V.txs:
-                    newly_validated = self.validate_transactions_in_unit(V, U)
-                    logger.info(f'add_unit_to_poset {self.process_id} -> Validated a set of {len(newly_validated)}/{len(V.txs)} transactions.')
-                    self.validated_transactions.extend(newly_validated)
+            if self.validation_method == 'SNAP':
+                self.add_unit_and_snap_validate(U)
+            elif self.validation_method == 'LINEAR_ORDERING':
+                self.add_unit_and_extend_linear_order(U)
         else:
             return False
 

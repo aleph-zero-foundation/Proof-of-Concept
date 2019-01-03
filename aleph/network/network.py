@@ -223,7 +223,7 @@ async def _add_units(process_id, ex_id, units_received, process, mode, logger):
         assert all(U_hash in process.poset.units.keys() for U_hash in unit['parents_hashes'])
         parents = [process.poset.unit_by_hash(parent_hash) for parent_hash in unit['parents_hashes']]
         txs = [Tx.from_dict(dict_tx) for dict_tx in unit['txs']]
-        U = Unit(unit['creator_id'], parents, txs, unit['signature'], unit['coinshares'])
+        U = Unit(unit['creator_id'], parents, txs, unit['signature'], unit['coin_shares'])
         if not process.add_unit_to_poset(U):
             return False
     logger.info(f'{mode} {process_id}: units from {ex_id} were added succesfully')
@@ -233,7 +233,7 @@ async def _add_units(process_id, ex_id, units_received, process, mode, logger):
 def verify_signature(unit, public_key_list):
     '''Verifies signatures of the unit and all txs in it'''
     # verify unit signature
-    message = unit_to_message(unit['creator_id'], unit['parents_hashes'], unit['txs'], unit['coinshares'])
+    message = unit_to_message(unit['creator_id'], unit['parents_hashes'], unit['txs'], unit['coin_shares'])
     if not public_key_list[unit['creator_id']].verify_signature(unit['signature'], message):
         return False
 
@@ -254,4 +254,4 @@ def unit_to_dict(U):
             'parents_hashes': parents_hashes,
             'txs': [tx.to_dict() for tx in U.txs],
             'signature': U.signature,
-            'coinshares': U.coinshares}
+            'coin_shares': U.coin_shares}
