@@ -296,7 +296,7 @@ class Poset:
         indices = []
 
         # don't add coin shares of dealers that are proved by U to be forkers
-        skip_dealer_ind = set(dealer_id for dealer_id in range(self.n_processes) if self.forking_height[dealer_id] < float('inf'))
+        skip_dealer_ind = set(dealer_id for dealer_id in range(self.n_processes) if self.has_forking_evidence(U, dealer_id)
 
         share_id = U.creator_id
 
