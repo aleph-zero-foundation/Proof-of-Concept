@@ -13,8 +13,8 @@ from aleph.utils.plot import plot_poset, plot_dag
 
 
 
-n_processes = 32
-n_units = 1600
+n_processes = 16
+n_units = 800
 
 processes = []
 host_ports = [8900+i for i in range(n_processes)]
