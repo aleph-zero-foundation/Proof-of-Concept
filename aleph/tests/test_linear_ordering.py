@@ -64,7 +64,8 @@ for unit_no in range(n_units):
         print(f'Unit {name} not compliant.')
         exit(0)
     dag.add(name, creator_id, parent_names)
-    print(len(process.poset.units))
+    if unit_no%100 == 0:
+        print(f"Adding unit no {unit_no + n_processes} out of {n_units + n_processes}.")
 
 
 
