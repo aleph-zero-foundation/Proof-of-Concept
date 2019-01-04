@@ -55,7 +55,6 @@ class Poset:
         self.timing_partial_results = {}
 
 
-
 #===============================================================================================================================
 # UNITS
 #===============================================================================================================================
@@ -81,7 +80,7 @@ class Poset:
         # 2. set U's level
         U.level = self.level(U)
 
-        # 3. if it is prime and of level >=4, add coin shares to it
+        # 3. if it is prime of level >= ADD_SHARES, add coin shares to it
         if add_coin_shares and self.is_prime(U) and U.level >= ADD_SHARES:
             self.add_coin_shares(U)
 
@@ -239,7 +238,6 @@ class Poset:
         return U
 
 
-
     def level(self, U):
         '''
         Calculates the level in the poset of the unit U.
@@ -375,6 +373,7 @@ class Poset:
 
         U.coin_shares = coin_shares
 
+
     def get_all_prime_units_by_level(self, level):
         '''
         Returns the set of all prime units at a given level.
@@ -383,6 +382,7 @@ class Poset:
         if level not in self.prime_units_by_level.keys():
             return []
         return [V for Vs in self.prime_units_by_level[level] for V in Vs]
+
 
     def get_prime_units_by_level_per_process(self, level):
         '''
@@ -423,14 +423,12 @@ class Poset:
                 return False
 
 
-
     def unit_by_hash(self, unit_hash):
         '''
         Returns a unit in the poset given by its hash, or None if not present.
         '''
 
         return self.units.get(unit_hash, None)
-
 
 
     def units_by_height_interval(self, creator_id, min_height, max_height):
@@ -448,7 +446,6 @@ class Poset:
             U = U.self_predecessor
 
         return reversed(units)
-
 
 
     def get_max_heights_hashes(self):
@@ -470,7 +467,6 @@ class Poset:
         return heights, hashes
 
 
-
     def get_diff(self, process_id, current, prev):
         '''
         Outputs the set of all units U such that U lies strictly above some unit in prev and below some unit in current.
@@ -490,7 +486,6 @@ class Poset:
                     curr_hashes.add(U.self_predecessor.hash())
 
         return [self.units[U_hash] for U_hash in diff_hashes]
-
 
 
 #===============================================================================================================================
@@ -576,7 +571,6 @@ class Poset:
             if (V is not U.self_predecessor) and self.below(V, U.self_predecessor):
                 return False
         return True
-
 
 
     def check_forker_muting(self, U):
@@ -939,8 +933,8 @@ class Poset:
         return (U.level - U_c.level) % 2
 
 
-    def first_available_index(self, V):
-        permutation = self.crp[V.level]
+    def first_available_index(self, V, level):
+        permutation = self.crp[level]
 
         for process_id in permutation:
             # TODO it should skip forking dealing units
@@ -951,8 +945,9 @@ class Poset:
         return None
 
 
-    def toss_coin(self, U_c, level, tossing_unit):
-        fai = self.first_available_index(U_c)
+    def toss_coin(self, U_c, tossing_unit):
+        level = tossing_unit.level-1
+        fai = self.first_available_index(U_c, level-1)
         if self.has_forking_evidence(tossing_unit, fai):
             #the coin comes from a forker: we are allowed to not toss a coin here
             return 0
@@ -962,12 +957,12 @@ class Poset:
         return (U_c.hash()[level%3])%2
 
 
-    def exists_tc(self, list_vals, U_c, level, tossing_unit):
+    def exists_tc(self, list_vals, U_c, tossing_unit):
         if 1 in list_vals:
             return 1
         if 0 in list_vals:
             return 0
-        return self.toss_coin(U_c, level, tossing_unit)
+        return self.toss_coin(U_c, tossing_unit)
 
 
     def super_majority(self, list_vals):
@@ -987,8 +982,10 @@ class Poset:
         U_c_hash = U_c.hash()
         U_hash = U.hash()
         memo = self.timing_partial_results[U_c_hash]
-        if ('pi', U_hash) in memo.keys():
-            return memo[('pi', U_hash)]
+
+        pi_value = memo.get(('pi', U_hash), None)
+        if pi_value is not None:
+            return pi_value
 
         r_value = self.r_function(U_c, U)
 
@@ -997,22 +994,22 @@ class Poset:
                 memo[('pi', U_hash)] = 1
                 return 1
             else:
-                memo[('pi', U_hash)] = 1
+                memo[('pi', U_hash)] = 0
                 return 0
 
         pi_values_level_below = []
 
-        for V in self.get_all_prime_units_by_level(level-1):
+        for V in self.get_all_prime_units_by_level(U.level-1):
             if self.high_below(V, U):
                 pi_values_level_below.append(self.compute_pi(U_c, V))
 
         if r_value == 0:
-            memo[('pi', U_hash)] = self.exists_tc(pi_values_level_below, U_c, U.level, U)
-            return memo[('pi', U_hash)]
-
+            pi_value = self.exists_tc(pi_values_level_below, U_c, U)
         if r_value == 1:
-            memo[('pi', U_hash)] = self.super_majority(pi_values_level_below)
-            return memo[('pi', U_hash)]
+            pi_value = self.super_majority(pi_values_level_below)
+
+        memo[('pi', U_hash)] = pi_value
+        return pi_value
 
 
     def compute_delta(self, U_c, U):
@@ -1022,8 +1019,10 @@ class Poset:
         U_c_hash = U_c.hash()
         U_hash = U.hash()
         memo = self.timing_partial_results[U_c_hash]
-        if ('delta', U_hash) in memo.keys():
-            return memo[('delta', U_hash)]
+
+        delta_value = memo.get(('delta', U_hash), None)
+        if delta_value is not None:
+            return delta_value
 
         r_value = self.r_function(U_c, U)
 
@@ -1037,8 +1036,9 @@ class Poset:
             for V in self.get_all_prime_units_by_level(U.level-1):
                 if self.high_below(V, U):
                     pi_values_level_below.append(self.compute_pi(U_c, V))
-            memo[('delta', U_hash)] = self.super_majority(pi_values_level_below)
-            return memo[('delta', U_hash)]
+            delta_value = self.super_majority(pi_values_level_below)
+            memo[('delta', U_hash)] = delta_value
+            return delta_value
 
 
     def decide_unit_is_timing(self, U_c):
@@ -1068,7 +1068,6 @@ class Poset:
 
         for process_id in sigma:
             prime_units_by_curr_process = self.prime_units_by_level[level][process_id]
-
 
             if len(prime_units_by_curr_process) == 0:
                 # we have not seen any prime unit of this process at that level
@@ -1103,7 +1102,7 @@ class Poset:
         :returns: List of timing units that have been established by this function call (in the order from lower to higher levels)
         '''
         timing_established = []
-        for level in range( max(3, self.level_timing_established + 1), self.level_reached + 1):
+        for level in range(self.level_timing_established + 1, self.level_reached + 1):
             U_t = self.decide_timing_on_level(level)
             if U_t != -1:
                 timing_established.append(U_t)
@@ -1116,7 +1115,8 @@ class Poset:
                 # don't need to consider next level if there is already no timing unit chosen for the current level
                 break
         if timing_established:
-            self.level_timing_established = max(U.level for U in timing_established)
+            self.level_timing_established = timing_established[-1].level
+
         return timing_established
 
 
