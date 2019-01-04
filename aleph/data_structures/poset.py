@@ -10,6 +10,7 @@ from aleph.crypto import xor, ThresholdCoin
 from aleph.config import *
 
 
+
 class Poset:
     '''This class is the core data structure of the Aleph protocol.'''
 
@@ -31,6 +32,7 @@ class Poset:
         self.crp = crp
 
         self.level_reached = 0
+        self.level_timing_established = 0
         # threshold coins dealt by each process; initialized from dealing units
         self.threshold_coins = [[] for _ in range(n_processes)]
 
@@ -101,6 +103,9 @@ class Poset:
         '''
 
         # 0. add the unit U to the poset
+        assert U.level is not None, "Level of the unit being added is not computed."
+
+        self.level_reached = max(self.level_reached, U.level)
         self.units[U.hash()] = U
 
         # if it is a dealing unit, add it to self.dealing_units
@@ -256,10 +261,9 @@ class Poset:
         # we can limit ourselves to prime units V
         processes_high_below = 0
 
-        for Vs in self.get_prime_units_by_level(m):
-            for V in Vs:
-                if self.high_below(V, U):
-                    processes_high_below += 1
+        for Vs in self.prime_units_by_level[m]:
+            if any(self.high_below(V, U) for V in Vs):
+                processes_high_below += 1
 
         # same as (...)>=2/3*(...) but avoids floating point division
         U.level = m+1 if 3*processes_high_below >= 2*self.n_processes else m
@@ -371,14 +375,23 @@ class Poset:
 
         U.coin_shares = coin_shares
 
+    def get_all_prime_units_by_level(self, level):
+        '''
+        Returns the set of all prime units at a given level.
+        :param int level: the requested level of units
+        '''
+        if level not in self.prime_units_by_level.keys():
+            return []
+        return [V for Vs in self.prime_units_by_level[level] for V in Vs]
 
-    def get_prime_units_by_level(self, level):
+    def get_prime_units_by_level_per_process(self, level):
         '''
         Returns the set of all prime units at a given level.
         :param int level: the requested level of units
         '''
         # TODO: this is a naive implementation
         # TODO: make sure that at creation of a prime unit it is added to the dict self.prime_units_by_level
+        assert level in self.prime_units_by_level.keys()
         return self.prime_units_by_level[level]
 
 
@@ -539,8 +552,8 @@ class Poset:
             return False
 
         # 7. Coinshares are OK.
-        if self.is_prime(U) and not self.check_coin_shares(U):
-            return False
+        #if self.is_prime(U) and not self.check_coin_shares(U):
+        #    return False
 
         return True
 
@@ -945,8 +958,8 @@ class Poset:
             return 0
 
         # TODO: compose shares and use the common treshold coin...
-        # For now let's just make something arbitrary but deterministic
-        return tossing_unit.hash()[0]%2
+        # For now let's just make something arbitrary but so that all units toss the same coin on that level
+        return (U_c.hash()[level%3])%2
 
 
     def exists_tc(self, list_vals, U_c, level, tossing_unit):
@@ -977,7 +990,7 @@ class Poset:
         if ('pi', U_hash) in memo.keys():
             return memo[('pi', U_hash)]
 
-        r_value = r_function(U_c, U)
+        r_value = self.r_function(U_c, U)
 
         if r_value == -1:
             if self.below(U_c, U):
@@ -989,7 +1002,7 @@ class Poset:
 
         pi_values_level_below = []
 
-        for V in self.prime_units_by_level[U.level-1]:
+        for V in self.get_all_prime_units_by_level(level-1):
             if self.high_below(V, U):
                 pi_values_level_below.append(self.compute_pi(U_c, V))
 
@@ -1012,20 +1025,20 @@ class Poset:
         if ('delta', U_hash) in memo.keys():
             return memo[('delta', U_hash)]
 
-        r_value = r_function(U_c, U)
+        r_value = self.r_function(U_c, U)
 
         if r_value == -1:
             return -1
 
-        assert r_value == 0, "Delta is attempted to be evaluated at an even level. This is unnecessary and should not be done."
+        assert r_value == 0, "Delta is attempted to be evaluated at an odd level. This is unnecessary and should not be done."
 
         if r_value == 0:
             pi_values_level_below = []
-            for V in self.prime_units_by_level[U.level-1]:
+            for V in self.get_all_prime_units_by_level(U.level-1):
                 if self.high_below(V, U):
                     pi_values_level_below.append(self.compute_pi(U_c, V))
-                memo[('delta', U_hash)] = self.super_majority(pi_values_level_below)
-            return self.super_majority(pi_values_level_below)
+            memo[('delta', U_hash)] = self.super_majority(pi_values_level_below)
+            return memo[('delta', U_hash)]
 
 
     def decide_unit_is_timing(self, U_c):
@@ -1040,7 +1053,7 @@ class Poset:
             return memo['decision']
 
         for level in range(U_c.level + 2, self.level_reached + 1, 2):
-            for U in self.prime_units_by_level[level]:
+            for U in self.get_all_prime_units_by_level(level):
                 decision = self.compute_delta(U_c, U)
                 if decision != -1:
                     memo['decision'] = decision
@@ -1051,11 +1064,10 @@ class Poset:
     def decide_timing_on_level(self, level):
         # NOTE: this is perhaps not the most efficient way of doing it but it's arguably the cleanest
         # also, the redundant computations here are not that significant for the "big picture"
-
         sigma = self.crp[level]
 
         for process_id in sigma:
-            prime_units_by_curr_process = [U for U in self.prime_units_by_level[level] if U.creator_id == process_id]
+            prime_units_by_curr_process = self.prime_units_by_level[level][process_id]
 
 
             if len(prime_units_by_curr_process) == 0:
@@ -1088,23 +1100,23 @@ class Poset:
     def attempt_timing_decision(self):
         '''
         Tries to find timing units for levels which currently don't have one.
-        :returns: List of levels for which a timing unit has been established by this function call
+        :returns: List of timing units that have been established by this function call (in the order from lower to higher levels)
         '''
         timing_established = []
-
-        for level in range(self.level_timing_established + 1, self.level_reached + 1):
+        for level in range( max(3, self.level_timing_established + 1), self.level_reached + 1):
             U_t = self.decide_timing_on_level(level)
             if U_t != -1:
-                timing_established.append(level)
+                timing_established.append(U_t)
                 self.timing_units.append(U_t)
                 # need to clean up the memoized results about this level
-                for U in self.prime_units_by_level[level]:
+                for U in self.get_all_prime_units_by_level(level):
                     self.timing_partial_results.pop(U.hash(), None)
-                assert len(self.timing_units) == level, "The length of the list of timing units does not match the level of the currently added unit"
+                # assert len(self.timing_units) == level, "The length of the list of timing units does not match the level of the currently added unit"
             else:
                 # don't need to consider next level if there is already no timing unit chosen for the current level
                 break
-
+        if timing_established:
+            self.level_timing_established = max(U.level for U in timing_established)
         return timing_established
 
 
