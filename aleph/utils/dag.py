@@ -140,6 +140,13 @@ class DAG:
     def maximal_units_per_process(self, process_id):
         return self.compute_maximal_from_subset([U for U in self if self.pid(U) == process_id])
 
+    def floor(self, U):
+        lower_cone = self.nodes_below(U)
+        return [self.compute_maximal_from_subset([V for V in lower_cone if self.pid(V) == process_id]) for process_id in range(self.n_processes)]
+
+    def ceil(self, U):
+        return self.reversed().floor(U)
+
 
     def sorted(self):
         children = {}
