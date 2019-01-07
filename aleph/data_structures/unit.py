@@ -36,7 +36,7 @@ class Unit(object):
         if self.hash_value is not None:
             return self.hash_value
 
-        self.hash_value = hashlib.sha512(str(self).encode()).hexdigest()
+        self.hash_value = hashlib.sha3_256(str(self).encode()).hexdigest().encode()
         return self.hash_value
 
 
