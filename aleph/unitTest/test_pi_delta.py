@@ -7,6 +7,40 @@ from aleph.crypto.keys import SigningKey, VerifyKey
 from aleph.utils.dag_utils import generate_random_compliant_unit
 from aleph.utils import DAG, dag_utils
 from aleph.utils.testing_utils import add_to_instance
+from aleph.utils.plot import plot_poset, plot_dag
+
+
+
+def add_new_unit_with_given_parents(process, processes, dag, names_to_units, maximal_names, creator_id, parent_ids_set):
+    tries = 0
+    success = False
+    n_processes = process.n_processes
+
+    if parent_ids_set == []:
+        parent_names = []
+        success = True
+    else:
+        for second_parent in parent_ids_set:
+            if second_parent == creator_id:
+                continue
+            parent_ids = [creator_id, second_parent]
+            parent_names = [maximal_names[parent_id] for parent_id in parent_ids]
+            if dag_utils.check_parent_diversity(dag, creator_id, parent_names, (n_processes+2)//3):
+                success = True
+                break
+
+    assert success, "Adding a new unit failed because it was impossible to choose diverse parents"
+
+    new_name = dag_utils.generate_unused_name(dag, creator_id)
+    dag.add(new_name, creator_id, parent_names)
+    maximal_names[creator_id] = new_name
+    parent_units = [names_to_units[nm] for nm in parent_names]
+    U = Unit(creator_id, parent_units, txs=[])
+    processes[creator_id].sign_unit(U)
+    names_to_units[new_name] = U
+    process.poset.prepare_unit(U)
+    assert process.add_unit_to_poset(U), f'Unit {new_name} not compliant.'
+
 
 
 def test_delta_level_4():
@@ -33,29 +67,54 @@ def test_delta_level_4():
     dag = DAG(n_processes)
     names_to_units = {}
 
-    for process_id in range(n_processes):
-        name = dag_utils.generate_unit_name(0, process_id)
-        dag.add(name, process_id, [])
-        U = Unit(process_id, [], txs=[])
-        processes[process_id].sign_unit(U)
-        names_to_units[name] = U
-        process.poset.prepare_unit(U)
-        assert process.add_unit_to_poset(U), f'Unit {name} not compliant.'
+    maximal_names = [None for _ in range(n_processes)]
 
     byzantine = [0]
     correct = list(range(1,n_processes))
 
-    while True:
-        maximal_per_process = [dag.maximal_units_per_process(process_id)[0] for process_id in range(n_processes)]
-        for process_id in correct:
-            name = dag.maximal_units_per_process(process_id)[0]
-            if names_to_units[name].level<1:
-                link_to = correct[correct.index() + 1)%len(correct)]
+    # create dealing units for every process
+    for process_id in range(n_processes):
+        add_new_unit_with_given_parents(process, processes, dag, names_to_units, maximal_names, process_id, [])
 
-                parents =
-        if not any(names_to_units[name].level<1 for name in maximal_per_process):
+
+    # reach level 1 with processes 1,2,3 while "ignoring" process 0
+    while True:
+        for process_id in correct:
+            #print(process_id)
+            name = maximal_names[process_id]
+            print(names_to_units[name].level)
+            if names_to_units[name].level<1:
+                # choose parents in a random order
+
+                parent_ids_set = correct[:]
+                random.shuffle(parent_ids_set)
+                add_new_unit_with_given_parents(process, processes, dag, names_to_units, maximal_names, process_id, parent_ids_set)
+
+        if not any(names_to_units[name].level<1 for name in [maximal_names[proc_id] for proc_id in correct]):
             break
 
+    # add a new unit for process 0 so as to reach level 1
+    add_new_unit_with_given_parents(process, processes, dag, names_to_units, maximal_names, 0, correct)
+
+    # reach level 2 with processes 1,2,3 while "ignoring" process 0
+    while True:
+        for process_id in correct:
+            name = maximal_names[process_id]
+            if names_to_units[name].level<2:
+                # choose parents in a random order
+
+                parent_ids_set = correct
+                random.shuffle(parent_ids_set)
+                add_new_unit_with_given_parents(process, processes, dag, names_to_units, maximal_names, process_id, parent_ids_set)
+
+        if not any(names_to_units[name].level<2 for name in [maximal_names[proc_id] for proc_id in correct]):
+            break
+
+    add_new_unit_with_given_parents(process, processes, dag, names_to_units, maximal_names, 0, correct)
+
+    plot_dag(dag)
+
+    '''
 
 
 
@@ -80,5 +139,8 @@ def test_delta_level_4():
         if unit_no%100 == 0:
             print(f"Adding unit no {unit_no + n_processes} out of {n_units + n_processes}.")
 
+    '''
 
 
+
+test_delta_level_4()
