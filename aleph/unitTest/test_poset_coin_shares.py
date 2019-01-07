@@ -34,7 +34,7 @@ def check_create_unit(n_processes, n_units, n_forkers, strategy, verify_fails = 
         assert iter_count < n_units*5000, "Creating %d units seems to be taking too long." % n_units
         creator_id = random.choice(range(n_processes))
         if creator_id in forkers:
-            res = dag_utils.generate_random_compliant_unit(dag, n_processes, creator_id, forking = True)
+            res = dag_utils.generate_random_compliant_unit(dag, n_processes, creator_id, forking = True, only_maximal_parents = True)
             if res is None:
                 continue
             name, parents = res
@@ -42,7 +42,7 @@ def check_create_unit(n_processes, n_units, n_forkers, strategy, verify_fails = 
             U = posets[creator_id].create_unit(creator_id, [], strategy = strategy, num_parents = 2)
             if U is None:
                 if verify_fails:
-                    res = dag_utils.generate_random_compliant_unit(dag, n_processes, creator_id, forking = False)
+                    res = dag_utils.generate_random_compliant_unit(dag, n_processes, creator_id, forking = False, only_maximal_parents = True)
                     assert res is None
                 continue
             parents = [unit_to_name[creator_id][V] for V in U.parents]
