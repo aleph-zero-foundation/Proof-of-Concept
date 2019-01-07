@@ -942,6 +942,7 @@ class Poset:
                 return process_id
 
         #This is clearly a problem... Should not happen
+        assert False, "No index available for first_available_index."
         return None
 
 
