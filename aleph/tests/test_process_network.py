@@ -120,7 +120,7 @@ async def run_processes(client_map, priv_keys, database, account_priv_keys):
         pub_key = VerifyKey.from_SigningKey(priv_key)
         process_id = public_key_hexes.index(pub_key.to_hex())
         tx_receiver_address = (addresses[process_id][0], addresses[process_id][1]+32)
-        new_process = Process(n_processes, process_id, priv_key, pub_key, addresses, public_keys, tx_receiver_address, UserDB(database))
+        new_process = Process(n_processes, process_id, priv_key, pub_key, addresses, public_keys, tx_receiver_address, UserDB(database), 'LINEAR_ORDERING')
         tasks.append(asyncio.create_task(new_process.run()))
     if account_priv_keys is not None:
         tx_rec_addresses = [(adr[0], adr[1]+32) for adr in addresses]
