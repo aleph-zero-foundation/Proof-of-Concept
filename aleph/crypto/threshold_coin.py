@@ -65,7 +65,7 @@ class ThresholdCoin:
     def combine_coin_shares(self, shares):
         """
         Assumes that all shares are valid.
-        :param list shares: keys are processes ids, values are shares (tuples (dealer_id, nonce, coin_shares))
+        :param dict shares: keys are processes ids, values are shares (tuples (dealer_id, nonce, coin_shares))
         :returns: bool
         """
         # there are enough shares of a coin
