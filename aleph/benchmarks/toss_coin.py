@@ -90,7 +90,7 @@ def check_create_unit(n_processes, n_units, n_forkers, strategy, verify_fails = 
 
 
 def measure_time(n_jobs, n_processes, n_units, n_forkers, strategy, verify_fails):
-    print(n_jobs, n_processes, n_units, n_forkers, strategy, verify_fails)
+    print('n_jobs', n_jobs, '\nn_processes', n_processes, '\nn_units', n_units, '\nn_forkers', n_forkers, '\nstrategy', strategy, verify_fails)
     print('dispatching workers')
     start = time()
     results = Parallel(n_jobs=n_jobs)(delayed(check_create_unit)(n_processes, n_units, n_forkers, strategy, verify_fails, round(time())+i) for i in range(n_jobs))

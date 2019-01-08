@@ -63,7 +63,6 @@ def check_create_unit(n_processes, n_units, n_forkers, strategy, verify_fails = 
         # below condition will triger exactly once for each level
         if U.level in levels:
             levels.remove(U.level)
-            print(U.level, len(dag))
             if U.level == 3:
                 U_c = U
             if U_c is not None and U.level-U_c.level >= 4:
@@ -85,7 +84,7 @@ def check_create_unit(n_processes, n_units, n_forkers, strategy, verify_fails = 
     return results
 
 def check_distribution(n_jobs, n_processes, n_units, n_forkers, strategy, verify_fails = True):
-    print(n_jobs, n_processes, n_units, n_forkers, strategy, verify_fails)
+    print('n_jobs', n_jobs, '\nn_processes', n_processes, '\nn_units', n_units, '\nn_forkers', n_forkers, '\nstrategy', strategy, verify_fails)
     print('dispatching workers')
     start = time()
     results = Parallel(n_jobs=n_jobs)(delayed(check_create_unit)(n_processes, n_units, n_forkers, strategy, verify_fails, round(time())+i) for i in range(n_jobs))
