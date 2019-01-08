@@ -79,9 +79,10 @@ def add_new_unit_with_given_parents(process, processes, dag, names_to_units, max
 
 def reach_new_level_with_processes(process, processes, dag, names_to_units, maximal_names, processes_to_advance, next_level):
     '''
-    Start with a set of processes processes_to_advance with max-units at level next_level.
+    Start with a set of processes processes_to_advance with max-units at level (next_level-1).
     Keep adding new units within this set (and having parents within this set) until all of them reach level next_level.
-    Note that it is necessary that |processes_to_advance|>=
+    Note that it is necessary that |processes_to_advance|>=(2/3)*n_processes for this to be possible.
+    :returns: a list of process_id's from processes_to_advance in the order of reaching next_level
     '''
     processes_on_next_level = [process_id for process_id in processes_to_advance if names_to_units[maximal_names[process_id]].level >= next_level]
     assert processes_on_next_level == []
@@ -100,20 +101,24 @@ def reach_new_level_with_processes(process, processes, dag, names_to_units, maxi
 
 
 
-def unit_to_name(names_to_units, U):
-    for (name, V) in names_to_units.items():
-        if V is U:
-            return name
-    assert False, "Unit not found in the dictionary."
-    return None
-
-
-
-
 
 
 
 def generate_delta_level_4_no_decision(det_coin_value = 0):
+    '''
+    Builds a poset over 4 processes such that the decision about a unit U_c being a timing unit is made only at level level(U_c) + 6.
+    :param Bool det_coin_value: The value of the common coin to be used instead of a random coin in the decision process.
+    :returns: True/False depending on the success of generating an appropriate poset. Since randomness is involved, certain parts of this process
+    might fail with positive probability.
+    The final decision on the Unit of interest is determined by det_coin_value.
+    '''
+
+    #NOTE: the code of this test is rather long and might be hard to read. There code is interlaced by some comments but to understand what is going on it is
+    # better to simply plot_dag(dag) from time to time.
+
+
+    # do some boring initialization
+    #### START HERE -- INITIALIZATION ####
 
     n_processes = 4
 
@@ -133,6 +138,7 @@ def generate_delta_level_4_no_decision(det_coin_value = 0):
 
     process = processes[0]
 
+
     # make the permutation deterministic to control the order in which units are considered as candidates for timing units
     process.poset.crp = DeterministicPermutation(range(n_processes))
 
@@ -146,25 +152,33 @@ def generate_delta_level_4_no_decision(det_coin_value = 0):
     def check_growth(self, U):
         return True
 
+    # this can be most likely commented out, but not really necessary to do so
     @add_to_instance(process.poset)
     def check_parent_diversity(self, U):
         return True
 
 
     dag = DAG(n_processes)
-    names_to_units = {}
-    all_ids = list(range(n_processes))
-    left1 = [0]
-    right3 = list(range(1,n_processes))
 
+    # mapping from names (in dag) to units in process.poset
+    names_to_units = {}
+
+    all_ids = list(range(n_processes))
+
+    # maintain a list of names of maximal units (in dag) per process
     maximal_names = [None for _ in range(n_processes)]
+
+    #### END HERE -- INITIALIZATION ####
 
     # create dealing units for every process
     for process_id in range(n_processes):
         add_new_unit_with_given_parents(process, processes, dag, names_to_units, maximal_names, process_id, [])
 
 
-    # reach level 1 with every process
+    right3 = list(range(1,n_processes))
+
+    # reach level 2 with every process
+    # process 0 here is meant to be "slow" and it creates only one unit per level
     for next_level in [1,2]:
         reach_new_level_with_processes(process, processes, dag, names_to_units, maximal_names, right3, next_level)
         add_new_unit_with_given_parents(process, processes, dag, names_to_units, maximal_names, 0, right3)
@@ -175,14 +189,18 @@ def generate_delta_level_4_no_decision(det_coin_value = 0):
             assert names_to_units[name_maximal].level == next_level
 
 
-    # reach level 1 with every process
+    # reach level 3 with every process except the leftmost
     order_primes = reach_new_level_with_processes(process, processes, dag, names_to_units, maximal_names, right3, 3)
     low = order_primes[0]
     middle = order_primes[1]
     high = order_primes[2]
+
+    # the 3-4 lines below make sure that the new unit created by process 0 will be high above the unit created by 0 at the previous level
+    # while at the same that unit is not high below any other prime unit at level 3
     add_new_unit_with_given_parents(process, processes, dag, names_to_units, maximal_names, low, [0])
     add_new_unit_with_given_parents(process, processes, dag, names_to_units, maximal_names, middle, [low])
     if not add_new_unit_with_given_parents(process, processes, dag, names_to_units, maximal_names, 0, [middle]):
+        # this might fail due to bad luck, but should succeed with good probability
         return False
 
     #verify whether all processes reached the required level
@@ -191,48 +209,43 @@ def generate_delta_level_4_no_decision(det_coin_value = 0):
         assert names_to_units[name_maximal].level == 3
 
 
-
-
-
+    # this are the processes that we want to have the pi value equal to bottom (-1) at level 4 ( level(U_c) + 3 )
     undecided = [0, low, middle]
 
     #plot_dag(dag)
 
 
     reach_new_level_with_processes(process, processes, dag, names_to_units, maximal_names, undecided, 4)
-
     add_new_unit_with_given_parents(process, processes, dag, names_to_units, maximal_names, high, undecided)
 
-    # it is now guaranteed that delta at level 4 is \bottom
+    # it is now guaranteed that delta at level 4 is (-1) everywhere
 
-
-    #plot_dag(dag)
-
-
-
-
-
+    # grow the poset to level 7 arbitrarily
     for next_level in [5,6,7]:
 
         reach_new_level_with_processes(process, processes, dag, names_to_units, maximal_names, all_ids, next_level)
 
         for process_id in all_ids:
             name_maximal = maximal_names[process_id]
-            print(names_to_units[name_maximal].level, next_level)
+            #print(names_to_units[name_maximal].level, next_level)
 
 
 
     poset = process.poset
     prime_units_level_process = [[None for _ in range(n_processes)]]
+    # extract all prime units at every level from the poset
     for level in range(1,8):
         prime_units_level_process.append([poset.get_prime_units_by_level_per_process(level)[process_id][0] for process_id in range(n_processes)])
-    # the prime unit by process 0 at level 1 is not chosen as timing
-    #assert poset.timing_units[0] is prime_units_level_process[1][1]
-    #assert poset.timing_units[0] is prime_units_level_process[1][0]
+
+    # This is our unit of interest!
     U_c = prime_units_level_process[1][0]
+
+    # Initialize the partial results dictionary in the poset -- this is normally maintained by the Poset.attempt_timing_decision method,
+    # however at this point it has been already cleaned up.
     poset.timing_partial_results[U_c.hash()] = {}
 
 
+    #Put asserts on the expected outcomes of pi computations
     for level in [2,3,4,5,6,7]:
         pi_vals = [poset.compute_pi(U_c, U) for U in prime_units_level_process[level]]
         print(level, pi_vals)
@@ -243,7 +256,7 @@ def generate_delta_level_4_no_decision(det_coin_value = 0):
         if level in [5,6,7]:
             assert pi_vals == [det_coin_value]*n_processes
 
-
+    #Put asserts on the expected outcomes of delta computations
     for level in [3,5,7]:
         delta_vals = [poset.compute_delta(U_c, U) for U in prime_units_level_process[level]]
         if level == 3:
@@ -252,47 +265,25 @@ def generate_delta_level_4_no_decision(det_coin_value = 0):
             assert delta_vals == [-1,-1,-1,-1]
         if level == 7:
             assert det_coin_value in delta_vals and (1-det_coin_value) not in delta_vals
-        #print(level, delta_vals)
+
 
     if det_coin_value == 0:
         assert poset.timing_units[0] is prime_units_level_process[1][1]
     if det_coin_value == 1:
         assert poset.timing_units[0] is prime_units_level_process[1][0]
-    #print(unit_to_name(names_to_units, poset.timing_units[0]))
-    #print(unit_to_name(names_to_units, prime_units_level_process[1][0]))
-    #plot_dag(dag)
-
 
     return True
 
 
+
+
+
+def unit_to_name(names_to_units, U):
     '''
-
-
-
-    for unit_no in range(n_units):
-        while True:
-            creator_id = random.choice(range(n_processes))
-            gen_unit = generate_random_compliant_unit(dag, n_processes, process_id = creator_id, forking = False, only_maximal_parents = True)
-            if gen_unit is not None:
-                name, parent_names = gen_unit
-                break
-        #print(name, parent_names)
-        #print(creator_id)
-        parents = [names_to_units[par_name] for par_name in parent_names]
-        U = Unit(creator_id, parents, txs=[])
-        processes[creator_id].sign_unit(U)
-        names_to_units[name] = U
-        process.poset.prepare_unit(U)
-        if not process.add_unit_to_poset(U):
-            print(f'Unit {name} not compliant.')
-            exit(0)
-        dag.add(name, creator_id, parent_names)
-        if unit_no%100 == 0:
-            print(f"Adding unit no {unit_no + n_processes} out of {n_units + n_processes}.")
-
+    A helper function to access the inverse mapping given by a dictionary names->units.
+    Given a unit U it outputs a name such that names_to_units[name] = U.
     '''
-
-
-
-test_delta_level_4_no_decision()
+    for (name, V) in names_to_units.items():
+        if V is U:
+            return name
+    assert False, "Unit not found in the dictionary."
