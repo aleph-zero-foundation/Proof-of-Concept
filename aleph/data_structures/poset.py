@@ -1057,8 +1057,13 @@ class Poset:
             for U in self.get_all_prime_units_by_level(level):
                 decision = self.compute_delta(U_c, U)
                 if decision != -1:
-                    memo['decision'] = decision
-                    return decision
+                    if level == U_c.level + 2 and decision == 0:
+                        # here is the exception -- a case in which Lemma 3.17 (ii) fails
+                        # need to stay undecided here
+                        pass
+                    else:
+                        memo['decision'] = decision
+                        return decision
         return -1
 
 

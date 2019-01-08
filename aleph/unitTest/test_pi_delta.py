@@ -10,6 +10,18 @@ from aleph.utils.testing_utils import add_to_instance
 from aleph.utils.plot import plot_poset, plot_dag
 
 
+class DeterministicPermutation:
+
+    def __init__(self, permutation):
+        self.permutation = permutation
+
+
+    def __getitem__(self, k):
+        """Always returns the identity permutation."""
+        return list(self.permutation)
+
+
+
 
 def add_new_unit_with_given_parents(process, processes, dag, names_to_units, maximal_names, creator_id, parent_ids_set):
     tries = 0
@@ -29,6 +41,8 @@ def add_new_unit_with_given_parents(process, processes, dag, names_to_units, max
                 success = True
                 break
 
+    if not success:
+        return False
     assert success, "Adding a new unit failed because it was impossible to choose diverse parents"
 
     new_name = dag_utils.generate_unused_name(dag, creator_id)
@@ -39,14 +53,49 @@ def add_new_unit_with_given_parents(process, processes, dag, names_to_units, max
     processes[creator_id].sign_unit(U)
     names_to_units[new_name] = U
     process.poset.prepare_unit(U)
+    if (new_name=='0-M'):
+        plot_dag(dag)
     assert process.add_unit_to_poset(U), f'Unit {new_name} not compliant.'
+    return True
+
+
+def reach_new_level_with_processes(process, processes, dag, names_to_units, maximal_names, processes_to_advance, next_level):
+    processes_on_next_level = [process_id for process_id in processes_to_advance if names_to_units[maximal_names[process_id]].level >= next_level]
+    assert processes_on_next_level == []
+    while len(processes_on_next_level) < len(processes_to_advance):
+        for process_id in processes_to_advance:
+            name = maximal_names[process_id]
+            if names_to_units[name].level < next_level:
+                # choose parents in a random order
+                parent_ids_set = processes_to_advance[:]
+                random.shuffle(parent_ids_set)
+                assert add_new_unit_with_given_parents(process, processes, dag, names_to_units, maximal_names, process_id, parent_ids_set)
+                if names_to_units[maximal_names[process_id]].level == next_level:
+                    processes_on_next_level.append(process_id)
+
+    return processes_on_next_level
 
 
 
-def test_delta_level_4():
+def unit_to_name(names_to_units, U):
+    for (name, V) in names_to_units.items():
+        if V is U:
+            return name
+    assert False, "Unit not found in the dictionary."
+    return None
+
+
+def test_delta_level_4_no_decision():
+    random.seed(123456789)
+    counter = 0
+    while not generate_delta_level_4_no_decision():
+        counter += 1
+        assert counter <= 1000, "Failed to generate a poset with prescribed properties."
+
+
+def generate_delta_level_4_no_decision():
 
     n_processes = 4
-
 
     processes = []
     host_ports = [8900+i for i in range(n_processes)]
@@ -64,55 +113,115 @@ def test_delta_level_4():
 
     process = processes[0]
 
+    # make the permutation deterministic to control the order in which units are considered as candidates for timing units
+    process.poset.crp = DeterministicPermutation(range(n_processes))
+
+    @add_to_instance(process.poset)
+    def toss_coin(self, U_c, tossing_unit):
+        return 1
+
+
+    # relaxing the growth and parent_diversity rules so that it is not that hard to construct this example
+    @add_to_instance(process.poset)
+    def check_growth(self, U):
+        return True
+
+    @add_to_instance(process.poset)
+    def check_parent_diversity(self, U):
+        return True
+
+
     dag = DAG(n_processes)
     names_to_units = {}
+    all_ids = list(range(n_processes))
+    left1 = [0]
+    right3 = list(range(1,n_processes))
 
     maximal_names = [None for _ in range(n_processes)]
-
-    byzantine = [0]
-    correct = list(range(1,n_processes))
 
     # create dealing units for every process
     for process_id in range(n_processes):
         add_new_unit_with_given_parents(process, processes, dag, names_to_units, maximal_names, process_id, [])
 
 
-    # reach level 1 with processes 1,2,3 while "ignoring" process 0
-    while True:
-        for process_id in correct:
-            #print(process_id)
-            name = maximal_names[process_id]
-            print(names_to_units[name].level)
-            if names_to_units[name].level<1:
-                # choose parents in a random order
+    # reach level 1 with every process
+    for next_level in [1,2]:
+        reach_new_level_with_processes(process, processes, dag, names_to_units, maximal_names, right3, next_level)
+        add_new_unit_with_given_parents(process, processes, dag, names_to_units, maximal_names, 0, right3)
 
-                parent_ids_set = correct[:]
-                random.shuffle(parent_ids_set)
-                add_new_unit_with_given_parents(process, processes, dag, names_to_units, maximal_names, process_id, parent_ids_set)
+        #verify whether all processes reached the required level
+        for process_id in range(n_processes):
+            name_maximal = maximal_names[process_id]
+            assert names_to_units[name_maximal].level == next_level
 
-        if not any(names_to_units[name].level<1 for name in [maximal_names[proc_id] for proc_id in correct]):
-            break
 
-    # add a new unit for process 0 so as to reach level 1
-    add_new_unit_with_given_parents(process, processes, dag, names_to_units, maximal_names, 0, correct)
+    # reach level 1 with every process
+    order_primes = reach_new_level_with_processes(process, processes, dag, names_to_units, maximal_names, right3, 3)
+    low = order_primes[0]
+    middle = order_primes[1]
+    high = order_primes[2]
+    add_new_unit_with_given_parents(process, processes, dag, names_to_units, maximal_names, low, [0])
+    add_new_unit_with_given_parents(process, processes, dag, names_to_units, maximal_names, middle, [low])
+    if not add_new_unit_with_given_parents(process, processes, dag, names_to_units, maximal_names, 0, [middle]):
+        return False
 
-    # reach level 2 with processes 1,2,3 while "ignoring" process 0
-    while True:
-        for process_id in correct:
-            name = maximal_names[process_id]
-            if names_to_units[name].level<2:
-                # choose parents in a random order
+    #verify whether all processes reached the required level
+    for process_id in range(n_processes):
+        name_maximal = maximal_names[process_id]
+        assert names_to_units[name_maximal].level == 3
 
-                parent_ids_set = correct
-                random.shuffle(parent_ids_set)
-                add_new_unit_with_given_parents(process, processes, dag, names_to_units, maximal_names, process_id, parent_ids_set)
 
-        if not any(names_to_units[name].level<2 for name in [maximal_names[proc_id] for proc_id in correct]):
-            break
 
-    add_new_unit_with_given_parents(process, processes, dag, names_to_units, maximal_names, 0, correct)
+
+
+    undecided = [0, low, middle]
 
     plot_dag(dag)
+
+
+    reach_new_level_with_processes(process, processes, dag, names_to_units, maximal_names, undecided, 4)
+
+    add_new_unit_with_given_parents(process, processes, dag, names_to_units, maximal_names, high, undecided)
+
+    # it is now guaranteed that delta at level 4 is \bottom
+
+    #plot_dag(dag)
+
+
+
+
+
+    for next_level in [5,6,7]:
+
+        reach_new_level_with_processes(process, processes, dag, names_to_units, maximal_names, all_ids, next_level)
+
+        for process_id in all_ids:
+            name_maximal = maximal_names[process_id]
+            print(names_to_units[name_maximal].level, next_level)
+
+
+
+    poset = process.poset
+    prime_units_level_process = [[None for _ in range(n_processes)]]
+    for level in range(1,8):
+        prime_units_level_process.append([poset.get_prime_units_by_level_per_process(level)[process_id][0] for process_id in range(n_processes)])
+    # the prime unit by process 0 at level 1 is not chosen as timing
+    #assert poset.timing_units[0] is prime_units_level_process[1][1]
+    #assert poset.timing_units[0] is prime_units_level_process[1][0]
+    U_c = prime_units_level_process[1][0]
+    poset.timing_partial_results[U_c.hash()] = {}
+
+
+    for level in [2,3,4,5,6,7]:
+        pi_vals = [poset.compute_pi(U_c, U) for U in prime_units_level_process[level]]
+        print(pi_vals)
+    print(unit_to_name(names_to_units, poset.timing_units[0]))
+    print(unit_to_name(names_to_units, prime_units_level_process[1][0]))
+    plot_dag(dag)
+
+
+    return True
+
 
     '''
 
@@ -143,4 +252,4 @@ def test_delta_level_4():
 
 
 
-test_delta_level_4()
+test_delta_level_4_no_decision()
