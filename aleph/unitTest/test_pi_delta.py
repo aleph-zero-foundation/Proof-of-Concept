@@ -10,8 +10,23 @@ from aleph.utils.testing_utils import add_to_instance
 from aleph.utils.plot import plot_poset, plot_dag
 
 
-class DeterministicPermutation:
 
+
+
+def test_delta_level_4_no_decision():
+    random.seed(123456789)
+    for det_coin_value in [0,1]:
+        counter = 0
+        while not generate_delta_level_4_no_decision(det_coin_value):
+            counter += 1
+            assert counter <= 1000, "Failed to generate a poset with prescribed properties."
+
+
+class DeterministicPermutation:
+    '''
+    A class to replace common random permutation in the poset.
+    It always outputs the same deterministic permutation.
+    '''
     def __init__(self, permutation):
         self.permutation = permutation
 
@@ -24,6 +39,11 @@ class DeterministicPermutation:
 
 
 def add_new_unit_with_given_parents(process, processes, dag, names_to_units, maximal_names, creator_id, parent_ids_set):
+    '''
+    Add a unit created by creator_id to the poset/dag so that its second parent is a process in the list parent_ids_set.
+    This function has lots of parameters which are here to generate appropriate signatures, update all the relevant structures etc.
+    :returns: True if created and added succesfully. False if some compliance rule made it impossible to create a unit.
+    '''
     tries = 0
     success = False
     n_processes = process.n_processes
@@ -32,6 +52,7 @@ def add_new_unit_with_given_parents(process, processes, dag, names_to_units, max
         parent_names = []
         success = True
     else:
+        # try all possible candidates for the second parent
         for second_parent in parent_ids_set:
             if second_parent == creator_id:
                 continue
@@ -43,7 +64,6 @@ def add_new_unit_with_given_parents(process, processes, dag, names_to_units, max
 
     if not success:
         return False
-    assert success, "Adding a new unit failed because it was impossible to choose diverse parents"
 
     new_name = dag_utils.generate_unused_name(dag, creator_id)
     dag.add(new_name, creator_id, parent_names)
@@ -53,13 +73,16 @@ def add_new_unit_with_given_parents(process, processes, dag, names_to_units, max
     processes[creator_id].sign_unit(U)
     names_to_units[new_name] = U
     process.poset.prepare_unit(U)
-    if (new_name=='0-M'):
-        plot_dag(dag)
     assert process.add_unit_to_poset(U), f'Unit {new_name} not compliant.'
     return True
 
 
 def reach_new_level_with_processes(process, processes, dag, names_to_units, maximal_names, processes_to_advance, next_level):
+    '''
+    Start with a set of processes processes_to_advance with max-units at level next_level.
+    Keep adding new units within this set (and having parents within this set) until all of them reach level next_level.
+    Note that it is necessary that |processes_to_advance|>=
+    '''
     processes_on_next_level = [process_id for process_id in processes_to_advance if names_to_units[maximal_names[process_id]].level >= next_level]
     assert processes_on_next_level == []
     while len(processes_on_next_level) < len(processes_to_advance):
@@ -85,15 +108,12 @@ def unit_to_name(names_to_units, U):
     return None
 
 
-def test_delta_level_4_no_decision():
-    random.seed(123456789)
-    counter = 0
-    while not generate_delta_level_4_no_decision():
-        counter += 1
-        assert counter <= 1000, "Failed to generate a poset with prescribed properties."
 
 
-def generate_delta_level_4_no_decision():
+
+
+
+def generate_delta_level_4_no_decision(det_coin_value = 0):
 
     n_processes = 4
 
@@ -118,7 +138,7 @@ def generate_delta_level_4_no_decision():
 
     @add_to_instance(process.poset)
     def toss_coin(self, U_c, tossing_unit):
-        return 1
+        return det_coin_value
 
 
     # relaxing the growth and parent_diversity rules so that it is not that hard to construct this example
@@ -176,7 +196,7 @@ def generate_delta_level_4_no_decision():
 
     undecided = [0, low, middle]
 
-    plot_dag(dag)
+    #plot_dag(dag)
 
 
     reach_new_level_with_processes(process, processes, dag, names_to_units, maximal_names, undecided, 4)
@@ -184,6 +204,7 @@ def generate_delta_level_4_no_decision():
     add_new_unit_with_given_parents(process, processes, dag, names_to_units, maximal_names, high, undecided)
 
     # it is now guaranteed that delta at level 4 is \bottom
+
 
     #plot_dag(dag)
 
@@ -214,10 +235,32 @@ def generate_delta_level_4_no_decision():
 
     for level in [2,3,4,5,6,7]:
         pi_vals = [poset.compute_pi(U_c, U) for U in prime_units_level_process[level]]
-        print(pi_vals)
-    print(unit_to_name(names_to_units, poset.timing_units[0]))
-    print(unit_to_name(names_to_units, prime_units_level_process[1][0]))
-    plot_dag(dag)
+        print(level, pi_vals)
+        if level in [2,3]:
+            assert pi_vals == [1,0,0,0]
+        if level == 4:
+            assert pi_vals == [-1,-1,-1,-1]
+        if level in [5,6,7]:
+            assert pi_vals == [det_coin_value]*n_processes
+
+
+    for level in [3,5,7]:
+        delta_vals = [poset.compute_delta(U_c, U) for U in prime_units_level_process[level]]
+        if level == 3:
+            assert delta_vals == [0,0,0,0]
+        if level == 5:
+            assert delta_vals == [-1,-1,-1,-1]
+        if level == 7:
+            assert det_coin_value in delta_vals and (1-det_coin_value) not in delta_vals
+        #print(level, delta_vals)
+
+    if det_coin_value == 0:
+        assert poset.timing_units[0] is prime_units_level_process[1][1]
+    if det_coin_value == 1:
+        assert poset.timing_units[0] is prime_units_level_process[1][0]
+    #print(unit_to_name(names_to_units, poset.timing_units[0]))
+    #print(unit_to_name(names_to_units, prime_units_level_process[1][0]))
+    #plot_dag(dag)
 
 
     return True
