@@ -365,10 +365,10 @@ class Poset:
 
         # check if process that created U is owner of the threshold coin we are about to use
         dealer_id = indices[0][1]
+        # we can take threshold coin of index 0 as it extsts and is the only coin share as guaranteed by determine_coin_shares
         assert U.creator_id == self.threshold_coins[dealer_id][0].process_id
 
         for _, dealer_id in indices:
-            # TODO choosing 0 here is wrong, should determine which forked threshold coin to use
             coin_shares.append(self.threshold_coins[dealer_id][0].create_coin_share(U.level))
 
         U.coin_shares = coin_shares
@@ -547,8 +547,8 @@ class Poset:
             return False
 
         # 7. Coinshares are OK.
-        #if self.is_prime(U) and not self.check_coin_shares(U):
-        #    return False
+        if self.is_prime(U) and not self.check_coin_shares(U):
+            return False
 
         return True
 
@@ -696,6 +696,7 @@ class Poset:
         :returns: True if everything works and False otherwise
         '''
 
+        #TODO check if shares are valid, i.e. if they can be combined
         indices = self.determine_coin_shares(U)
         if U.coin_shares is None:
             if indices:
@@ -707,7 +708,7 @@ class Poset:
             return False
 
         for (share_id, dealer_id), coin_share in zip(indices, U.coin_shares):
-            # TODO choosing 0 here is wrong, should determine which forked threshold coin to use
+            # there shuld be exactly one threshold coin, hence we can take index 0
             if not self.threshold_coins[dealer_id][0].verify_coin_share(coin_share, share_id, U.level):
                 return False
 
@@ -917,7 +918,6 @@ class Poset:
         return self.high_below(V, U)
 
 
-
 #===============================================================================================================================
 # PI AND DELTA FUNCTIONS
 #===============================================================================================================================
@@ -936,26 +936,78 @@ class Poset:
     def first_available_index(self, V, level):
         permutation = self.crp[level]
 
-        for process_id in permutation:
-            # TODO it should skip forking dealing units
-            if any(self.below(U,V) for U in self.dealing_units[process_id]):
-                return process_id
+        for dealer_id in permutation:
+            if self.has_forking_evidence(V, dealer_id):
+                continue
+            if any(self.below(U,V) for U in self.dealing_units[dealer_id]):
+                return dealer_id
 
         #This is clearly a problem... Should not happen
         assert False, "No index available for first_available_index."
         return None
 
 
-    def toss_coin(self, U_c, tossing_unit):
-        level = tossing_unit.level-1
-        fai = self.first_available_index(U_c, level-1)
-        if self.has_forking_evidence(tossing_unit, fai):
-            #the coin comes from a forker: we are allowed to not toss a coin here
-            return 0
+    def _simple_coin(self, U, level):
+        return (U.hash()[level%3])%2
 
-        # TODO: compose shares and use the common treshold coin...
-        # For now let's just make something arbitrary but so that all units toss the same coin on that level
-        return (U_c.hash()[level%3])%2
+
+    def toss_coin(self, U_c, tossing_unit):
+        # in this implementation we don't use info about who dealt a threshold coin that was
+        # used to generate a share, i.e. Unit.coin_shares is a list and does not contain that
+        # info. This way we save space, but we need to figure this info out when we toss a coin.
+        # Alternative approach would be to have Unit.coin_shares as a dict of pairs
+        # (dealer_id, coin_share). This would require more space, but ease implementation and speed
+        # tossing a coin. We believe that tossing coin is rare, have current implementation is chosen
+        level = tossing_unit.level-1
+        fai = self.first_available_index(U_c, level)
+
+        # we use simple_coin if we don't have threshold coin dealt by fai or
+        # we know that fai is a forker
+        if not self.threshold_coins[fai] or self.has_forking_evidence(tossing_unit, fai):
+            return self._simple_coin(U_c, level)
+
+        coin_shares = {}
+
+        sigma = self.crp[level]
+
+        # run through all prime ancestors of the tossing_unit
+        for V in self.get_all_prime_units_by_level(level):
+            # we gathered enough coin shares
+            if len(coin_shares) == self.n_processes//3 + 1:
+                break
+
+            # coin shares for U_c were not added to V
+            if not self.below(U_c, V):
+                continue
+
+            # check if V is a fork and we have added coin share corresponding to its creator
+            # Note that at this point we know that fai has not forked its dealing Unit
+            # and we checked shares in V, so shares in forks are the same
+            if V.creator_id in coin_shares:
+                continue
+
+            if self.high_below(V, tossing_unit):
+                # TODO try to optimize finding cs_ind, at least by caching
+                cs_ind = 0 # index of a coin share in V dealt by proces fai
+                for k in sigma:
+                    # we've found fai!
+                    if k == fai:
+                        break
+                    # if there was forking evidence, then we skipped adding coin shares
+                    if self.has_forking_evidence(V, k):
+                        continue
+
+                    cs_ind += 1
+
+                coin_shares[V.creator_id] = V.coin_shares[cs_ind]
+
+        # we have enough valid coin shares to toss a coin
+        # TODO check how often this is not the case
+        if len(coin_shares) == self.n_processes//3 + 1:
+            # tossing unit has no evidanve that fai forked so there is only one threshold coin
+            return self.threshold_coins[fai][0].combine_coin_shares(coin_shares)
+        else:
+            return self._simple_coin(U_c, level)
 
 
     def exists_tc(self, list_vals, U_c, tossing_unit):
