@@ -36,7 +36,7 @@ dag = DAG(n_processes)
 names_to_units = {}
 
 for process_id in range(n_processes):
-    name = dag_utils.generate_unit_name(0, process_id)
+    name = dag_utils.generate_unit_name(dag, process_id)
     dag.add(name, process_id, [])
     U = Unit(process_id, [], txs=[])
     processes[process_id].sign_unit(U)
