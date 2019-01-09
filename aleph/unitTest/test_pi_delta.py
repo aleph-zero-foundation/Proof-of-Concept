@@ -10,9 +10,6 @@ from aleph.utils.testing_utils import add_to_instance
 from aleph.utils.plot import plot_poset, plot_dag
 
 
-
-
-
 def test_delta_level_4_no_decision():
     random.seed(123456789)
     for det_coin_value in [0,1]:
@@ -36,10 +33,10 @@ class DeterministicPermutation:
         return list(self.permutation)
 
 
-
-
 def add_new_unit_with_given_parents(process, processes, dag, names_to_units, maximal_names, creator_id, parent_ids_set):
     '''
+    :param list maximal_names: list of names of maximal units per process
+    :param list parent_ids_set: list of candidates for second parent
     Add a unit created by creator_id to the poset/dag so that its second parent is a process in the list parent_ids_set.
     This function has lots of parameters which are here to generate appropriate signatures, update all the relevant structures etc.
     :returns: True if created and added succesfully. False if some compliance rule made it impossible to create a unit.
@@ -74,6 +71,7 @@ def add_new_unit_with_given_parents(process, processes, dag, names_to_units, max
     names_to_units[new_name] = U
     process.poset.prepare_unit(U)
     assert process.add_unit_to_poset(U), f'Unit {new_name} not compliant.'
+
     return True
 
 
@@ -98,10 +96,6 @@ def reach_new_level_with_processes(process, processes, dag, names_to_units, maxi
                     processes_on_next_level.append(process_id)
 
     return processes_on_next_level
-
-
-
-
 
 
 def generate_delta_level_4_no_decision(det_coin_value = 0):
@@ -273,9 +267,6 @@ def generate_delta_level_4_no_decision(det_coin_value = 0):
         assert poset.timing_units[0] is prime_units_level_process[1][0]
 
     return True
-
-
-
 
 
 def unit_to_name(names_to_units, U):
