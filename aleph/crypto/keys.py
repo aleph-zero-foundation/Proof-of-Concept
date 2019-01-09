@@ -15,7 +15,7 @@ class SigningKey:
         '''
         if isinstance(message, str):
             message = message.encode()
-        return self.secret_key.sign(message)
+        return self.secret_key.sign(message).signature
 
     def to_hex(self):
         return nacl.encoding.HexEncoder.encode(self.secret_key._seed)
@@ -44,7 +44,11 @@ class VerifyKey:
         '''
         if isinstance(message, str):
             message = message.encode()
-        return self.verify_key.verify(signature) == message
+        try:
+            msg = self.verify_key.verify(message, signature)
+        except nacl.exceptions.BadSignatureError:
+            return False
+        return True
 
     def to_hex(self):
         return self.verify_key.encode(encoder=nacl.encoding.HexEncoder)
