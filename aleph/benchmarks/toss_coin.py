@@ -64,11 +64,9 @@ def check_create_unit(n_processes, n_units, n_forkers, strategy, verify_fails = 
         # below condition will triger exactly once for each level
         if U.level not in levels:
             levels.add(U.level)
-            # print(U.level, len(dag))
             if U.level == 3:
                 U_c = U
             if U_c is not None and U.level-U_c.level >= 4:
-                # print(f'tossing!!! U_c: creator_id {U_c.creator_id} U: creator_id={U.creator_id} level={U.level}    result: {posets[creator_id].toss_coin(U_c, U)}')
                 start = time()
                 posets[creator_id].toss_coin(U_c, U)
                 end = time()-start
@@ -81,7 +79,7 @@ def check_create_unit(n_processes, n_units, n_forkers, strategy, verify_fails = 
         for process_id in non_forkers:
             if process_id == creator_id:
                 continue
-            posets[creator_id].prepare_unit(U)
+            posets[process_id].prepare_unit(U)
             assert posets[process_id].check_compliance(U), f'{U.creator_id} {U.level}'
             posets[process_id].add_unit(U)
             name_to_unit[process_id][name] = U

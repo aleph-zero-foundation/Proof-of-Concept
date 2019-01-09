@@ -10,6 +10,7 @@ setup(
         "networkx",
         "numpy",
         "matplotlib",
+        "joblib",
         ],
     license="",
 )

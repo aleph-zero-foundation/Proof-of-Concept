@@ -66,7 +66,6 @@ def check_create_unit(n_processes, n_units, n_forkers, strategy, verify_fails = 
             if U.level == 3:
                 U_c = U
             if U_c is not None and U.level-U_c.level >= 4:
-                # print(f'tossing!!! U_c: creator_id {U_c.creator_id} U: creator_id={U.creator_id} level={U.level}    result: {posets[creator_id].toss_coin(U_c, U)}')
                 results.append(posets[creator_id].toss_coin(U_c, U))
         assert posets[creator_id].check_compliance(U)
         posets[creator_id].add_unit(U)
@@ -76,7 +75,7 @@ def check_create_unit(n_processes, n_units, n_forkers, strategy, verify_fails = 
         for process_id in non_forkers:
             if process_id == creator_id:
                 continue
-            posets[creator_id].prepare_unit(U)
+            posets[process_id].prepare_unit(U)
             assert posets[process_id].check_compliance(U), f'{U.creator_id} {U.level}'
             posets[process_id].add_unit(U)
             name_to_unit[process_id][name] = U
