@@ -1249,9 +1249,9 @@ class Poset:
         Break ties. Break them gooooood.
         I love the sound of breaking ties in the morning.
         '''
-        R = reduce(xor, map(lambda x: x.hash().encode(), units_list))
+        R = reduce(xor, map(lambda x: x.hash(), units_list))
         #TODO: might be a good idea to precalculate those?
-        tiebraker = lambda U: xor(R, U.hash().encode())
+        tiebraker = lambda U: xor(R, U.hash())
 
         children = {U:[] for U in units_list} #lists of children
         parents  = {U:0  for U in units_list} #number of parents
