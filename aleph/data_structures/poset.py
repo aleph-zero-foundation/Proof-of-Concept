@@ -286,7 +286,6 @@ class Poset:
 
         # TODO there is a problem with lemma 3.16 (there could be no such W), i.e. there could be not enough coin shares to toss a coin.
         # as a solution on level +4 don't use threshold coin, just toss a hash of U, and on level +6 we know there are enough shares
-        # TODO we skip coin shares for dealer that are proven by U to be forkers.
 
         # don't add coin shares for prime units of level lower than 6
         # this is due to the fact that we want to build transversal for a family
@@ -297,8 +296,9 @@ class Poset:
         # the to-be-constructed list of pairs of indices such that for (i,j) in the list the coin share TC^j_i(L(U)) should be added to U
         indices = []
 
-        # don't add coin shares of dealers that are proved by U to be forkers
-        skip_dealer_ind = set(dealer_id for dealer_id in range(self.n_processes) if self.has_forking_evidence(U, dealer_id))
+        # don't add coin shares of dealers that are proved by U to be forkers or U does not see a dealing unit
+        skip_dealer_ind = set(dealer_id for dealer_id in range(self.n_processes) if self.has_forking_evidence(U, dealer_id) or
+                                                                                    self.index_dealing_unit_below(dealer_id, U) is None)
 
         share_id = U.creator_id
 
@@ -308,7 +308,7 @@ class Poset:
 
         # create a list of all prime units on level level that are below U
         # threshold coins dealt by forkers are not considered, hence we omit them
-        dealing_F = [V for Vs in self.prime_units_by_level[level] for V in Vs if V.creator_id not in skip_dealer_ind and self.below(V, U)]
+        dealing_F = [V for Vs in self.prime_units_by_level[level] for V in Vs if self.below(V, U)]
 
         sigma = self.crp[U.level]
 
@@ -320,9 +320,9 @@ class Poset:
             if dealer_id in skip_dealer_ind:
                 continue
 
-            # haven't seen a dealing unit created by this dealer
-            if not self.dealing_units[dealer_id]:
-                continue
+            # during construction of skip_dealer_ind we ruled out possibility that the below returns None
+            ind_dU = self.index_dealing_unit_below(dealer_id, U)
+            dU = self.dealing_units[dealer_id][ind_dU]
 
             # check if a dealing unit of dealer_id is in the lower cone of some unit in dealing_F
             for V in dealing_F:
@@ -330,14 +330,9 @@ class Poset:
                 if V.creator_id not in disjoint_ind:
                     continue
 
-                dU = self.dealing_units[dealer_id][0]
-
-                # check if dealing unit dealt by dealer_id is under V
-                if not self.below(dU, V):
-                    continue
-
                 # remove all sets that started intersecting with the sigma-transversal
                 disjoint_ind.remove(V.creator_id)
+
                 # check if dU is in some lower cone and remove it if so
                 disjoint_ind = set(di for di in disjoint_ind if not any(self.below(dU, V) for V in self.prime_units_by_level[level][di]))
 
@@ -363,13 +358,11 @@ class Poset:
         if U.level >= ADD_SHARES:
             assert indices != [] and indices is not None
 
-        # check if process that created U is owner of the threshold coin we are about to use
-        dealer_id = indices[0][1]
-        # we can take threshold coin of index 0 as it extsts and is the only coin share as guaranteed by determine_coin_shares
-        assert U.creator_id == self.threshold_coins[dealer_id][0].process_id
-
         for _, dealer_id in indices:
-            coin_shares.append(self.threshold_coins[dealer_id][0].create_coin_share(U.level))
+            ind = self.index_dealing_unit_below(dealer_id, U)
+            # assert self.threshold_coins[dealer_id][ind].process_id == U.creator_id
+            # we can take threshold coin of index i as it extsts and is the only coin share as guaranteed by determine_coin_shares
+            coin_shares.append(self.threshold_coins[dealer_id][ind].create_coin_share(U.level))
 
         U.coin_shares = coin_shares
 
@@ -708,8 +701,9 @@ class Poset:
             return False
 
         for (share_id, dealer_id), coin_share in zip(indices, U.coin_shares):
-            # there shuld be exactly one threshold coin, hence we can take index 0
-            if not self.threshold_coins[dealer_id][0].verify_coin_share(coin_share, share_id, U.level):
+            # there should be exactly one threshold coin below U
+            ind = self.index_dealing_unit_below(dealer_id, U)
+            if not self.threshold_coins[dealer_id][ind].verify_coin_share(coin_share, share_id, U.level):
                 return False
 
         return True
@@ -788,15 +782,31 @@ class Poset:
         return forks
 
 
-    def has_forking_evidence(self, unit, process_id):
+    def has_forking_evidence(self, U, process_id):
         '''
-        Checks if a unit has in its lower cone an evidence that process_id is forking.
-        :param unit unit: unit to be checked for evidence of process_id forking
+        Checks if U has in its lower cone an evidence that process_id is forking.
+        :param Unit U: unit to be checked for evidence of process_id forking
         :param int process_id: identification number of process to be verified
         :returns: True if forking evidence is present, False otherwise
         '''
-        return len(unit.floor[process_id]) > 1
+        return len(U.floor[process_id]) > 1
 
+
+    def index_dealing_unit_below(self, dealer_id, U):
+        '''
+        Returns an index of dealing unit created by dealer_id that is below U or None otherwise.
+        '''
+
+        n_dunits_below, ind_dU_below = 0, None
+        for ind, dU in enumerate(self.dealing_units[dealer_id]):
+            if n_dunits_below == 2:
+                return None
+
+            if self.below(dU, U):
+                n_dunits_below += 1
+                ind_dU_below = ind
+
+        return ind_dU_below
 
 
 #===============================================================================================================================

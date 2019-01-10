@@ -140,6 +140,9 @@ def generate_delta_level_4_no_decision(det_coin_value = 0):
     def toss_coin(self, U_c, tossing_unit):
         return det_coin_value
 
+    @add_to_instance(process.poset)
+    def check_coin_shares(self, U):
+        return True
 
     # relaxing the growth and parent_diversity rules so that it is not that hard to construct this example
     @add_to_instance(process.poset)
