@@ -68,7 +68,7 @@ async def listener(process, process_id, addresses, public_key_list, executor, se
 
         await _send_poset_info(process_id, ex_id, writer, int_heights, int_hashes, 'listener', logger)
 
-        units_received = await _receive_units(process, ex_id, reader, 'listener', logger)
+        units_received = await _receive_units(process_id, ex_id, reader, 'listener', logger)
 
         succesful = await _verify_signatures(process_id, units_received, public_key_list, executor, 'listener', logger)
         if not succesful:
@@ -119,8 +119,7 @@ async def sync(process, initiator_id, target_id, target_addr, public_key_list, e
 
     await _send_units(initiator_id, target_id, int_heights, ex_heights, process, writer, 'sync', logger)
 
-
-    units_received = await _receive_units(process, target_id, reader, 'sync', logger)
+    units_received = await _receive_units(initiator_id, target_id, reader, 'sync', logger)
 
     succesful = await _verify_signatures(initiator_id, units_received, public_key_list, executor, 'sync', logger)
     if not succesful:
@@ -163,15 +162,14 @@ async def _receive_poset_info(process_id, n_processes, reader, mode, logger):
     return ex_id, ex_heights, ex_hashes
 
 
-async def _receive_units(process, ex_id, reader, mode, logger):
-    logger.info(f'{mode} {process.process_id}: receiving units from {ex_id}')
+async def _receive_units(process_id, ex_id, reader, mode, logger):
+    logger.info(f'{mode} {process_id}: receiving units from {ex_id}')
     data = await reader.readuntil()
     n_bytes = int(data[:-1])
-    logger.info(f'{mode} {process.process_id}: received {n_bytes} bytes from {ex_id}')
+    logger.info(f'{mode} {process_id}: received {n_bytes} bytes from {ex_id}')
     data = await reader.readexactly(n_bytes)
-    serialized_units = pickle.loads(data)
-    units_received = [Unit.deserialize(s, process.poset.units) for s in serialized_units]
-    logger.info(f'{mode}, {process.process_id}: received units')
+    units_received = pickle.loads(data)
+    logger.info(f'{mode}, {process_id}: received units')
     return units_received
 
 
@@ -184,8 +182,6 @@ async def _send_units(process_id, ex_id, int_heights, ex_heights, process, write
         units = process.poset.units_by_height_interval(creator_id=i, min_height=ex_heights[i]+1, max_height=int_heights[i])
         units_to_send.extend(units)
     units_to_send = process.poset.order_units_topologically(units_to_send)
-    units_to_send = [U.serialize() for U in units_to_send]
-
     data = pickle.dumps(units_to_send)
     writer.write(str(len(data)).encode())
     logger.info(f'{mode} {process_id}: sending {len(data)} bytes to {ex_id}')
@@ -220,7 +216,9 @@ async def _verify_signatures(process_id, units_received, public_key_list, execut
 async def _add_units(process_id, ex_id, units_received, process, mode, logger):
     logger.info(f'{mode} {process_id}: trying to add {len(units_received)} units from {ex_id} to poset')
     for unit in units_received:
-        if not process.add_unit_to_poset(U):
+        process.poset.fix_parents(unit)
+        if not process.add_unit_to_poset(unit):
+            logger.error(f'{mode} {process_id}: unit {unit} from {ex_id} was rejected')
             return False
     logger.info(f'{mode} {process_id}: units from {ex_id} were added succesfully')
     return True
