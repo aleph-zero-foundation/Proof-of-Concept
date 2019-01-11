@@ -41,11 +41,9 @@ class Unit(object):
 
     def bytestring(self):
         '''Create a bytestring with all essential info about this unit for the purpose of signature creation and checking.'''
-        separator = b'|'
-        creator_bs =  str(self.creator_id).encode()
-        parents_bs = separator.join([p.encode() for p in self.parents_hashes()])
-        coin_bs = separator.join([PAIRING_GROUP.serialize(cs) for cs in self.coin_shares])
-        return separator.join([creator_bs, parents_bs, coin_bs, self.txs])
+        creator = str(self.creator_id).encode()
+        serialized_shares = [PAIRING_GROUP.serialize(cs) for cs in self.coin_shares]
+        return b'|'.join([creator] + self.parents_hashes() + serialized_shares + [self.txs])
 
 
     def serialize(self):
@@ -72,7 +70,7 @@ class Unit(object):
         '''Return the value of hash of this unit.'''
         if self.hash_value is not None:
             return self.hash_value
-        self.hash_value = hashlib.sha512(self.bytestring()).hexdigest()
+        self.hash_value = hashlib.sha3_256(self.bytestring()).digest()
         return self.hash_value
 
 
@@ -81,7 +79,7 @@ class Unit(object):
 
 
     def __eq__(self, other):
-        return self.hash() == other.hash() #this is probably faster
+        return isinstance(other, Unit) and self.hash() == other.hash() #this is probably faster
         #return (isinstance(other, Unit) and self.creator_id == other.creator_id and self.parents_hashes() == other.parents_hashes() and self.txs == other.txs)
 
 
