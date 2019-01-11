@@ -28,7 +28,7 @@ def tx_generator(committee_addresses, signing_keys, txps):
         amount = random.randrange(1, 100)
         index = last_tx_index[issuer_id] + 1
         tx = Tx(issuer_id, receiver_id, amount, index)
-        data = pickle.dumps(tx, protocol=4)
+        data = pickle.dumps(tx)
 
         sent = False
         while not sent:

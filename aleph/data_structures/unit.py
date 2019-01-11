@@ -25,7 +25,7 @@ class Unit(object):
         self.coin_shares = coin_shares or []
         self.level = None
         self.hash_value = None
-        self.txs = zlib.compress(pickle.dumps(txs, protocol=4), level=4)
+        self.txs = zlib.compress(pickle.dumps(txs), level=4)
         #self.txs = txs
 
 
@@ -52,7 +52,7 @@ class Unit(object):
         '''Serialize this unit into bytestring that can be send via network.'''
         coin_shares = [PAIRING_GROUP.serialize(cs) for cs in self.coin_shares]
         state = (self.creator_id, self.parents_hashes(), self.txs, self.signature, coin_shares)
-        return pickle.dumps(state, protocol=4)
+        return pickle.dumps(state)
 
 
     @classmethod
@@ -104,4 +104,3 @@ class Unit(object):
         #str_repr += str(self.level)?
         #str_repr += str(self.self_predecessor.hash())?
         return str_repr
-
