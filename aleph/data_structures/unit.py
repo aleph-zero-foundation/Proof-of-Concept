@@ -1,5 +1,7 @@
 '''This module implements unit - a basic building block of Aleph protocol.'''
 import hashlib
+import pickle
+import zlib
 
 class Unit(object):
     '''This class is the building block for the poset'''
@@ -7,47 +9,66 @@ class Unit(object):
     __slots__ = ['creator_id', 'parents', 'txs', 'signature', 'coin_shares',
                  'level', 'floor', 'ceil', 'height', 'self_predecessor', 'hash_value']
 
-    def __init__(self, creator_id, parents, txs, signature=None, coin_shares=None, level=None):
+    def __init__(self, creator_id, parents, txs, signature=None, coin_shares=None):
         '''
         :param int creator_id: indentification number of a process creating this unit
-        :param list parents: list of hashes of parent units; first parent has to be above a unit created by the process creator_id
+        :param list parents: list of parent units; first parent has to be above a unit created by the process creator_id
         :param list txs: list of transactions
-        :param int signature: signature made by a process creating this unit preventing forging units by Byzantine processes
-        :param list coin_shares: list of coin_shares if this is a prime unit, null otherwise
+        :param bytes signature: signature made by a process creating this unit preventing forging units by Byzantine processes
+        :param list coin_shares: list of coin_shares if this is a prime unit, None otherwise
         '''
         self.creator_id = creator_id
         self.parents = parents
-        self.txs = txs
         self.signature = signature
         self.coin_shares = coin_shares
-        self.level = level
+        self.level = None
         self.hash_value = None
+        self.txs = zlib.compress(pickle.dumps(txs, protocol=4), level=4)
+        #self.txs = txs
 
 
-    def hash(self):
-        '''
-        Hashing function used to hide addressing differences among the committee
-        '''
-        # TODO: this is only a temporary implementation!
-        # TODO: need to be updated at some point!
-        # TODO: should coin_shares be hashed?
-        # TODO: should order of parents (or txs) influence the hash value?
-
-        if self.hash_value is not None:
-            return self.hash_value
-
-        self.hash_value = hashlib.sha3_256(str(self).encode()).hexdigest().encode()
-        return self.hash_value
+    def transactions(self):
+        '''Iterate over transactions (instances of Tx class) belonging to this unit.'''
+        return iter(pickle.loads(zlib.decompress(self.txs)))
+        #return iter(self.txs)
 
 
     def parents_hashes(self):
         return [V.hash() for V in self.parents]
 
 
-    def to_message(self):
-        '''Generates message used for signing units'''
-        dict_txs = [tx.to_dict() for tx in self.txs]
-        return unit_to_message(self.creator_id, self.parents_hashes(), dict_txs, self.coin_shares)
+    def bytestring(self):
+        '''Create a bytestring with all essential info about this unit for the purpose of signature creation and checking.'''
+        separator = b'|'
+        creator_bs =  str(self.creator_id).encode()
+        parents_bs = separator.join([p.encode() for p in self.parents_hashes()])
+        coin_bs = pickle.dumps(self.coin_shares, protocol=4)
+        return separator.join([creator_bs, parents_bs, coin_bs, self.txs])
+
+
+    def serialize(self):
+        '''Serialize this unit into bytestring that can be send via network.'''
+        state = (self.creator_id, self.parents_hashes(), self.txs, self.signature, self.coin_shares)
+        return pickle.dumps(state, protocol=4)
+
+
+    @classmethod
+    def deserialize(cls, data, unit_hashes):
+        '''Create new unit from bytestring data previously created with serialize().
+        unit_hashes should be a dict with hashes as keys and units as values.
+        '''
+        creator, parents, txs, signature, shares = pickle.loads(data)
+        ret = cls(int(creator), [unit_hashes[p] for p in parents], [], signature, shares)
+        ret.txs = txs
+        return ret
+
+
+    def hash(self):
+        '''Return the value of hash of this unit.'''
+        if self.hash_value is not None:
+            return self.hash_value
+        self.hash_value = hashlib.sha512(self.bytestring()).hexdigest()
+        return self.hash_value
 
 
     def __hash__(self):
@@ -55,37 +76,27 @@ class Unit(object):
 
 
     def __eq__(self, other):
-        return (isinstance(other, Unit) and self.creator_id == other.creator_id and
-               self.parents_hashes() == other.parents_hashes() and
-               list(map(str, self.txs)) == list(map(str, other.txs)))
+        return self.hash() == other.hash() #this is probably faster
+        #return (isinstance(other, Unit) and self.creator_id == other.creator_id and self.parents_hashes() == other.parents_hashes() and self.txs == other.txs)
 
 
     def __str__(self):
         # create a string containing all the essential data in the unit
-        str_repr = ''
-        str_repr += str(self.creator_id)
+        str_repr =  str(self.creator_id)
         str_repr += str(self.parents_hashes())
         str_repr += str(self.txs)
         str_repr += str(self.coin_shares)
-
         return str_repr
 
 
     def __repr__(self):
         # create a string containing all the essential data in the unit
-        str_repr = ''
-        str_repr += str(self.creator_id)
+        str_repr =  str(self.creator_id)
         str_repr += str(self.parents_hashes())
         str_repr += str(self.txs)
         str_repr += str(self.coin_shares)
-        str_repr += str(self.level)
-        str_repr += str(self.height)
-        #str_repr += str(self.self_predecessor.hash())
-        #str_repr += str(self.floor)
-        #str_repr += str(self.ceil)
-
+        #str_repr += str(self.height)
+        #str_repr += str(self.level)?
+        #str_repr += str(self.self_predecessor.hash())?
         return str_repr
 
-
-def unit_to_message(creator_id, parents, dics_txs, coin_shares):
-    return str([creator_id, parents, dics_txs, coin_shares]).encode()
