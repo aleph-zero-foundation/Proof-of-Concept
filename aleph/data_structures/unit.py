@@ -36,7 +36,7 @@ class Unit(object):
 
 
     def parents_hashes(self):
-        return [V.hash() for V in self.parents]
+        return [V.hash() for V in self.parents] if (self.parents and isinstance(self.parents[0], Unit)) else self.parents
 
 
     def bytestring(self):
@@ -46,24 +46,16 @@ class Unit(object):
         return b'|'.join([creator] + self.parents_hashes() + serialized_shares + [self.txs])
 
 
-    def serialize(self):
-        '''Serialize this unit into bytestring that can be send via network.'''
-        coin_shares = [PAIRING_GROUP.serialize(cs) for cs in self.coin_shares]
-        state = (self.creator_id, self.parents_hashes(), self.txs, self.signature, coin_shares)
-        return pickle.dumps(state)
+    def __getstate__(self):
+        serialized_coin_shares = [PAIRING_GROUP.serialize(cs) for cs in self.coin_shares]
+        return (self.creator_id, self.parents_hashes(), self.txs, self.signature, serialized_coin_shares)
 
 
-    @classmethod
-    def deserialize(cls, data, unit_hashes):
-        '''Create new unit from bytestring data previously created with serialize().
-        unit_hashes should be a dict with hashes as keys and units as values.
-        '''
-        creator, parents, txs, signature, coin_shares = pickle.loads(data)
-        parents = [unit_hashes[p] for p in parents]
-        coin_shares = [PAIRING_GROUP.deserialize(cs) for cs in coin_shares]
-        ret = cls(int(creator), parents, [], signature, coin_shares)
-        ret.txs = txs
-        return ret
+    def __setstate__(self, state):
+        self.creator_id, self.parents, self.txs, self.signature, serialized_coin_shares = state
+        self.coin_shares = [PAIRING_GROUP.deserialize(cs) for cs in serialized_coin_shares]
+        self.level = None
+        self.hash_value = None
 
 
     def hash(self):
