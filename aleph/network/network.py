@@ -228,4 +228,4 @@ async def _add_units(process_id, ex_id, units_received, process, mode, logger):
 
 def verify_signature(unit, public_key_list):
     '''Verifies signatures of the unit and all txs in it'''
-    return public_key_list[unit.creator_id].verify_signature(unit.signature, unit.bytestring()):
+    return public_key_list[unit.creator_id].verify_signature(unit.signature, unit.bytestring())
