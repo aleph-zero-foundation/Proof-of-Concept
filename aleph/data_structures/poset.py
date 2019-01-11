@@ -6,7 +6,7 @@ import random
 import logging
 
 from aleph.data_structures.unit import Unit
-from aleph.crypto import xor, ThresholdCoin
+from aleph.crypto import xor
 from aleph.config import *
 
 
