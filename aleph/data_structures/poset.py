@@ -284,8 +284,9 @@ class Poset:
         :returns: list of pairs of indices such that for (i,j) in the list the coin share TC^j_i(L(U)) should be added to U
         '''
 
-        # TODO there is a problem with lemma 3.16 (there could be no such W), i.e. there could be not enough coin shares to toss a coin.
-        # as a solution on level +4 don't use threshold coin, just toss a hash of U, and on level +6 we know there are enough shares
+        # NOTE there is a problem with lemma 3.16 (there could be no such W), i.e. there could be not enough coin shares to toss a coin.
+        # as a solution on level +4: if there is enough shares it succeeds, otherwise just toss a hash of U,
+        # and on level +6 we know there are enough shares
 
         # don't add coin shares for prime units of level lower than 6
         # this is due to the fact that we want to build transversal for a family
@@ -320,15 +321,15 @@ class Poset:
 
             indices.append((share_id, dealer_id))
 
-            # during construction of skip_dealer_ind we ruled out possibility that the below returns None
+            # during construction of skip_dealer_ind we ruled out the possibility that the below returns None
             ind_dU = self.index_dealing_unit_below(dealer_id, U)
             dU = self.dealing_units[dealer_id][ind_dU]
 
             # filter out all units that have dU<=V
-            prime_below_U = [V in prime_below_U if not self.below(dU,V)]
+            prime_below_U = [V for V in prime_below_U if not self.below(dU, V)]
 
-            # we have added all necessary shares
-            if not prime_below_U:
+            # have we added all necessary shares?
+            if prime_below_U == []:
                 break
 
         return indices
@@ -348,7 +349,7 @@ class Poset:
         for _, dealer_id in indices:
             ind = self.index_dealing_unit_below(dealer_id, U)
             # assert self.threshold_coins[dealer_id][ind].process_id == U.creator_id
-            # we can take threshold coin of index i as it extsts and is the only coin share as guaranteed by determine_coin_shares
+            # we can take threshold coin of index ind as it is included in the unique dealing unit by dealer_id below U
             coin_shares.append(self.threshold_coins[dealer_id][ind].create_coin_share(U.level))
 
         U.coin_shares = coin_shares
@@ -954,7 +955,7 @@ class Poset:
         # info. This way we save space, but we need to figure this info out when we toss a coin.
         # Alternative approach would be to have Unit.coin_shares as a dict of pairs
         # (dealer_id, coin_share). This would require more space, but ease implementation and speed
-        # tossing a coin. We believe that tossing coin is rare, have current implementation is chosen
+        # tossing a coin. We believe that tossing coin is rare, hence current implementation is chosen
         level = tossing_unit.level-1
         fai = self.first_available_index(U_c, level)
 
@@ -977,7 +978,7 @@ class Poset:
         # run through all prime ancestors of the tossing_unit
         for V in self.get_all_prime_units_by_level(level):
             # we gathered enough coin shares -- ceil(n_processes/3)
-            if len(coin_shares) == (self.n_processes+2)//3:
+            if len(coin_shares) == self.n_processes//3 + 1:
                 break
 
             # can use only shares from units visible from the tossing unit (so that every process arrives at the same result)
@@ -991,25 +992,20 @@ class Poset:
             if V.creator_id in coin_shares:
                 continue
 
-            # TODO try to optimize finding cs_ind, at least by caching
-            cs_ind = 0 # index of a coin share in V dealt by proces fai
-            for k in sigma:
-                # we've found fai!
-                if k == fai:
+            # TODO try to optimize this part
+            indices = self.determine_coin_shares(V)
+            for cs_ind, (share_id, dealer_id) in enumerate(indices):
+                assert share_id == V.creator_id
+                if dealer_id == fai:
+                    coin_shares[V.creator_id] = V.coin_shares[cs_ind]
                     break
-                # if there was forking evidence, then we skipped adding coin shares
-                if self.has_forking_evidence(V, k):
-                    continue
 
-                cs_ind += 1
 
-            coin_shares[V.creator_id] = V.coin_shares[cs_ind]
 
         # we have enough valid coin shares to toss a coin
         # TODO check how often this is not the case
         if len(coin_shares) == self.n_processes//3 + 1:
-            # tossing unit has no evidanve that fai forked so there is only one threshold coin
-            return self.threshold_coins[fai][0].combine_coin_shares(coin_shares)
+            return self.threshold_coins[fai][ind_dealer].combine_coin_shares(coin_shares)
         else:
             return self._simple_coin(U_c, level)
 
