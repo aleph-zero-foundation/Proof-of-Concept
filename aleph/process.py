@@ -68,8 +68,7 @@ class Process:
         :param unit U: the unit to be signed.
         '''
 
-        message = U.to_message()
-        U.signature = self.secret_key.sign(message)
+        U.signature = self.secret_key.sign(U.bytestring())
 
 
     def add_unit_and_snap_validate(self, U):
