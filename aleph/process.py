@@ -79,14 +79,14 @@ class Process:
         list_of_validated_units = []
         self.poset.add_unit(U, list_of_validated_units)
         logger.info(f'add_unit_to_poset {self.process_id} -> Validated a set of {len(list_of_validated_units)} units.')
-        for tx in U.txs:
+        for tx in U.transactions():
             if tx.issuer not in self.pending_txs.keys():
                 self.pending_txs[tx.issuer] = set()
             self.pending_txs[tx.issuer].add((tx,U))
         for V in list_of_validated_units:
-            if V.txs:
+            if V.transactions():
                 newly_validated = self.validate_transactions_in_unit(V, U)
-                logger.info(f'add_unit_to_poset {self.process_id} -> Validated a set of {len(newly_validated)}/{len(V.txs)} transactions.')
+                logger.info(f'add_unit_to_poset {self.process_id} -> Validated a set of {len(newly_validated)} transactions.')
                 self.validated_transactions.extend(newly_validated)
 
 
@@ -146,7 +146,7 @@ class Process:
         '''
         logger = logging.getLogger(LOGGER_NAME)
         validated_transactions = []
-        for tx in U.txs:
+        for tx in U.transactions():
             user_public_key = tx.issuer
 
             assert user_public_key in self.pending_txs.keys(), f"No transaction is pending for user {user_public_key}."
