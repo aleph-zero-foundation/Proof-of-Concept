@@ -3,6 +3,8 @@ import hashlib
 import pickle
 import zlib
 
+from aleph.config import PAIRING_GROUP
+
 class Unit(object):
     '''This class is the building block for the poset'''
 
@@ -20,7 +22,7 @@ class Unit(object):
         self.creator_id = creator_id
         self.parents = parents
         self.signature = signature
-        self.coin_shares = coin_shares
+        self.coin_shares = coin_shares or []
         self.level = None
         self.hash_value = None
         self.txs = zlib.compress(pickle.dumps(txs, protocol=4), level=4)
@@ -42,13 +44,14 @@ class Unit(object):
         separator = b'|'
         creator_bs =  str(self.creator_id).encode()
         parents_bs = separator.join([p.encode() for p in self.parents_hashes()])
-        coin_bs = pickle.dumps(self.coin_shares, protocol=4)
+        coin_bs = separator.join([PAIRING_GROUP.serialize(cs) for cs in self.coin_shares])
         return separator.join([creator_bs, parents_bs, coin_bs, self.txs])
 
 
     def serialize(self):
         '''Serialize this unit into bytestring that can be send via network.'''
-        state = (self.creator_id, self.parents_hashes(), self.txs, self.signature, self.coin_shares)
+        coin_shares = [PAIRING_GROUP.serialize(cs) for cs in self.coin_shares]
+        state = (self.creator_id, self.parents_hashes(), self.txs, self.signature, coin_shares)
         return pickle.dumps(state, protocol=4)
 
 
@@ -57,8 +60,10 @@ class Unit(object):
         '''Create new unit from bytestring data previously created with serialize().
         unit_hashes should be a dict with hashes as keys and units as values.
         '''
-        creator, parents, txs, signature, shares = pickle.loads(data)
-        ret = cls(int(creator), [unit_hashes[p] for p in parents], [], signature, shares)
+        creator, parents, txs, signature, coin_shares = pickle.loads(data)
+        parents = [unit_hashes[p] for p in parents]
+        coin_shares = [PAIRING_GROUP.deserialize(cs) for cs in coin_shares]
+        ret = cls(int(creator), parents, [], signature, coin_shares)
         ret.txs = txs
         return ret
 

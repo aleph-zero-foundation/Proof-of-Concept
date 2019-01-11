@@ -13,6 +13,9 @@ LOGGER_NAME = 'aleph'
 
 ADD_SHARES = 6
 
+import charm.toolbox.pairinggroup
+PAIRING_GROUP = charm.toolbox.pairinggroup.PairingGroup('MNT224')
+
 import logging
 
 log_format = '[%(asctime)s] [%(levelname)-8s] [%(name)-10s] %(message)s [%(filename)s:%(lineno)d]'
