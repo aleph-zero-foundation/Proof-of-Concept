@@ -306,42 +306,29 @@ class Poset:
         # as we start adding coin shares to units of level 6, everything is just fine
         level = 3
 
-        # create a list of all prime units on level level that are below U
-        # threshold coins dealt by forkers are not considered, hence we omit them
-        dealing_F = [V for Vs in self.prime_units_by_level[level] for V in Vs if self.below(V, U)]
+        # construct the list of all prime units below U at level 3
+        # it can be proved that these are enough instead of *all* prime units at levels 3<= ... <= U.level-3
+        prime_below_U = [V for Vs in self.prime_units_by_level[level] for V in Vs if self.below(V, U)]
+
 
         sigma = self.crp[U.level]
-
-        # set of indices of prime units which lower cones are disjoint with the sigma-transversal
-        disjoint_ind = set(V.creator_id for V in dealing_F)
 
         for i, dealer_id in enumerate(sigma):
             # don't add shares for forking dealers
             if dealer_id in skip_dealer_ind:
                 continue
 
+            indices.append((share_id, dealer_id))
+
             # during construction of skip_dealer_ind we ruled out possibility that the below returns None
             ind_dU = self.index_dealing_unit_below(dealer_id, U)
             dU = self.dealing_units[dealer_id][ind_dU]
 
-            # check if a dealing unit of dealer_id is in the lower cone of some unit in dealing_F
-            for V in dealing_F:
-                # check if some dealing unit in the lower cone on V is already in the transversal
-                if V.creator_id not in disjoint_ind:
-                    continue
+            # filter out all units that have dU<=V
+            prime_below_U = [V in prime_below_U if not self.below(dU,V)]
 
-                # remove all sets that started intersecting with the sigma-transversal
-                disjoint_ind.remove(V.creator_id)
-
-                # check if dU is in some lower cone and remove it if so
-                disjoint_ind = set(di for di in disjoint_ind if not any(self.below(dU, V) for V in self.prime_units_by_level[level][di]))
-
-                indices.append((share_id, dealer_id))
-
-                break
-
-            # check if we have constructed a sigma-transversal
-            if not disjoint_ind:
+            # we have added all necessary shares
+            if not prime_below_U:
                 break
 
         return indices
@@ -971,10 +958,17 @@ class Poset:
         level = tossing_unit.level-1
         fai = self.first_available_index(U_c, level)
 
-        # we use simple_coin if we don't have threshold coin dealt by fai or
-        # we know that fai is a forker
-        if not self.threshold_coins[fai] or self.has_forking_evidence(tossing_unit, fai):
+        # we use simple_coin if tossing_unit already knows that fai is a forker
+        if self.has_forking_evidence(tossing_unit, fai):
             return self._simple_coin(U_c, level)
+
+        # in case fai has forked, there might be multiple his dealing units -- here we pick the (unique) one below U_c
+        ind_dealer = self.index_dealing_unit_below(fai, U_c)
+        # at this point (after fai was determined) it must be the case that there is exactly one dealing unit by fai below U_c
+        assert ind_dealer is not None
+
+        dU = self.dealing_units[fai][ind_dealer]
+
 
         coin_shares = {}
 
@@ -982,34 +976,34 @@ class Poset:
 
         # run through all prime ancestors of the tossing_unit
         for V in self.get_all_prime_units_by_level(level):
-            # we gathered enough coin shares
-            if len(coin_shares) == self.n_processes//3 + 1:
+            # we gathered enough coin shares -- ceil(n_processes/3)
+            if len(coin_shares) == (self.n_processes+2)//3:
                 break
 
-            # coin shares for U_c were not added to V
-            if not self.below(U_c, V):
+            # can use only shares from units visible from the tossing unit (so that every process arrives at the same result)
+            # note that being high_below here is not necessary
+            if not self.below(V, tossing_unit):
                 continue
 
             # check if V is a fork and we have added coin share corresponding to its creator
-            # Note that at this point we know that fai has not forked its dealing Unit
-            # and we checked shares in V, so shares in forks are the same
+            # Note that at this point we know that fai has not forked its dealing Unit (at least not below tossing_unit)
+            # and the shares in V are validated hence even if V.creator_id forked, the share should be identical
             if V.creator_id in coin_shares:
                 continue
 
-            if self.high_below(V, tossing_unit):
-                # TODO try to optimize finding cs_ind, at least by caching
-                cs_ind = 0 # index of a coin share in V dealt by proces fai
-                for k in sigma:
-                    # we've found fai!
-                    if k == fai:
-                        break
-                    # if there was forking evidence, then we skipped adding coin shares
-                    if self.has_forking_evidence(V, k):
-                        continue
+            # TODO try to optimize finding cs_ind, at least by caching
+            cs_ind = 0 # index of a coin share in V dealt by proces fai
+            for k in sigma:
+                # we've found fai!
+                if k == fai:
+                    break
+                # if there was forking evidence, then we skipped adding coin shares
+                if self.has_forking_evidence(V, k):
+                    continue
 
-                    cs_ind += 1
+                cs_ind += 1
 
-                coin_shares[V.creator_id] = V.coin_shares[cs_ind]
+            coin_shares[V.creator_id] = V.coin_shares[cs_ind]
 
         # we have enough valid coin shares to toss a coin
         # TODO check how often this is not the case
