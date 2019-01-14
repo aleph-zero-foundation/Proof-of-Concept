@@ -15,13 +15,15 @@ class Poset:
     '''This class is the core data structure of the Aleph protocol.'''
 
 
-    def __init__(self, n_processes, crp = None, compliance_rules = None, memo_height = 10):
+    def __init__(self, n_processes, crp = None, compliance_rules = None, memo_height = 10, use_tcoin = False):
         '''
         :param int n_processes: the committee size
-        :param list compliance_rules: list of strings defining which compliance rules are followed by this poset
+        :param list compliance_rules: dictionary string -> bool
         '''
         self.n_processes = n_processes
+        self.default_compliance_rules = {'forker_muting': True, 'parent_diversity': True, 'growth': True, 'threshold_coin': use_tcoin}
         self.compliance_rules = compliance_rules
+        self.use_tcoin = use_tcoin
 
         self.units = {}
         self.max_units_per_process = [[] for _ in range(n_processes)]
@@ -59,7 +61,7 @@ class Poset:
 # UNITS
 #===============================================================================================================================
 
-    def prepare_unit(self, U, add_coin_shares=False):
+    def prepare_unit(self, U, add_tcoin_shares = False):
         '''
         Sets basic fields of U; should be called prior to check_compliance and add_unit methods.
         This method does the following:
@@ -81,7 +83,7 @@ class Poset:
         U.level = self.level(U)
 
         # 3. if it is prime of level >= ADD_SHARES, add coin shares to it
-        if add_coin_shares and self.is_prime(U) and U.level >= ADD_SHARES:
+        if add_tcoin_shares and self.is_prime(U) and U.level >= ADD_SHARES:
             self.add_coin_shares(U)
 
 
@@ -110,6 +112,7 @@ class Poset:
         # if it is a dealing unit, add it to self.dealing_units
         if not U.parents and not U in self.dealing_units[U.creator_id]:
             self.dealing_units[U.creator_id].append(U)
+            #self.threshold_coins[U.creator_id].append(U.coin_shares)
 
         # 2. updates the lists of maximal elements in the poset and
         if len(U.parents) == 0:
@@ -343,11 +346,16 @@ class Poset:
 
         coin_shares = []
         indices = self.determine_coin_shares(U)
+        print(indices)
         if U.level >= ADD_SHARES:
             assert indices != [] and indices is not None
 
         for _, dealer_id in indices:
             ind = self.index_dealing_unit_below(dealer_id, U)
+
+            print(ind)
+            print([len(self.dealing_units[p_id]) for p_id in range(4)])
+            print([len(self.threshold_coins[p_id]) for p_id in range(4)])
             # assert self.threshold_coins[dealer_id][ind].process_id == U.creator_id
             # we can take threshold coin of index ind as it is included in the unique dealing unit by dealer_id below U
             coin_shares.append(self.threshold_coins[dealer_id][ind].create_coin_share(U.level))
@@ -474,6 +482,20 @@ class Poset:
 #===============================================================================================================================
 
 
+    def should_check_rule(self, rule):
+        '''
+        Check whether the rule (a string) "forker_muting", "parent_diversity", etc. should be checked in the check_compliance function.
+        Based on the combination of default values and the compliance_rules dictionary provided as a parameter to the constructor.
+        :returns: True or False
+        '''
+        assert rule in self.default_compliance_rules
+
+        if self.compliance_rules is None or rule not in self.compliance_rules:
+            return self.default_compliance_rules[rule]
+
+        return self.compliance_rules[rule]
+
+
     def check_compliance(self, U):
         '''
         Assumes that prepare_unit(U) has been already called.
@@ -487,8 +509,6 @@ class Poset:
             7. The coinshares are OK, i.e., U contains exactly the coinshares it is supposed to contain.
         :param unit U: unit whose compliance is being tested
         '''
-        # TODO: there might have been other compliance rules that have been forgotten...
-        # TODO: should_check() with string arguments is ugly. This is a temporary solution
         # TODO: it is highly desirable that there are no duplicate transactions in U (i.e. literally copies)
 
         should_check = lambda x: (self.compliance_rules is None or x in self.compliance_rules)
@@ -516,20 +536,24 @@ class Poset:
 
 
         # 4. Satisfies forker-muting policy.
-        if should_check('forker_muting') and not self.check_forker_muting(U):
-            return False
+        if self.should_check_rule('forker_muting'):
+            if not self.check_forker_muting(U):
+                return False
 
         # 5. Satisfies parent diversity rule.
-        if should_check('parent_diversity') and not self.check_parent_diversity(U):
-            return False
+        if self.should_check_rule('parent_diversity'):
+            if not self.check_parent_diversity(U):
+                return False
 
         # 6. Check "growth" rule.
-        if should_check('growth') and not self.check_growth(U):
-            return False
+        if self.should_check_rule('growth'):
+            if not self.check_growth(U):
+                return False
 
         # 7. Coinshares are OK.
-        #if self.is_prime(U) and not self.check_coin_shares(U):
-        #    return False
+        if self.should_check_rule('threshold_coin'):
+            if self.is_prime(U) and not self.check_coin_shares(U):
+                return False
 
         return True
 
@@ -787,12 +811,12 @@ class Poset:
 
         n_dunits_below, ind_dU_below = 0, None
         for ind, dU in enumerate(self.dealing_units[dealer_id]):
-            if n_dunits_below == 2:
-                return None
-
             if self.below(dU, U):
                 n_dunits_below += 1
                 ind_dU_below = ind
+
+            if n_dunits_below > 1:
+                return None
 
         return ind_dU_below
 
@@ -956,6 +980,12 @@ class Poset:
         # Alternative approach would be to have Unit.coin_shares as a dict of pairs
         # (dealer_id, coin_share). This would require more space, but ease implementation and speed
         # tossing a coin. We believe that tossing coin is rare, hence current implementation is chosen
+        logger = logging.getLogger(LOGGER_NAME)
+        logger.info(f'Tossing coin at level {tossing_unit.level} for a unit at level {U_c.level}.')
+
+        if self.use_tcoin == False:
+            return self._simple_coin(U_c, tossing_unit.level-1)
+
         level = tossing_unit.level-1
         fai = self.first_available_index(U_c, level)
 
@@ -1176,6 +1206,11 @@ class Poset:
             self.level_timing_established = timing_established[-1].level
 
         return timing_established
+
+    def extract_tcoin_from_dealing_unit(self, U, process_id):
+        print(U.creator_id,process_id)
+        self.threshold_coins[U.creator_id].append(U.coin_shares[process_id])
+
 
 
     def add_threshold_coin(self, threshold_coin):
