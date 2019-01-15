@@ -148,7 +148,7 @@ class Process:
                 self.add_unit_and_extend_linear_order(U)
             else:
                 self.poset.add_unit(U)
-            if self.enable_tcoin and U.level == 0:
+            if self.enable_tcoin and len(U.parents) == 0:
                 self.poset.extract_tcoin_from_dealing_unit(U, self.process_id)
         else:
             return False

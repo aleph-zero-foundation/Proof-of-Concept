@@ -262,9 +262,15 @@ class Poset:
         # we can limit ourselves to prime units V
         processes_high_below = 0
 
-        for Vs in self.prime_units_by_level[m]:
+        for process_id in range(self.n_processes):
+            Vs = self.prime_units_by_level[m][process_id]
             if any(self.high_below(V, U) for V in Vs):
                 processes_high_below += 1
+
+            # For efficiency: break the loop if there is no way to collect supermajority
+            if 3*(processes_high_below + self.n_processes - 1 - process_id) < 2*self.n_processes:
+                break
+
 
         # same as (...)>=2/3*(...) but avoids floating point division
         U.level = m+1 if 3*processes_high_below >= 2*self.n_processes else m
@@ -346,16 +352,15 @@ class Poset:
 
         coin_shares = []
         indices = self.determine_coin_shares(U)
-        print(indices)
         if U.level >= ADD_SHARES:
             assert indices != [] and indices is not None
 
         for _, dealer_id in indices:
             ind = self.index_dealing_unit_below(dealer_id, U)
 
-            print(ind)
-            print([len(self.dealing_units[p_id]) for p_id in range(4)])
-            print([len(self.threshold_coins[p_id]) for p_id in range(4)])
+            #print(ind)
+            #print([len(self.dealing_units[p_id]) for p_id in range(4)])
+            #print([len(self.threshold_coins[p_id]) for p_id in range(4)])
             # assert self.threshold_coins[dealer_id][ind].process_id == U.creator_id
             # we can take threshold coin of index ind as it is included in the unique dealing unit by dealer_id below U
             coin_shares.append(self.threshold_coins[dealer_id][ind].create_coin_share(U.level))
@@ -708,7 +713,6 @@ class Poset:
                 return False
             else:
                 return True
-
         if len(indices) != len(U.coin_shares):
             return False
 
@@ -923,6 +927,10 @@ class Poset:
             if in_support:
                 processes_in_support += 1
 
+            # For efficiency: break the loop if there is no way to collect supermajority
+            if 3*(processes_in_support + (self.n_processes-1-process_id)) < 2*self.n_processes:
+                break
+
             # This might be a little bit faster (and more Pythonic ;))
             #if any([self.below_within_process(U_ceil, V_floor) for U_ceil in U.ceil[process_id] for V_floor in V.floor[process_id]]):
             #    processes_in_support += 1
@@ -982,6 +990,8 @@ class Poset:
         # tossing a coin. We believe that tossing coin is rare, hence current implementation is chosen
         logger = logging.getLogger(LOGGER_NAME)
         logger.info(f'Tossing coin at level {tossing_unit.level} for a unit at level {U_c.level}.')
+        print('coin_toss!!!11')
+        #exit(0)
 
         if self.use_tcoin == False:
             return self._simple_coin(U_c, tossing_unit.level-1)
@@ -1208,7 +1218,6 @@ class Poset:
         return timing_established
 
     def extract_tcoin_from_dealing_unit(self, U, process_id):
-        print(U.creator_id,process_id)
         self.threshold_coins[U.creator_id].append(U.coin_shares[process_id])
 
 

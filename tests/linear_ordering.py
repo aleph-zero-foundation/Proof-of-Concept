@@ -22,8 +22,8 @@ def translate_parents_and_copy(U, hashes_to_units):
     return U_new
 
 
-n_processes = 4
-n_units = 2000
+n_processes = 64
+n_units = 3*(2**10)
 use_tcoin = True
 
 processes = []
@@ -37,7 +37,7 @@ public_keys = [VerifyKey.from_SigningKey(sk) for sk in signing_keys]
 for process_id in range(n_processes):
     sk = signing_keys[process_id]
     pk = public_keys[process_id]
-    new_process = Process(n_processes, process_id, sk, pk, addresses, public_keys, recv_addresses[process_id], None, 'LINEAR_ORDERING')
+    new_process = Process(n_processes, process_id, sk, pk, addresses, public_keys, recv_addresses[process_id], None, 'LINEAR_ORDERING', use_tcoin)
     processes.append(new_process)
 
 
@@ -64,7 +64,7 @@ for unit_no in range(n_units):
         break
 
     if unit_no%100 == 0:
-        print(f"Adding unit no {unit_no + n_processes} out of {n_units + n_processes}.")
+        print(f"Adding unit no {unit_no} out of {n_units}.")
 
 
 
