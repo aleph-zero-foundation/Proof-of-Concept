@@ -19,8 +19,8 @@ RUN apk add --no-cache \
 	freetype-dev
 
 WORKDIR /root
-RUN wget https://crypto.stanford.edu/pbc/files/pbc-0.5.14.tar.gz &&
-    tar -xvf pbc-0.5.14.tar.gz &&
+RUN wget https://crypto.stanford.edu/pbc/files/pbc-0.5.14.tar.gz && \
+    tar -xvf pbc-0.5.14.tar.gz && \
     cd pbc-0.5.14 && ./configure && make >/dev/null 2>&1 && make install
 
 RUN git clone https://github.com/JHUISI/charm.git && cd charm && ./configure.sh && make install >/dev/null 2>&1
