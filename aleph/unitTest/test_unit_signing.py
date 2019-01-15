@@ -7,7 +7,7 @@ class TestSignatures():
         sk = SigningKey()
         vk = VerifyKey.from_SigningKey(sk)
         U = Unit(0,[],[])
-        msg = U.to_message()
+        msg = U.bytestring()
         signature = sk.sign(msg)
         assert vk.verify_signature(signature, msg)
 
@@ -23,6 +23,6 @@ class TestSignatures():
         U = Unit(0,[],[])
         process.sign_unit(U)
 
-        msg = U.to_message()
+        msg = U.bytestring()
         assert vk.verify_signature(U.signature, msg)
 

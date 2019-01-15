@@ -4,13 +4,14 @@ import socket
 import time
 
 from aleph.crypto import SigningKey, VerifyKey
-from aleph.data_structures import tx_to_message
+from aleph.data_structures import Tx
 
 
 def tx_generator(committee_addresses, signing_keys, txps):
     n_light_nodes = len(signing_keys)
     last_tx_index = [-1 for _ in range(n_light_nodes)]
-    verify_keys_hex = [VerifyKey.from_SigningKey(sk).to_hex() for sk in signing_keys]
+    #signing Txs temporarily disabled
+    #verify_keys_hex = [VerifyKey.from_SigningKey(sk).to_hex() for sk in signing_keys]
 
     counter = 0
     starts = time.time()
@@ -24,12 +25,9 @@ def tx_generator(committee_addresses, signing_keys, txps):
 
         issuer_id = random.randrange(0, n_light_nodes)
         receiver_id = random.choice([uid for uid in range(n_light_nodes) if uid != issuer_id])
-        tx = {'issuer': verify_keys_hex[issuer_id],
-              'amount': 0,
-              'receiver': verify_keys_hex[receiver_id],
-              'index': last_tx_index[issuer_id] + 1}
-        message = tx_to_message(tx['issuer'], tx['amount'], tx['receiver'], tx['index'])
-        tx['signature'] = signing_keys[issuer_id].sign(message)
+        amount = random.randrange(1, 100)
+        index = last_tx_index[issuer_id] + 1
+        tx = Tx(issuer_id, receiver_id, amount, index)
         data = pickle.dumps(tx)
 
         sent = False

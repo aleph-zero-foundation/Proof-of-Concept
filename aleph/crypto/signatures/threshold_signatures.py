@@ -1,5 +1,7 @@
-from charm.toolbox.pairinggroup import PairingGroup, ZR, G1, G2, pair
+from charm.toolbox.pairinggroup import ZR, G1, G2, pair
 from functools import reduce
+
+from aleph.config import PAIRING_GROUP
 
 # The implementation is based on: Boldyreva, 2002 https://eprint.iacr.org/2002/118.pdf
 # Possible alternative implementation: Shoup, 2000 http://eprint.iacr.org/1999/011
@@ -13,7 +15,7 @@ def generate_keys(n_parties, threshold):
     '''
 
     # TODO check if this is following setup is optimal
-    group = PairingGroup('MNT224')
+    group = PAIRING_GROUP
 
     # pick a generator of the group
     gen = group.hash('gengen', G2)
@@ -88,7 +90,7 @@ class VerificationKey:
     def combine_shares(self, shares):
         '''
         Combines shares into a signature of a message.
-        :param list shares: shares of a signature to be produced
+        :param dict shares: shares of a signature to be produced
         '''
         assert len(shares) == self.threshold
         R = shares.keys()

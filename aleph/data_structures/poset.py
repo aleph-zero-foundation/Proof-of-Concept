@@ -6,7 +6,7 @@ import random
 import logging
 
 from aleph.data_structures.unit import Unit
-from aleph.crypto import xor, ThresholdCoin
+from aleph.crypto import xor
 from aleph.config import *
 
 
@@ -540,8 +540,8 @@ class Poset:
             return False
 
         # 7. Coinshares are OK.
-        if self.is_prime(U) and not self.check_coin_shares(U):
-            return False
+        #if self.is_prime(U) and not self.check_coin_shares(U):
+        #    return False
 
         return True
 
@@ -1303,6 +1303,16 @@ class Poset:
         NOTE: inefficient because units_by_height is inefficient.
         '''
         return self.units_by_height(U.creator_id, U.height + 1)
+
+
+    def fix_parents(self, U):
+        assert all(p in self.units for p in U.parents), 'Attempting to fix parents but parents not present in poset'
+        U.parents = [self.units[p] for p in U.parents]
+
+
+#===============================================================================================================================
+# LINEAR ORDER
+#===============================================================================================================================
 
 
 

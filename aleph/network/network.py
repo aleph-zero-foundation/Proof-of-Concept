@@ -5,8 +5,8 @@ import socketserver
 
 from time import time
 
-from aleph.data_structures import Unit, unit_to_message, Tx
-from aleph.config import *
+from aleph.data_structures import Unit, Tx
+from aleph.config import N_TXS, CREATE_FREQ, LOGGER_NAME, N_RECV_SYNC
 from aleph.crypto import VerifyKey
 
 
@@ -20,8 +20,7 @@ def tx_listener(listen_addr, queue):
             logger.info(f'tx server: established connection with {self.client_address}')
 
             data = self.request.recv(1024)
-            tx_dict = pickle.loads(data)
-            tx = Tx.from_dict(tx_dict)
+            tx = pickle.loads(data)
             tx_buffer.append(tx)
 
             logger.info(f'tx server: tx received from {self.client_address}')
@@ -120,7 +119,6 @@ async def sync(process, initiator_id, target_id, target_addr, public_key_list, e
 
     await _send_units(initiator_id, target_id, int_heights, ex_heights, process, writer, 'sync', logger)
 
-
     units_received = await _receive_units(initiator_id, target_id, reader, 'sync', logger)
 
     succesful = await _verify_signatures(initiator_id, units_received, public_key_list, executor, 'sync', logger)
@@ -184,8 +182,6 @@ async def _send_units(process_id, ex_id, int_heights, ex_heights, process, write
         units = process.poset.units_by_height_interval(creator_id=i, min_height=ex_heights[i]+1, max_height=int_heights[i])
         units_to_send.extend(units)
     units_to_send = process.poset.order_units_topologically(units_to_send)
-    units_to_send = [unit_to_dict(U) for U in units_to_send]
-
     data = pickle.dumps(units_to_send)
     writer.write(str(len(data)).encode())
     logger.info(f'{mode} {process_id}: sending {len(data)} bytes to {ex_id}')
@@ -220,11 +216,9 @@ async def _verify_signatures(process_id, units_received, public_key_list, execut
 async def _add_units(process_id, ex_id, units_received, process, mode, logger):
     logger.info(f'{mode} {process_id}: trying to add {len(units_received)} units from {ex_id} to poset')
     for unit in units_received:
-        assert all(U_hash in process.poset.units.keys() for U_hash in unit['parents_hashes'])
-        parents = [process.poset.unit_by_hash(parent_hash) for parent_hash in unit['parents_hashes']]
-        txs = [Tx.from_dict(dict_tx) for dict_tx in unit['txs']]
-        U = Unit(unit['creator_id'], parents, txs, unit['signature'], unit['coin_shares'])
-        if not process.add_unit_to_poset(U):
+        process.poset.fix_parents(unit)
+        if not process.add_unit_to_poset(unit):
+            logger.error(f'{mode} {process_id}: unit {unit} from {ex_id} was rejected')
             return False
     logger.info(f'{mode} {process_id}: units from {ex_id} were added succesfully')
     return True
@@ -232,26 +226,4 @@ async def _add_units(process_id, ex_id, units_received, process, mode, logger):
 
 def verify_signature(unit, public_key_list):
     '''Verifies signatures of the unit and all txs in it'''
-    # verify unit signature
-    message = unit_to_message(unit['creator_id'], unit['parents_hashes'], unit['txs'], unit['coin_shares'])
-    if not public_key_list[unit['creator_id']].verify_signature(unit['signature'], message):
-        return False
-
-    # verify signatures of txs
-    for tx_dict in unit['txs']:
-        tx = Tx.from_dict(tx_dict)
-        message = tx.to_message()
-        pk = VerifyKey.from_hex(tx.issuer)
-        if not pk.verify_signature(tx.signature, message):
-            return False
-
-    return True
-
-
-def unit_to_dict(U):
-    parents_hashes = [parent.hash() for parent in U.parents]
-    return {'creator_id': U.creator_id,
-            'parents_hashes': parents_hashes,
-            'txs': [tx.to_dict() for tx in U.txs],
-            'signature': U.signature,
-            'coin_shares': U.coin_shares}
+    return public_key_list[unit.creator_id].verify_signature(unit.signature, unit.bytestring())
