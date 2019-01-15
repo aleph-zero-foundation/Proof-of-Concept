@@ -31,7 +31,7 @@ class Unit(object):
 
     def transactions(self):
         '''Iterate over transactions (instances of Tx class) belonging to this unit.'''
-        return iter(pickle.loads(zlib.decompress(self.txs)))
+        return list(pickle.loads(zlib.decompress(self.txs)))
         #return iter(self.txs)
 
 

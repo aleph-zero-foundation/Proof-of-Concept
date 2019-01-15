@@ -16,15 +16,22 @@ def translate_parents_and_copy(U, hashes_to_units):
     Returns a new unit (with correct references to corresponding parent units in B) to be added to B's poset.
     The new unit has all the data in the floor/ceil/level/... fields erased.
     '''
+    #print(U.bytestring())
+    #print(U.hash())
     parent_hashes = [V.hash() for V in U.parents]
+    #print(parent_hashes)
+    #if parent_hashes:
+        #print(parent_hashes[0] in hashes_to_units)
+        #print(hashes_to_units.keys())
+    #print(hashes_to_units)
     parents = [hashes_to_units[V] for V in parent_hashes]
-    U_new = Unit(U.creator_id, parents, U.txs, U.signature, U.coin_shares)
+    U_new = Unit(U.creator_id, parents, U.transactions(), U.signature, U.coin_shares)
     return U_new
 
 
-n_processes = 64
-n_units = 3*(2**10)
-use_tcoin = True
+n_processes = 4
+n_units = 200
+use_tcoin = False
 
 processes = []
 host_ports = [8900+i for i in range(n_processes)]
