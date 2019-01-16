@@ -42,7 +42,9 @@ class Unit(object):
     def bytestring(self):
         '''Create a bytestring with all essential info about this unit for the purpose of signature creation and checking.'''
         creator = str(self.creator_id).encode()
-        serialized_shares = [PAIRING_GROUP.serialize(cs) for cs in self.coin_shares]
+        # temporary work-around
+        #serialized_shares = [PAIRING_GROUP.serialize(cs) for cs in self.coin_shares]
+        serialized_shares = []
         return b'|'.join([creator] + self.parents_hashes() + serialized_shares + [self.txs])
 
 
@@ -94,3 +96,7 @@ class Unit(object):
         #str_repr += str(self.level)?
         #str_repr += str(self.self_predecessor.hash())?
         return str_repr
+
+
+#def _serialize_coin_shares(coin_shares):
+#    if

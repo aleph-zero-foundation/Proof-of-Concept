@@ -11,7 +11,7 @@ HOST_PORT = 8888
 N_RECV_SYNC = 5
 LOGGER_NAME = 'aleph'
 
-ADD_SHARES = 6
+ADD_SHARES = 4
 
 import charm.toolbox.pairinggroup
 PAIRING_GROUP = charm.toolbox.pairinggroup.PairingGroup('MNT224')

@@ -12,6 +12,7 @@ from aleph.utils.plot import plot_poset, plot_dag
 
 def test_delta_level_4_no_decision():
     random.seed(123456789)
+    # tests with deterministic coin
     for det_coin_value in [0,1]:
         counter = 0
         while not generate_delta_level_4_no_decision(det_coin_value):
@@ -281,3 +282,7 @@ def unit_to_name(names_to_units, U):
         if V is U:
             return name
     assert False, "Unit not found in the dictionary."
+
+
+
+test_delta_level_4_no_decision()

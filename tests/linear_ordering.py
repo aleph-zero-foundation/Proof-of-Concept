@@ -29,10 +29,11 @@ def translate_parents_and_copy(U, hashes_to_units):
     return U_new
 
 
-n_processes = 4
-n_units = 200
-use_tcoin = False
 
+#random.seed(194)
+n_processes = 16
+n_units = 1000
+use_tcoin = True
 processes = []
 host_ports = [8900+i for i in range(n_processes)]
 addresses = [('127.0.0.1', port) for port in host_ports]
@@ -47,6 +48,10 @@ for process_id in range(n_processes):
     new_process = Process(n_processes, process_id, sk, pk, addresses, public_keys, recv_addresses[process_id], None, 'LINEAR_ORDERING', use_tcoin)
     processes.append(new_process)
 
+#if processes[0].poset.crp[2][0] == 0:
+#   break
+
+
 
 for unit_no in range(n_units):
     while True:
@@ -56,10 +61,10 @@ for unit_no in range(n_units):
         if new_unit is None:
             continue
 
-        process.poset.prepare_unit(new_unit, add_tcoin_shares = use_tcoin)
+        process.poset.prepare_unit(new_unit)
         assert process.poset.check_compliance(new_unit), "A unit created by this process is not passing the compliance test!"
-        if use_tcoin and new_unit.level == 0:
-            process.add_tcoin_to_dealing_unit(new_unit)
+        #if use_tcoin and new_unit.level == 0:
+        #    process.add_tcoin_to_dealing_unit(new_unit)
         process.sign_unit(new_unit)
         process.add_unit_to_poset(new_unit)
 
@@ -70,8 +75,12 @@ for unit_no in range(n_units):
                 processes[process_id].add_unit_to_poset(U)
         break
 
-    if unit_no%100 == 0:
+    if unit_no%50 == 0:
         print(f"Adding unit no {unit_no} out of {n_units}.")
+
+
+    #dag, translation = dag_utils.dag_from_poset(process.poset)
+    #plot_dag(dag)
 
 
 

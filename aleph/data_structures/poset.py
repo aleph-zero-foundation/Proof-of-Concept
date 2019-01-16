@@ -5,6 +5,9 @@ from functools import reduce
 import random
 import logging
 
+from aleph.crypto.signatures.threshold_signatures import generate_keys
+from aleph.crypto.threshold_coin import ThresholdCoin
+
 from aleph.data_structures.unit import Unit
 from aleph.crypto import xor
 from aleph.config import *
@@ -15,7 +18,7 @@ class Poset:
     '''This class is the core data structure of the Aleph protocol.'''
 
 
-    def __init__(self, n_processes, crp = None, compliance_rules = None, memo_height = 10, use_tcoin = False):
+    def __init__(self, n_processes, crp = None, compliance_rules = None, memo_height = 10, use_tcoin = False, process_id = None):
         '''
         :param int n_processes: the committee size
         :param list compliance_rules: dictionary string -> bool
@@ -24,6 +27,8 @@ class Poset:
         self.default_compliance_rules = {'forker_muting': True, 'parent_diversity': True, 'growth': True, 'threshold_coin': use_tcoin}
         self.compliance_rules = compliance_rules
         self.use_tcoin = use_tcoin
+        # process_id is used only to support tcoin (i.e. in case use_tcoin = True), to know which shares to add and which tcoin to pick from dealing units
+        self.process_id = process_id
 
         self.units = {}
         self.max_units_per_process = [[] for _ in range(n_processes)]
@@ -61,7 +66,7 @@ class Poset:
 # UNITS
 #===============================================================================================================================
 
-    def prepare_unit(self, U, add_tcoin_shares = False):
+    def prepare_unit(self, U):
         '''
         Sets basic fields of U; should be called prior to check_compliance and add_unit methods.
         This method does the following:
@@ -83,8 +88,8 @@ class Poset:
         U.level = self.level(U)
 
         # 3. if it is prime of level >= ADD_SHARES, add coin shares to it
-        if add_tcoin_shares and self.is_prime(U) and U.level >= ADD_SHARES:
-            self.add_coin_shares(U)
+        #if add_tcoin_shares and self.is_prime(U) and U.level >= ADD_SHARES:
+        #    self.add_coin_shares(U)
 
 
     def add_unit(self, U, newly_validated = None):
@@ -112,7 +117,11 @@ class Poset:
         # if it is a dealing unit, add it to self.dealing_units
         if not U.parents and not U in self.dealing_units[U.creator_id]:
             self.dealing_units[U.creator_id].append(U)
-            #self.threshold_coins[U.creator_id].append(U.coin_shares)
+            # extract the corresponding tcoin black box (this requires knowing the process_id)
+            if self.use_tcoin:
+                assert self.process_id is not None, "Usage of tcoin enable but process_id not set."
+                self.extract_tcoin_from_dealing_unit(U, self.process_id)
+
 
         # 2. updates the lists of maximal elements in the poset and
         if len(U.parents) == 0:
@@ -160,7 +169,7 @@ class Poset:
                 self.memoized_units[U.creator_id].append(U)
 
 
-    def create_unit(self, creator_id, txs, strategy = "link_self_predecessor", num_parents = 2):
+    def create_unit(self, creator_id, txs, strategy = "link_self_predecessor", num_parents = 2, force_parents = None):
         '''
         Creates a new unit and stores txs in it. Correctness of the txs is checked by a thread listening for new transactions.
         :param list txs: list of correct transactions
@@ -168,6 +177,7 @@ class Poset:
         - "link_self_predecessor"
         - "link_above_self_predecessor"
         :param int num_parents: number of distinct parents
+        :param list force_parents: (ONLY FOR DEBUGGING/TESTING) parents (units) for the created unit
         :returns: the new-created unit, or None if it is not possible to create a compliant unit
         '''
 
@@ -178,65 +188,86 @@ class Poset:
         logger.info(f"create: {creator_id} attempting to create a unit.")
         if len(self.max_units_per_process[creator_id]) == 0:
             # this is going to be our dealing unit
-
+            if force_parents is not None:
+                assert force_parents == [], "A dealing unit should be created first."
+            if self.use_tcoin:
+                self.add_tcoin_to_dealing_unit(U)
             logger.info(f"create: {creator_id} created its dealing unit.")
             return U
 
 
         assert len(self.max_units_per_process[creator_id]) == 1, "It appears we have created a fork."
-        U_max = self.max_units_per_process[creator_id][0]
 
-        single_tip_processes = set(pid for pid in range(self.n_processes)
-                                if len(self.max_units_per_process[pid]) == 1)
+        if force_parents is not None:
+            assert len(force_parents) == num_parents, "Incorrect number of parents chosen."
 
-        growth_restricted = set(pid for pid in single_tip_processes if self.below(self.max_units_per_process[pid][0], U_max))
+        if force_parents is None:
+            U_max = self.max_units_per_process[creator_id][0]
 
-        recent_parents = set()
+            single_tip_processes = set(pid for pid in range(self.n_processes)
+                                    if len(self.max_units_per_process[pid]) == 1)
 
-        W = U_max
+            growth_restricted = set(pid for pid in single_tip_processes if self.below(self.max_units_per_process[pid][0], U_max))
 
-        while True:
-            # W is our dealing unit -> STOP
-            if len(W.parents) == 0:
-                break
+            recent_parents = set()
 
-            parents = [V.creator_id for V in W.parents if V.creator_id != creator_id]
+            W = U_max
 
-            # recent_parents.update(parents)
-            # ceil(n_processes/3)
+            while True:
+                # W is our dealing unit -> STOP
+                if len(W.parents) == 0:
+                    break
 
-            treshold = (self.n_processes+2)//3
-            if len(recent_parents.union(parents)) >= treshold:
-                break
+                parents = [V.creator_id for V in W.parents if V.creator_id != creator_id]
 
-            recent_parents = recent_parents.union(parents)
-            W = W.self_predecessor
+                # recent_parents.update(parents)
+                # ceil(n_processes/3)
 
-        legit_parents = [pid for pid in single_tip_processes if not (pid in growth_restricted or pid in recent_parents)]
-        legit_parents = list(set(legit_parents + [creator_id]))
+                treshold = (self.n_processes+2)//3
+                if len(recent_parents.union(parents)) >= treshold:
+                    break
 
-        if len(legit_parents) < num_parents:
-            return None
+                recent_parents = recent_parents.union(parents)
+                W = W.self_predecessor
 
-        legit_below = [pid for pid in legit_parents if self.below(U_max, self.max_units_per_process[pid][0])]
+            legit_parents = [pid for pid in single_tip_processes if not (pid in growth_restricted or pid in recent_parents)]
+            legit_parents = list(set(legit_parents + [creator_id]))
+
+            if len(legit_parents) < num_parents:
+                return None
+
+            legit_below = [pid for pid in legit_parents if self.below(U_max, self.max_units_per_process[pid][0])]
 
 
-        if strategy == "link_self_predecessor":
-            first_parent = creator_id
-        elif strategy == "link_above_self_predecessor":
-            first_parent = random.choice(legit_below)
+            if strategy == "link_self_predecessor":
+                first_parent = creator_id
+            elif strategy == "link_above_self_predecessor":
+                first_parent = random.choice(legit_below)
+            else:
+                raise NotImplementedError("Strategy %s not implemented" % strategy)
+
+            random.shuffle(legit_parents)
+            parent_processes = legit_parents[:num_parents]
+            if first_parent in parent_processes:
+                parent_processes.remove(first_parent)
+            else:
+                parent_processes.pop()
+            parent_processes = [first_parent] + parent_processes
+
+            U.parents = [self.max_units_per_process[pid][0] for pid in parent_processes]
         else:
-            raise NotImplementedError("Strategy %s not implemented" % strategy)
+            # forced_parents is set
+            assert all(V.hash() in self.units for V in forced_parents)
+            # compliance might still fail here -- but it will be detected later
+            # forced_parents should be used for debugging and testing purposes only
+            U.parents = forced_parents
 
-        random.shuffle(legit_parents)
-        parent_processes = legit_parents[:num_parents]
-        if first_parent in parent_processes:
-            parent_processes.remove(first_parent)
-        else:
-            parent_processes.pop()
-        parent_processes = [first_parent] + parent_processes
+        if self.use_tcoin:
+            self.prepare_unit(U)
+            if self.is_prime(U) and U.level >= ADD_SHARES:
 
-        U.parents = [self.max_units_per_process[pid][0] for pid in parent_processes]
+                self.add_coin_shares(U)
+
 
         return U
 
@@ -340,7 +371,6 @@ class Poset:
             # have we added all necessary shares?
             if prime_below_U == []:
                 break
-
         return indices
 
 
@@ -366,6 +396,19 @@ class Poset:
             coin_shares.append(self.threshold_coins[dealer_id][ind].create_coin_share(U.level))
 
         U.coin_shares = coin_shares
+
+    def add_tcoin_to_dealing_unit(self, U):
+        '''
+        Adds threshold coins for all processes to the unit U. U is supposed to be the dealing unit for this to make sense.
+        NOTE: to not create a new field in the Unit class the coin_shares field is reused to hold treshold coins in dealing units.
+        (There will be no coin shares included at level 0 anyway.)
+        '''
+        U.coin_shares = []
+        vk, sks = generate_keys(self.n_processes, self.n_processes//3+1)
+        for process_id in range(self.n_processes):
+            # create and append the threshold coin black-box for committee member no process_id
+            threshold_coin = ThresholdCoin(self.process_id, process_id, self.n_processes, self.n_processes//3+1, sks[process_id], vk)
+            U.coin_shares.append(threshold_coin)
 
 
     def get_all_prime_units_by_level(self, level):
@@ -515,8 +558,6 @@ class Poset:
         :param unit U: unit whose compliance is being tested
         '''
         # TODO: it is highly desirable that there are no duplicate transactions in U (i.e. literally copies)
-
-        should_check = lambda x: (self.compliance_rules is None or x in self.compliance_rules)
 
         # 1. Parents of U are correct.
         if not self.check_parent_correctness(U):
@@ -1044,9 +1085,14 @@ class Poset:
 
         # we have enough valid coin shares to toss a coin
         # TODO check how often this is not the case
-        if len(coin_shares) == self.n_processes//3 + 1:
+        n_collected = len(coin_shares)
+        n_required = self.n_processes//3 + 1
+        if len(coin_shares) == n_required:
+            logger.info(f'Toss coin {self.process_id}: succeded -- {n_collected} out of required {n_required} shares collected.')
             return self.threshold_coins[fai][ind_dealer].combine_coin_shares(coin_shares)
         else:
+
+            logger.info(f'Toss coin {self.process_id}: failed because only {n_collected} out of required {n_required} shares were collected :(.')
             return self._simple_coin(U_c, level)
 
 

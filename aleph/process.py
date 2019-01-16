@@ -6,8 +6,6 @@ import random
 
 from aleph.data_structures import Poset, UserDB
 from aleph.crypto import CommonRandomPermutation
-from aleph.crypto.signatures.threshold_signatures import generate_keys
-from aleph.crypto.threshold_coin import ThresholdCoin
 from aleph.network import listener, sync, tx_listener
 from aleph.config import CREATE_FREQ, SYNC_INIT_FREQ, LOGGER_NAME
 
@@ -44,7 +42,10 @@ class Process:
         self.prepared_txs = []
 
         self.crp = CommonRandomPermutation([pk.to_hex() for pk in public_key_list])
-        self.poset = Poset(self.n_processes, self.crp, use_tcoin = enable_tcoin)
+        if enable_tcoin:
+            self.poset = Poset(self.n_processes, self.crp, use_tcoin = enable_tcoin, process_id = self.process_id)
+        else:
+            self.poset =  Poset(self.n_processes, self.crp)
         self.userDB = userDB
         if self.userDB is None:
             self.userDB = UserDB()
@@ -73,18 +74,18 @@ class Process:
         '''
         U.signature = self.secret_key.sign(U.bytestring())
 
-    def add_tcoin_to_dealing_unit(self, U):
-        '''
-        Adds threshold coins for all processes to the unit U. U is supposed to be the dealing unit for this to make sense.
-        NOTE: to not create a new field in the Unit class the coin_shares field is reused to hold treshold coins in dealing units.
-        (There will be no coin shares included at level 0 anyway.)
-        '''
-        U.coin_shares = []
-        vk, sks = generate_keys(self.n_processes, self.n_processes//3+1)
-        for process_id in range(self.n_processes):
-            # create and append the threshold coin black-box for committee member no process_id
-            threshold_coin = ThresholdCoin(self.process_id, process_id, self.n_processes, self.n_processes//3+1, sks[process_id], vk)
-            U.coin_shares.append(threshold_coin)
+    # def add_tcoin_to_dealing_unit(self, U):
+    #     '''
+    #     Adds threshold coins for all processes to the unit U. U is supposed to be the dealing unit for this to make sense.
+    #     NOTE: to not create a new field in the Unit class the coin_shares field is reused to hold treshold coins in dealing units.
+    #     (There will be no coin shares included at level 0 anyway.)
+    #     '''
+    #     U.coin_shares = []
+    #     vk, sks = generate_keys(self.n_processes, self.n_processes//3+1)
+    #     for process_id in range(self.n_processes):
+    #         # create and append the threshold coin black-box for committee member no process_id
+    #         threshold_coin = ThresholdCoin(self.process_id, process_id, self.n_processes, self.n_processes//3+1, sks[process_id], vk)
+    #         U.coin_shares.append(threshold_coin)
 
 
     def add_unit_and_snap_validate(self, U):
