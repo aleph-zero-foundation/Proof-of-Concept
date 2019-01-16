@@ -388,9 +388,6 @@ class Poset:
         for _, dealer_id in indices:
             ind = self.index_dealing_unit_below(dealer_id, U)
 
-            #print(ind)
-            #print([len(self.dealing_units[p_id]) for p_id in range(4)])
-            #print([len(self.threshold_coins[p_id]) for p_id in range(4)])
             # assert self.threshold_coins[dealer_id][ind].process_id == U.creator_id
             # we can take threshold coin of index ind as it is included in the unique dealing unit by dealer_id below U
             coin_shares.append(self.threshold_coins[dealer_id][ind].create_coin_share(U.level))
