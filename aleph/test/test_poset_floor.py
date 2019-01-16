@@ -1,5 +1,6 @@
 from aleph.data_structures import Unit, Poset
 from aleph.utils import dag_utils
+from aleph.utils.generic_test import generate_and_check_dag
 import random
 
 def create_poset_foundation(n_processes):
@@ -65,43 +66,37 @@ def check_all_ceils(dag):
             assert set(tile) == set(other)
 
 def test_small_nonforking():
-    random.seed(123456789)
-    n_processes = 5
-    n_units = 50
-    repetitions = 30
-    for _ in range(repetitions):
-        dag = dag_utils.generate_random_nonforking(n_processes, n_units)
-        check_all_floors(dag)
-        check_all_ceils(dag)
+    generate_and_check_dag(
+        checks= [check_all_floors, check_all_ceils],
+        n_processes = 5,
+        n_units = 50,
+        repetitions = 30,
+    )
 
 def test_large_nonforking():
-    random.seed(123456789)
-    n_processes = 100
-    n_units = 200
-    repetitions = 1
-    for _ in range(repetitions):
-        dag = dag_utils.generate_random_nonforking(n_processes, n_units)
-        check_all_floors(dag)
-        check_all_ceils(dag)
+    generate_and_check_dag(
+        checks= [check_all_floors, check_all_ceils],
+        n_processes = 100,
+        n_units = 200,
+        repetitions = 1,
+    )
 
 def test_small_forking():
-    random.seed(123456789)
     n_processes = 5
-    n_units = 50
-    repetitions = 30
-    for _ in range(repetitions):
-        n_forking = random.randint(0,n_processes)
-        dag = dag_utils.generate_random_forking(n_processes, n_units, n_forking)
-        check_all_floors(dag)
-        check_all_ceils(dag)
+    generate_and_check_dag(
+        checks= [check_all_floors, check_all_ceils],
+        n_processes = n_processes,
+        n_units = 50,
+        repetitions = 30,
+        forking = lambda: random.randint(0, n_processes)
+    )
 
 def test_large_forking():
-    random.seed(123456789)
     n_processes = 100
-    n_units = 200
-    repetitions = 1
-    for _ in range(repetitions):
-        n_forking = random.randint(0,n_processes)
-        dag = dag_utils.generate_random_forking(n_processes, n_units, n_forking)
-        check_all_floors(dag)
-        check_all_ceils(dag)
+    generate_and_check_dag(
+        checks= [check_all_floors, check_all_ceils],
+        n_processes = n_processes,
+        n_units = 200,
+        repetitions = 1,
+        forking = lambda: random.randint(0, n_processes)
+    )

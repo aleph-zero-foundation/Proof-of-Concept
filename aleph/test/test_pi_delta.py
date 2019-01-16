@@ -6,7 +6,7 @@ from aleph.process import Process
 from aleph.crypto.keys import SigningKey, VerifyKey
 from aleph.utils.dag_utils import generate_random_compliant_unit
 from aleph.utils import DAG, dag_utils
-from aleph.utils.testing_utils import add_to_instance
+from aleph.utils.mock import add_to_instance
 from aleph.utils.plot import plot_poset, plot_dag
 
 

@@ -2,7 +2,6 @@ from aleph.network import listener, sync
 from aleph.data_structures import Poset
 from aleph.crypto.keys import SigningKey, VerifyKey
 from aleph.utils.dag_utils import generate_random_forking, poset_from_dag
-from aleph.utils.plot import plot_poset, plot_dag
 
 import asyncio
 import concurrent
