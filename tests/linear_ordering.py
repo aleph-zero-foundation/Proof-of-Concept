@@ -8,7 +8,6 @@ from aleph.process import Process
 from aleph.crypto.keys import SigningKey, VerifyKey
 from aleph.utils.dag_utils import generate_random_forking, poset_from_dag, generate_random_compliant_unit
 from aleph.utils import DAG, dag_utils
-from aleph.utils.plot import plot_poset, plot_dag
 
 
 
@@ -36,7 +35,7 @@ dag = DAG(n_processes)
 names_to_units = {}
 
 for process_id in range(n_processes):
-    name = dag_utils.generate_unit_name(dag, process_id)
+    name = dag_utils.generate_unused_name(dag, process_id)
     dag.add(name, process_id, [])
     U = Unit(process_id, [], txs=[])
     processes[process_id].sign_unit(U)

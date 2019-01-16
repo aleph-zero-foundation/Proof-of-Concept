@@ -1,4 +1,5 @@
 from aleph.utils import dag_utils
+from aleph.utils.generic_test import generate_and_check_dag
 import random
 from itertools import combinations
 
@@ -29,41 +30,36 @@ def check_break_ties_for_units(poset, units):
     check_total_order_invariance(poset, units)
 
 
-def check_break_ties(poset):
+def check_break_ties(dag):
+    poset, __ = dag_utils.poset_from_dag(dag)
     check_break_ties_for_units(poset, list(poset.units.values()))
     random_unit = random.choice(list(poset.units.values()))
     check_break_ties_for_units(poset, list(lower_cone(poset, random_unit)))
 
 
 def test_small_nonforking_break_ties():
-    random.seed(123456789)
-    n_processes = 5
-    n_units = 50
-    repetitions = 1
-    for _ in range(repetitions):
-        dag = dag_utils.generate_random_nonforking(n_processes, n_units)
-        poset, __ = dag_utils.poset_from_dag(dag)
-        check_break_ties(poset)
+    generate_and_check_dag(
+        checks= [check_break_ties],
+        n_processes = 5,
+        n_units = 50,
+        repetitions = 1,
+    )
 
 
 def test_large_nonforking_break_ties():
-    random.seed(123456789)
-    n_processes = 30
-    n_units = 500
-    repetitions = 5
-    for _ in range(repetitions):
-        dag = dag_utils.generate_random_nonforking(n_processes, n_units)
-        poset, __ = dag_utils.poset_from_dag(dag)
-        check_break_ties(poset)
+    generate_and_check_dag(
+        checks= [check_break_ties],
+        n_processes = 30,
+        n_units = 500,
+        repetitions = 5,
+    )
 
 
 def test_large_forking_break_ties():
-    random.seed(123456789)
-    n_processes = 30
-    n_units = 500
-    repetitions = 5
-    for _ in range(repetitions):
-        dag = dag_utils.generate_random_forking(n_processes, n_units, 3)
-        poset, __ = dag_utils.poset_from_dag(dag)
-        check_break_ties(poset)
-
+    generate_and_check_dag(
+        checks= [check_break_ties],
+        n_processes = 30,
+        n_units = 500,
+        repetitions = 5,
+        forking = lambda: 3
+    )

@@ -7,12 +7,10 @@ from aleph.data_structures import Poset, UserDB
 from aleph.process import Process
 from aleph.crypto.keys import SigningKey, VerifyKey
 from aleph.utils.dag_utils import generate_random_forking, poset_from_dag
-from aleph.utils.plot import plot_poset, plot_dag
 
 
 async def main():
-    n_processes = 5
-    n_units = 0
+    n_processes = 16
     n_forkers = 0
     txps = 50
     n_light_nodes = 100
@@ -38,7 +36,7 @@ async def main():
     for process_id in range(n_processes):
         sk = signing_keys[process_id]
         pk = public_keys[process_id]
-        new_process = Process(n_processes, process_id, sk, pk, addresses, public_keys, recv_addresses[process_id], userDB)
+        new_process = Process(n_processes, process_id, sk, pk, addresses, public_keys, recv_addresses[process_id], userDB, 'LINEAR_ORDERING')
         processes.append(new_process)
         tasks.append(asyncio.create_task(new_process.run()))
 
@@ -58,13 +56,12 @@ if __name__ == '__main__':
 
 
 def f(n_processes, process_id, sk, pk, addresses, public_keys):
-        new_process = Process(n_processes, process_id, sk, pk, addresses, public_keys, None)
-        new_process.poset = Poset(n_processes)
-        asyncio.run(new_process.run())
+    new_process = Process(n_processes, process_id, sk, pk, addresses, public_keys, None, validation_method='LINEAR_ORDERING')
+    new_process.poset = Poset(n_processes)
+    asyncio.run(new_process.run())
 
 def mp_main():
     n_processes = 1
-    n_units = 0
     n_forkers = 0
 
     host_ports = [8888+i for i in range(n_processes)]
