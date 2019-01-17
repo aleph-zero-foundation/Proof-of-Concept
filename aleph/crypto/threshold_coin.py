@@ -72,8 +72,8 @@ class ThresholdCoin:
         # return first bit
         signature = self.verification_key.combine_shares(shares)
 
-        # the test shows that 41 gives uniform distribution of coin tosses
-        # TODO check what's going on
-        coin_value = decodebytes(hashPair(signature))[41] % 2
+
+        hex_string = hashPair(signature).decode()
+        coin_value = bytes.fromhex(hex_string)[0]%2
 
         return coin_value
