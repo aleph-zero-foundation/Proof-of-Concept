@@ -3,15 +3,19 @@ import os
 from pathlib import Path
 from subprocess import check_output, call
 
-def def_filter(name, values):
+
+def _def_filter(name, values):
     return {'Name': name, 'Values': values}
 
+
 def image_id_in_region(region_name):
+    '''Find id of os image we use. It may differ for different regions'''
     image_name = 'ubuntu/images/hvm-ssd/ubuntu-bionic-18.04-amd64-server-20181203'
     ec2 = boto3.resource('ec2', region_name)
     # below there is only one image in the iterator
     for image in ec2.images.filter(Filters=[{'Name': 'name', 'Values':[image_name]}]):
         return image.id
+
 
 def vpc_id_in_region(region_name):
     ec2 = boto3.resource('ec2', region_name)
@@ -26,6 +30,7 @@ def vpc_id_in_region(region_name):
 
 
 def create_security_group(region_name, security_group_name):
+    '''Creates security group that allows connecting via ssh'''
     ec2 = boto3.resource('ec2', region_name)
 
     vpc_id = vpc_id_in_region(region_name)
@@ -45,6 +50,7 @@ def create_security_group(region_name, security_group_name):
 
 
 def security_group_id_by_region(region_name, security_group_name):
+    '''Finds id of a security group. It may differ for different regions'''
     ec2 = boto3.resource('ec2', region_name)
     security_groups = ec2.security_groups.all()
     for security_group in security_groups:
@@ -55,18 +61,13 @@ def security_group_id_by_region(region_name, security_group_name):
     return create_security_group(region_name, security_group_name)
 
 
-def pk_from_sk(sk_path):
-    '''Generates public key from private key.'''
-    # remember to delete '\n' from the end of the output
-    return check_output(['ssh-keygen', '-y', '-f', sk_path])[:-1]
-
-
 def check_key_uploaded_all_regions(key_name='aleph'):
     '''Checks if in all regions there is public key corresponding to local private key.'''
     key_path = f'key_pairs/{key_name}.pem'
     assert os.path.exists(key_path), 'there is no key locally!'
     fingerprint_path = f'key_pairs/{key_name}.fingerprint'
     assert os.path.exists(fingerprint_path), 'there is no fingerprint of the key!'
+
     with open(fingerprint_path, 'r') as f:
         fp = f.readline()
 
@@ -96,12 +97,12 @@ def generate_key_pair_all_regions(key_name='aleph'):
                 break
         if pk_material is None:
             print('generating key pair')
-            call(['ssh-keygen', '-f', key_path, '-N', ''])
-            os.chmod(key_path, 0o400)
+            call(f'openssl genrsa -out {key_path} 2048'.split())
+            call(f'openssl rsa -in {key_path} -outform PEM -pubout -out {key_path}.pub'.split())
             with open(key_path+'.pub', 'r') as f:
-                pk_material = f.readline()[:-1]
+                pk_material = ''.join([line[:-1] for line in f.readlines()[1:-1]])
         print('sending key pair to region', region_name)
-        ec2.import_key_pair(KeyName='aleph', PublicKeyMaterial=pk_material)
+        ec2.import_key_pair(KeyName=key_name, PublicKeyMaterial=pk_material)
         if not wrote_fp:
             with open(fingerprint_path, 'w') as f:
                 f.write(ec2.KeyPair(key_name).key_fingerprint)
@@ -131,7 +132,9 @@ def init_key_pair(region_name, key_name='aleph'):
                     return
 
         # for some reason there is no key up there, let send it
-        pk_material = pk_from_sk(key_path)
+        with open(key_path+'.pub', 'r') as f:
+            lines = f.readlines()
+            pk_material = ''.join([line[:-1] for line in f.readlines()[1:-1]])
         ec2.import_key_pair(KeyName=key_name, PublicKeyMaterial=pk_material)
     else:
         # create key
@@ -163,14 +166,3 @@ def describe_instances(region_name):
     ec2 = boto3.resource('ec2', region_name)
     for instance in ec2.instances.all():
         print(f'ami_launch_index={instance.ami_launch_index} state={instance.state}')
-
-
-def instances_ip(region_name, instance_ids):
-    ec2 = boto3.resource('ec2', region_name)
-    ips = []
-    for instance in ec2.instances.all():
-        ips.append(instance.public_ip_address)
-
-    return ips
-
-
