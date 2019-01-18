@@ -1034,7 +1034,6 @@ class Poset:
         # tossing a coin. We believe that tossing coin is rare, hence current implementation is chosen
         logger = logging.getLogger(LOGGER_NAME)
         logger.info(f'Tossing coin at level {tossing_unit.level} for a unit at level {U_c.level}.')
-        print('coin_toss!!!11')
 
         if self.use_tcoin == False:
             return self._simple_coin(U_c, tossing_unit.level-1)

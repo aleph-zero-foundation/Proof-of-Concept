@@ -14,7 +14,7 @@ async def main():
     n_forkers = 0
     txps = 50
     n_light_nodes = 100
-    use_tcoin = False
+    use_tcoin = True
 
     processes = []
     host_ports = [8900+i for i in range(n_processes)]
@@ -38,7 +38,7 @@ async def main():
         sk = signing_keys[process_id]
         pk = public_keys[process_id]
         if use_tcoin:
-            new_process = Process(n_processes, process_id, sk, pk, addresses, public_keys, recv_addresses[process_id], userDB, 'LINEAR_ORDERING', True, process_id)
+            new_process = Process(n_processes, process_id, sk, pk, addresses, public_keys, recv_addresses[process_id], userDB, 'LINEAR_ORDERING', True)
         else:
             new_process = Process(n_processes, process_id, sk, pk, addresses, public_keys, recv_addresses[process_id], userDB, 'LINEAR_ORDERING')
         processes.append(new_process)

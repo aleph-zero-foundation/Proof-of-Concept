@@ -42,8 +42,6 @@ class Unit(object):
     def bytestring(self):
         '''Create a bytestring with all essential info about this unit for the purpose of signature creation and checking.'''
         creator = str(self.creator_id).encode()
-        # temporary work-around
-        #serialized_shares = [PAIRING_GROUP.serialize(cs) for cs in self.coin_shares]
         serialized_shares = _serialize_and_flatten_coin_shares(self.coin_shares)
         return b'|'.join([creator] + self.parents_hashes() + serialized_shares + [self.txs])
 
@@ -100,7 +98,7 @@ class Unit(object):
 
 
 def _serialize_coin_shares(coin_shares):
-    if isinstance(coin_shares,dict):
+    if isinstance(coin_shares, dict):
         # These coin shares come from a dealing units -- represent threshold coins
         serialized_shares = {}
         serialized_shares['sks'] = [PAIRING_GROUP.serialize(sk) for sk in coin_shares['sks']]
@@ -112,11 +110,11 @@ def _serialize_coin_shares(coin_shares):
         return [PAIRING_GROUP.serialize(cs) for cs in coin_shares]
 
 def _deserialize_coin_shares(serialized_shares):
-    if isinstance(serialized_shares,dict):
+    if isinstance(serialized_shares, dict):
         # These coin shares come from a dealing units -- represent threshold coins
         coin_shares = {}
         coin_shares['sks'] = [PAIRING_GROUP.deserialize(sk) for sk in serialized_shares['sks']]
-        coin_shares['vks'] = [PAIRING_GROUP.deserialize(vk) for kk in serialized_shares['vks']]
+        coin_shares['vks'] = [PAIRING_GROUP.deserialize(vk) for vk in serialized_shares['vks']]
         coin_shares['vk'] = PAIRING_GROUP.deserialize(serialized_shares['vk'])
         return coin_shares
     else:
