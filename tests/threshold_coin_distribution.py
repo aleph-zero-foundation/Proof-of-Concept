@@ -28,6 +28,7 @@ def check_distribution(n_jobs, n_processes, n_units, n_forkers, strategy):
             n_forkers,
             strategy,
             post_prepare = report_coin_toss,
+            use_tcoin = True,
             seed = round(time())+i
         ) for i in range(n_jobs))
     print('work done in', round(time()-start,2))

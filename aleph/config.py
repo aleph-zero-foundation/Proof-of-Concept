@@ -11,10 +11,14 @@ HOST_PORT = 8888
 N_RECV_SYNC = 5
 LOGGER_NAME = 'aleph'
 
-ADD_SHARES = 6
+ADD_SHARES = 4
 
 import charm.toolbox.pairinggroup
 PAIRING_GROUP = charm.toolbox.pairinggroup.PairingGroup('MNT224')
+# initialize group generator
+GENERATOR = PAIRING_GROUP.hash('gengen', charm.toolbox.pairinggroup.G2)
+# precompute exponentiation table to speed up computations
+GENERATOR.initPP()
 
 import pickle
 pickle.DEFAULT_PROTOCOL = 4

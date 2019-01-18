@@ -14,7 +14,8 @@ class Process:
     '''This class is the main component of the Aleph protocol.'''
 
 
-    def __init__(self, n_processes, process_id, secret_key, public_key, address_list, public_key_list, tx_receiver_address, userDB=None, validation_method='SNAP'):
+    def __init__(self, n_processes, process_id, secret_key, public_key, address_list, public_key_list, tx_receiver_address,
+                userDB=None, validation_method='SNAP', enable_tcoin=False):
         '''
         :param int n_processes: the committee size
         :param int process_id: the id of the current process
@@ -27,6 +28,7 @@ class Process:
         self.n_processes = n_processes
         self.process_id = process_id
         self.validation_method = validation_method
+        self.enable_tcoin = enable_tcoin
 
         self.secret_key = secret_key
         self.public_key = public_key
@@ -40,7 +42,10 @@ class Process:
         self.prepared_txs = []
 
         self.crp = CommonRandomPermutation([pk.to_hex() for pk in public_key_list])
-        self.poset = Poset(self.n_processes, self.crp)
+        if enable_tcoin:
+            self.poset = Poset(self.n_processes, self.crp, use_tcoin = enable_tcoin, process_id = self.process_id)
+        else:
+            self.poset =  Poset(self.n_processes, self.crp)
         self.userDB = userDB
         if self.userDB is None:
             self.userDB = UserDB()
@@ -67,8 +72,8 @@ class Process:
         Signs the unit.
         :param unit U: the unit to be signed.
         '''
-
         U.signature = self.secret_key.sign(U.bytestring())
+
 
 
     def add_unit_and_snap_validate(self, U):
@@ -132,6 +137,8 @@ class Process:
                 self.add_unit_and_extend_linear_order(U)
             else:
                 self.poset.add_unit(U)
+            if self.enable_tcoin and len(U.parents) == 0:
+                self.poset.extract_tcoin_from_dealing_unit(U, self.process_id)
         else:
             return False
 
@@ -176,14 +183,16 @@ class Process:
     async def create_add(self, txs_queue, serverStarted):
         await serverStarted.wait()
     #while True:
-        for _ in range(80):
+        for _ in range(40):
             txs = self.prepared_txs
             new_unit = self.poset.create_unit(self.process_id, txs, strategy = "link_self_predecessor", num_parents = 2)
             if new_unit is not None:
+                self.poset.prepare_unit(new_unit)
                 assert self.poset.check_compliance(new_unit), "A unit created by our process is not passing the compliance test!"
                 self.sign_unit(new_unit)
                 #self.poset.add_unit(new_unit)
                 self.add_unit_to_poset(new_unit)
+
                 if not txs_queue.empty():
                     self.prepared_txs = txs_queue.get()
                 else:
@@ -195,7 +204,7 @@ class Process:
     async def keep_syncing(self, executor, serverStarted):
         await serverStarted.wait()
         #while True:
-        for _ in range(80):
+        for _ in range(40):
             sync_candidates = list(range(self.n_processes))
             sync_candidates.remove(self.process_id)
             target_id = random.choice(sync_candidates)

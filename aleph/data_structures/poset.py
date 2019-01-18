@@ -5,6 +5,9 @@ from functools import reduce
 import random
 import logging
 
+from aleph.crypto.signatures.threshold_signatures import generate_keys, SecretKey, VerificationKey
+from aleph.crypto.threshold_coin import ThresholdCoin
+
 from aleph.data_structures.unit import Unit
 from aleph.crypto import xor
 from aleph.config import *
@@ -15,13 +18,17 @@ class Poset:
     '''This class is the core data structure of the Aleph protocol.'''
 
 
-    def __init__(self, n_processes, crp = None, compliance_rules = None, memo_height = 10):
+    def __init__(self, n_processes, crp = None, compliance_rules = None, memo_height = 10, use_tcoin = False, process_id = None):
         '''
         :param int n_processes: the committee size
-        :param list compliance_rules: list of strings defining which compliance rules are followed by this poset
+        :param list compliance_rules: dictionary string -> bool
         '''
         self.n_processes = n_processes
+        self.default_compliance_rules = {'forker_muting': True, 'parent_diversity': True, 'growth': True, 'threshold_coin': use_tcoin}
         self.compliance_rules = compliance_rules
+        self.use_tcoin = use_tcoin
+        # process_id is used only to support tcoin (i.e. in case use_tcoin = True), to know which shares to add and which tcoin to pick from dealing units
+        self.process_id = process_id
 
         self.units = {}
         self.max_units_per_process = [[] for _ in range(n_processes)]
@@ -59,7 +66,7 @@ class Poset:
 # UNITS
 #===============================================================================================================================
 
-    def prepare_unit(self, U, add_coin_shares=False):
+    def prepare_unit(self, U):
         '''
         Sets basic fields of U; should be called prior to check_compliance and add_unit methods.
         This method does the following:
@@ -81,8 +88,8 @@ class Poset:
         U.level = self.level(U)
 
         # 3. if it is prime of level >= ADD_SHARES, add coin shares to it
-        if add_coin_shares and self.is_prime(U) and U.level >= ADD_SHARES:
-            self.add_coin_shares(U)
+        #if add_tcoin_shares and self.is_prime(U) and U.level >= ADD_SHARES:
+        #    self.add_coin_shares(U)
 
 
     def add_unit(self, U, newly_validated = None):
@@ -110,6 +117,11 @@ class Poset:
         # if it is a dealing unit, add it to self.dealing_units
         if not U.parents and not U in self.dealing_units[U.creator_id]:
             self.dealing_units[U.creator_id].append(U)
+            # extract the corresponding tcoin black box (this requires knowing the process_id)
+            if self.use_tcoin:
+                assert self.process_id is not None, "Usage of tcoin enable but process_id not set."
+                self.extract_tcoin_from_dealing_unit(U, self.process_id)
+
 
         # 2. updates the lists of maximal elements in the poset and
         if len(U.parents) == 0:
@@ -157,7 +169,7 @@ class Poset:
                 self.memoized_units[U.creator_id].append(U)
 
 
-    def create_unit(self, creator_id, txs, strategy = "link_self_predecessor", num_parents = 2):
+    def create_unit(self, creator_id, txs, strategy = "link_self_predecessor", num_parents = 2, force_parents = None):
         '''
         Creates a new unit and stores txs in it. Correctness of the txs is checked by a thread listening for new transactions.
         :param list txs: list of correct transactions
@@ -165,6 +177,7 @@ class Poset:
         - "link_self_predecessor"
         - "link_above_self_predecessor"
         :param int num_parents: number of distinct parents
+        :param list force_parents: (ONLY FOR DEBUGGING/TESTING) parents (units) for the created unit
         :returns: the new-created unit, or None if it is not possible to create a compliant unit
         '''
 
@@ -175,65 +188,86 @@ class Poset:
         logger.info(f"create: {creator_id} attempting to create a unit.")
         if len(self.max_units_per_process[creator_id]) == 0:
             # this is going to be our dealing unit
-
+            if force_parents is not None:
+                assert force_parents == [], "A dealing unit should be created first."
+            if self.use_tcoin:
+                self.add_tcoin_to_dealing_unit(U)
             logger.info(f"create: {creator_id} created its dealing unit.")
             return U
 
 
         assert len(self.max_units_per_process[creator_id]) == 1, "It appears we have created a fork."
-        U_max = self.max_units_per_process[creator_id][0]
 
-        single_tip_processes = set(pid for pid in range(self.n_processes)
-                                if len(self.max_units_per_process[pid]) == 1)
+        if force_parents is not None:
+            assert len(force_parents) == num_parents, "Incorrect number of parents chosen."
 
-        growth_restricted = set(pid for pid in single_tip_processes if self.below(self.max_units_per_process[pid][0], U_max))
+        if force_parents is None:
+            U_max = self.max_units_per_process[creator_id][0]
 
-        recent_parents = set()
+            single_tip_processes = set(pid for pid in range(self.n_processes)
+                                    if len(self.max_units_per_process[pid]) == 1)
 
-        W = U_max
+            growth_restricted = set(pid for pid in single_tip_processes if self.below(self.max_units_per_process[pid][0], U_max))
 
-        while True:
-            # W is our dealing unit -> STOP
-            if len(W.parents) == 0:
-                break
+            recent_parents = set()
 
-            parents = [V.creator_id for V in W.parents if V.creator_id != creator_id]
+            W = U_max
 
-            # recent_parents.update(parents)
-            # ceil(n_processes/3)
+            while True:
+                # W is our dealing unit -> STOP
+                if len(W.parents) == 0:
+                    break
 
-            treshold = (self.n_processes+2)//3
-            if len(recent_parents.union(parents)) >= treshold:
-                break
+                parents = [V.creator_id for V in W.parents if V.creator_id != creator_id]
 
-            recent_parents = recent_parents.union(parents)
-            W = W.self_predecessor
+                # recent_parents.update(parents)
+                # ceil(n_processes/3)
 
-        legit_parents = [pid for pid in single_tip_processes if not (pid in growth_restricted or pid in recent_parents)]
-        legit_parents = list(set(legit_parents + [creator_id]))
+                treshold = (self.n_processes+2)//3
+                if len(recent_parents.union(parents)) >= treshold:
+                    break
 
-        if len(legit_parents) < num_parents:
-            return None
+                recent_parents = recent_parents.union(parents)
+                W = W.self_predecessor
 
-        legit_below = [pid for pid in legit_parents if self.below(U_max, self.max_units_per_process[pid][0])]
+            legit_parents = [pid for pid in single_tip_processes if not (pid in growth_restricted or pid in recent_parents)]
+            legit_parents = list(set(legit_parents + [creator_id]))
+
+            if len(legit_parents) < num_parents:
+                return None
+
+            legit_below = [pid for pid in legit_parents if self.below(U_max, self.max_units_per_process[pid][0])]
 
 
-        if strategy == "link_self_predecessor":
-            first_parent = creator_id
-        elif strategy == "link_above_self_predecessor":
-            first_parent = random.choice(legit_below)
+            if strategy == "link_self_predecessor":
+                first_parent = creator_id
+            elif strategy == "link_above_self_predecessor":
+                first_parent = random.choice(legit_below)
+            else:
+                raise NotImplementedError("Strategy %s not implemented" % strategy)
+
+            random.shuffle(legit_parents)
+            parent_processes = legit_parents[:num_parents]
+            if first_parent in parent_processes:
+                parent_processes.remove(first_parent)
+            else:
+                parent_processes.pop()
+            parent_processes = [first_parent] + parent_processes
+
+            U.parents = [self.max_units_per_process[pid][0] for pid in parent_processes]
         else:
-            raise NotImplementedError("Strategy %s not implemented" % strategy)
+            # forced_parents is set
+            assert all(V.hash() in self.units for V in forced_parents)
+            # compliance might still fail here -- but it will be detected later
+            # forced_parents should be used for debugging and testing purposes only
+            U.parents = forced_parents
 
-        random.shuffle(legit_parents)
-        parent_processes = legit_parents[:num_parents]
-        if first_parent in parent_processes:
-            parent_processes.remove(first_parent)
-        else:
-            parent_processes.pop()
-        parent_processes = [first_parent] + parent_processes
+        if self.use_tcoin:
+            self.prepare_unit(U)
+            if self.is_prime(U) and U.level >= ADD_SHARES:
 
-        U.parents = [self.max_units_per_process[pid][0] for pid in parent_processes]
+                self.add_coin_shares(U)
+
 
         return U
 
@@ -259,9 +293,15 @@ class Poset:
         # we can limit ourselves to prime units V
         processes_high_below = 0
 
-        for Vs in self.prime_units_by_level[m]:
+        for process_id in range(self.n_processes):
+            Vs = self.prime_units_by_level[m][process_id]
             if any(self.high_below(V, U) for V in Vs):
                 processes_high_below += 1
+
+            # For efficiency: break the loop if there is no way to collect supermajority
+            if 3*(processes_high_below + self.n_processes - 1 - process_id) < 2*self.n_processes:
+                break
+
 
         # same as (...)>=2/3*(...) but avoids floating point division
         U.level = m+1 if 3*processes_high_below >= 2*self.n_processes else m
@@ -284,8 +324,9 @@ class Poset:
         :returns: list of pairs of indices such that for (i,j) in the list the coin share TC^j_i(L(U)) should be added to U
         '''
 
-        # TODO there is a problem with lemma 3.16 (there could be no such W), i.e. there could be not enough coin shares to toss a coin.
-        # as a solution on level +4 don't use threshold coin, just toss a hash of U, and on level +6 we know there are enough shares
+        # NOTE there is a problem with lemma 3.16 (there could be no such W), i.e. there could be not enough coin shares to toss a coin.
+        # as a solution on level +4: if there is enough shares it succeeds, otherwise just toss a hash of U,
+        # and on level +6 we know there are enough shares
 
         # don't add coin shares for prime units of level lower than 6
         # this is due to the fact that we want to build transversal for a family
@@ -306,44 +347,30 @@ class Poset:
         # as we start adding coin shares to units of level 6, everything is just fine
         level = 3
 
-        # create a list of all prime units on level level that are below U
-        # threshold coins dealt by forkers are not considered, hence we omit them
-        dealing_F = [V for Vs in self.prime_units_by_level[level] for V in Vs if self.below(V, U)]
+        # construct the list of all prime units below U at level 3
+        # it can be proved that these are enough instead of *all* prime units at levels 3<= ... <= U.level-3
+        prime_below_U = [V for Vs in self.prime_units_by_level[level] for V in Vs if self.below(V, U)]
+
 
         sigma = self.crp[U.level]
-
-        # set of indices of prime units which lower cones are disjoint with the sigma-transversal
-        disjoint_ind = set(V.creator_id for V in dealing_F)
 
         for i, dealer_id in enumerate(sigma):
             # don't add shares for forking dealers
             if dealer_id in skip_dealer_ind:
                 continue
 
-            # during construction of skip_dealer_ind we ruled out possibility that the below returns None
+            indices.append((share_id, dealer_id))
+
+            # during construction of skip_dealer_ind we ruled out the possibility that the below returns None
             ind_dU = self.index_dealing_unit_below(dealer_id, U)
             dU = self.dealing_units[dealer_id][ind_dU]
 
-            # check if a dealing unit of dealer_id is in the lower cone of some unit in dealing_F
-            for V in dealing_F:
-                # check if some dealing unit in the lower cone on V is already in the transversal
-                if V.creator_id not in disjoint_ind:
-                    continue
+            # filter out all units that have dU<=V
+            prime_below_U = [V for V in prime_below_U if not self.below(dU, V)]
 
-                # remove all sets that started intersecting with the sigma-transversal
-                disjoint_ind.remove(V.creator_id)
-
-                # check if dU is in some lower cone and remove it if so
-                disjoint_ind = set(di for di in disjoint_ind if not any(self.below(dU, V) for V in self.prime_units_by_level[level][di]))
-
-                indices.append((share_id, dealer_id))
-
+            # have we added all necessary shares?
+            if prime_below_U == []:
                 break
-
-            # check if we have constructed a sigma-transversal
-            if not disjoint_ind:
-                break
-
         return indices
 
 
@@ -360,11 +387,31 @@ class Poset:
 
         for _, dealer_id in indices:
             ind = self.index_dealing_unit_below(dealer_id, U)
+
             # assert self.threshold_coins[dealer_id][ind].process_id == U.creator_id
-            # we can take threshold coin of index i as it extsts and is the only coin share as guaranteed by determine_coin_shares
+            # we can take threshold coin of index ind as it is included in the unique dealing unit by dealer_id below U
             coin_shares.append(self.threshold_coins[dealer_id][ind].create_coin_share(U.level))
 
         U.coin_shares = coin_shares
+
+    def add_tcoin_to_dealing_unit(self, U):
+        '''
+        Adds threshold coins for all processes to the unit U. U is supposed to be the dealing unit for this to make sense.
+        NOTE: to not create a new field in the Unit class the coin_shares field is reused to hold treshold coins in dealing units.
+        (There will be no coin shares included at level 0 anyway.)
+        '''
+        # create a dict of all VKs and SKs in a raw format -- charm group elements with no classes wrapped around them
+        cs_dict = {}
+        vk, sks = generate_keys(self.n_processes, self.n_processes//3+1)
+        cs_dict['vk'] = vk.vk
+        # TODO: these should be encrypted using corresponding processes' public keys
+        cs_dict['sks'] = [secret_key.sk for secret_key in sks]
+        cs_dict['vks'] = vk.vks
+        #for process_id in range(self.n_processes):
+            # create the threshold coin black-box for committee member no process_id and extract its public key
+        #    threshold_coin = ThresholdCoin(self.process_id, process_id, self.n_processes, self.n_processes//3+1, sks[process_id], vk)
+        #    cs_dict['vks'].append
+        U.coin_shares = cs_dict
 
 
     def get_all_prime_units_by_level(self, level):
@@ -486,6 +533,20 @@ class Poset:
 #===============================================================================================================================
 
 
+    def should_check_rule(self, rule):
+        '''
+        Check whether the rule (a string) "forker_muting", "parent_diversity", etc. should be checked in the check_compliance function.
+        Based on the combination of default values and the compliance_rules dictionary provided as a parameter to the constructor.
+        :returns: True or False
+        '''
+        assert rule in self.default_compliance_rules
+
+        if self.compliance_rules is None or rule not in self.compliance_rules:
+            return self.default_compliance_rules[rule]
+
+        return self.compliance_rules[rule]
+
+
     def check_compliance(self, U):
         '''
         Assumes that prepare_unit(U) has been already called.
@@ -499,11 +560,7 @@ class Poset:
             7. The coinshares are OK, i.e., U contains exactly the coinshares it is supposed to contain.
         :param unit U: unit whose compliance is being tested
         '''
-        # TODO: there might have been other compliance rules that have been forgotten...
-        # TODO: should_check() with string arguments is ugly. This is a temporary solution
         # TODO: it is highly desirable that there are no duplicate transactions in U (i.e. literally copies)
-
-        should_check = lambda x: (self.compliance_rules is None or x in self.compliance_rules)
 
         # 1. Parents of U are correct.
         if not self.check_parent_correctness(U):
@@ -528,20 +585,24 @@ class Poset:
 
 
         # 4. Satisfies forker-muting policy.
-        if should_check('forker_muting') and not self.check_forker_muting(U):
-            return False
+        if self.should_check_rule('forker_muting'):
+            if not self.check_forker_muting(U):
+                return False
 
         # 5. Satisfies parent diversity rule.
-        if should_check('parent_diversity') and not self.check_parent_diversity(U):
-            return False
+        if self.should_check_rule('parent_diversity'):
+            if not self.check_parent_diversity(U):
+                return False
 
         # 6. Check "growth" rule.
-        if should_check('growth') and not self.check_growth(U):
-            return False
+        if self.should_check_rule('growth'):
+            if not self.check_growth(U):
+                return False
 
         # 7. Coinshares are OK.
-        #if self.is_prime(U) and not self.check_coin_shares(U):
-        #    return False
+        if self.should_check_rule('threshold_coin'):
+            if self.is_prime(U) and not self.check_coin_shares(U):
+                return False
 
         return True
 
@@ -696,7 +757,6 @@ class Poset:
                 return False
             else:
                 return True
-
         if len(indices) != len(U.coin_shares):
             return False
 
@@ -799,12 +859,12 @@ class Poset:
 
         n_dunits_below, ind_dU_below = 0, None
         for ind, dU in enumerate(self.dealing_units[dealer_id]):
-            if n_dunits_below == 2:
-                return None
-
             if self.below(dU, U):
                 n_dunits_below += 1
                 ind_dU_below = ind
+
+            if n_dunits_below > 1:
+                return None
 
         return ind_dU_below
 
@@ -911,6 +971,10 @@ class Poset:
             if in_support:
                 processes_in_support += 1
 
+            # For efficiency: break the loop if there is no way to collect supermajority
+            if 3*(processes_in_support + (self.n_processes-1-process_id)) < 2*self.n_processes:
+                break
+
             # This might be a little bit faster (and more Pythonic ;))
             #if any([self.below_within_process(U_ceil, V_floor) for U_ceil in U.ceil[process_id] for V_floor in V.floor[process_id]]):
             #    processes_in_support += 1
@@ -967,14 +1031,27 @@ class Poset:
         # info. This way we save space, but we need to figure this info out when we toss a coin.
         # Alternative approach would be to have Unit.coin_shares as a dict of pairs
         # (dealer_id, coin_share). This would require more space, but ease implementation and speed
-        # tossing a coin. We believe that tossing coin is rare, have current implementation is chosen
+        # tossing a coin. We believe that tossing coin is rare, hence current implementation is chosen
+        logger = logging.getLogger(LOGGER_NAME)
+        logger.info(f'Tossing coin at level {tossing_unit.level} for a unit at level {U_c.level}.')
+
+        if self.use_tcoin == False:
+            return self._simple_coin(U_c, tossing_unit.level-1)
+
         level = tossing_unit.level-1
         fai = self.first_available_index(U_c, level)
 
-        # we use simple_coin if we don't have threshold coin dealt by fai or
-        # we know that fai is a forker
-        if not self.threshold_coins[fai] or self.has_forking_evidence(tossing_unit, fai):
+        # we use simple_coin if tossing_unit already knows that fai is a forker
+        if self.has_forking_evidence(tossing_unit, fai):
             return self._simple_coin(U_c, level)
+
+        # in case fai has forked, there might be multiple his dealing units -- here we pick the (unique) one below U_c
+        ind_dealer = self.index_dealing_unit_below(fai, U_c)
+        # at this point (after fai was determined) it must be the case that there is exactly one dealing unit by fai below U_c
+        assert ind_dealer is not None
+
+        dU = self.dealing_units[fai][ind_dealer]
+
 
         coin_shares = {}
 
@@ -982,41 +1059,41 @@ class Poset:
 
         # run through all prime ancestors of the tossing_unit
         for V in self.get_all_prime_units_by_level(level):
-            # we gathered enough coin shares
+            # we gathered enough coin shares -- ceil(n_processes/3)
             if len(coin_shares) == self.n_processes//3 + 1:
                 break
 
-            # coin shares for U_c were not added to V
-            if not self.below(U_c, V):
+            # can use only shares from units visible from the tossing unit (so that every process arrives at the same result)
+            # note that being high_below here is not necessary
+            if not self.below(V, tossing_unit):
                 continue
 
             # check if V is a fork and we have added coin share corresponding to its creator
-            # Note that at this point we know that fai has not forked its dealing Unit
-            # and we checked shares in V, so shares in forks are the same
+            # Note that at this point we know that fai has not forked its dealing Unit (at least not below tossing_unit)
+            # and the shares in V are validated hence even if V.creator_id forked, the share should be identical
             if V.creator_id in coin_shares:
                 continue
 
-            if self.high_below(V, tossing_unit):
-                # TODO try to optimize finding cs_ind, at least by caching
-                cs_ind = 0 # index of a coin share in V dealt by proces fai
-                for k in sigma:
-                    # we've found fai!
-                    if k == fai:
-                        break
-                    # if there was forking evidence, then we skipped adding coin shares
-                    if self.has_forking_evidence(V, k):
-                        continue
+            # TODO try to optimize this part
+            indices = self.determine_coin_shares(V)
+            for cs_ind, (share_id, dealer_id) in enumerate(indices):
+                assert share_id == V.creator_id
+                if dealer_id == fai:
+                    coin_shares[V.creator_id] = V.coin_shares[cs_ind]
+                    break
 
-                    cs_ind += 1
 
-                coin_shares[V.creator_id] = V.coin_shares[cs_ind]
 
         # we have enough valid coin shares to toss a coin
         # TODO check how often this is not the case
-        if len(coin_shares) == self.n_processes//3 + 1:
-            # tossing unit has no evidanve that fai forked so there is only one threshold coin
-            return self.threshold_coins[fai][0].combine_coin_shares(coin_shares)
+        n_collected = len(coin_shares)
+        n_required = self.n_processes//3 + 1
+        if len(coin_shares) == n_required:
+            logger.info(f'Toss coin {self.process_id}: succeded -- {n_collected} out of required {n_required} shares collected.')
+            return self.threshold_coins[fai][ind_dealer].combine_coin_shares(coin_shares)
         else:
+
+            logger.info(f'Toss coin {self.process_id}: failed because only {n_collected} out of required {n_required} shares were collected :(.')
             return self._simple_coin(U_c, level)
 
 
@@ -1186,6 +1263,15 @@ class Poset:
             self.level_timing_established = timing_established[-1].level
 
         return timing_established
+
+    def extract_tcoin_from_dealing_unit(self, U, process_id):
+        assert U.parents == [], "Trying to extract tcoin from a non-dealing unit."
+        threshold = self.n_processes//3+1
+        sk = SecretKey(U.coin_shares['sks'][process_id])
+        vk = VerificationKey(threshold, U.coin_shares['vk'], U.coin_shares['vks'])
+        threshold_coin = ThresholdCoin(U.creator_id, process_id, self.n_processes, threshold, sk, vk)
+        self.threshold_coins[U.creator_id].append(threshold_coin)
+
 
 
     def add_threshold_coin(self, threshold_coin):

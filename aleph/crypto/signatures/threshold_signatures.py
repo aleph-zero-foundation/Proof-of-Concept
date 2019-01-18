@@ -1,7 +1,7 @@
 from charm.toolbox.pairinggroup import ZR, G1, G2, pair
 from functools import reduce
 
-from aleph.config import PAIRING_GROUP
+from aleph.config import PAIRING_GROUP, GENERATOR
 
 # The implementation is based on: Boldyreva, 2002 https://eprint.iacr.org/2002/118.pdf
 # Possible alternative implementation: Shoup, 2000 http://eprint.iacr.org/1999/011
@@ -18,10 +18,9 @@ def generate_keys(n_parties, threshold):
     group = PAIRING_GROUP
 
     # pick a generator of the group
-    gen = group.hash('gengen', G2)
-    gen.initPP()
+    gen = GENERATOR
 
-    ONE = group.random(ZR)*0+1 # for some reason there is no group.get_identity() fct
+
 
     # pick a set of coefficients
     coef = group.random(ZR, threshold)
@@ -34,17 +33,8 @@ def generate_keys(n_parties, threshold):
     vk = gen ** secret
     vks = [gen ** scr for scr in sks]
 
-    def _hash_fct(msg):
-        return group.hash(msg, G1)
 
-    # Lagrange polynomial
-    def _L(S, i):
-        S = sorted(S)
-        num = reduce(lambda x, y: x*y, [0 - j - 1 for j in S if j != i], ONE)
-        den = reduce(lambda x, y: x*y, [i - j     for j in S if j != i], ONE)
-        return num/den
-
-    verification_key = VerificationKey(threshold, _hash_fct, _L, vk, vks, gen)
+    verification_key = VerificationKey(threshold, vk, vks)
     secret_keys = [SecretKey(sk) for sk in sks]
 
     return verification_key, secret_keys
@@ -54,7 +44,7 @@ class VerificationKey:
     An object used for verifying shares and signatures and for combining shares into signatures.
     '''
 
-    def __init__(self, threshold, hash_fct, L, vk, vks, gen):
+    def __init__(self, threshold, vk, vks):
         '''
         :param int threshold: number of signature shares needed to generate a signature
         :param function hash_fct: function for hashing messages
@@ -64,11 +54,22 @@ class VerificationKey:
         :param int gen: generator of the G2 group
         '''
         self.threshold = threshold
-        self.hash_fct = hash_fct
-        self.L = L
         self.vk = vk
         self.vks = vks
-        self.gen = gen
+
+        self.group = PAIRING_GROUP
+        self.gen = GENERATOR
+
+    def hash_fct(self, msg):
+        return self.group.hash(msg, G1)
+
+    # Lagrange polynomial
+    def L(self, S, i):
+        ONE = self.group.init(ZR, 1)
+        S = sorted(S)
+        num = reduce(lambda x, y: x*y, [0 - j - 1 for j in S if j != i], ONE)
+        den = reduce(lambda x, y: x*y, [i - j     for j in S if j != i], ONE)
+        return num/den
 
     def verify_share(self, share, i, msg_hash):
         '''

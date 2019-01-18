@@ -31,7 +31,7 @@ class Unit(object):
 
     def transactions(self):
         '''Iterate over transactions (instances of Tx class) belonging to this unit.'''
-        return iter(pickle.loads(zlib.decompress(self.txs)))
+        return list(pickle.loads(zlib.decompress(self.txs)))
         #return iter(self.txs)
 
 
@@ -42,18 +42,18 @@ class Unit(object):
     def bytestring(self):
         '''Create a bytestring with all essential info about this unit for the purpose of signature creation and checking.'''
         creator = str(self.creator_id).encode()
-        serialized_shares = [PAIRING_GROUP.serialize(cs) for cs in self.coin_shares]
+        serialized_shares = _serialize_and_flatten_coin_shares(self.coin_shares)
         return b'|'.join([creator] + self.parents_hashes() + serialized_shares + [self.txs])
 
 
     def __getstate__(self):
-        serialized_coin_shares = [PAIRING_GROUP.serialize(cs) for cs in self.coin_shares]
+        serialized_coin_shares = _serialize_coin_shares(self.coin_shares)
         return (self.creator_id, self.parents_hashes(), self.txs, self.signature, serialized_coin_shares)
 
 
     def __setstate__(self, state):
         self.creator_id, self.parents, self.txs, self.signature, serialized_coin_shares = state
-        self.coin_shares = [PAIRING_GROUP.deserialize(cs) for cs in serialized_coin_shares]
+        self.coin_shares = _deserialize_coin_shares(serialized_coin_shares)
         self.level = None
         self.hash_value = None
 
@@ -94,3 +94,41 @@ class Unit(object):
         #str_repr += str(self.level)?
         #str_repr += str(self.self_predecessor.hash())?
         return str_repr
+
+
+
+def _serialize_coin_shares(coin_shares):
+    if isinstance(coin_shares, dict):
+        # These coin shares come from a dealing units -- represent threshold coins
+        serialized_shares = {}
+        serialized_shares['sks'] = [PAIRING_GROUP.serialize(sk) for sk in coin_shares['sks']]
+        serialized_shares['vks'] = [PAIRING_GROUP.serialize(vk) for vk in coin_shares['vks']]
+        serialized_shares['vk'] = PAIRING_GROUP.serialize(coin_shares['vk'])
+        return serialized_shares
+    else:
+        # These coin shares come from a non-dealing unit -- they just represent regular coin shares
+        return [PAIRING_GROUP.serialize(cs) for cs in coin_shares]
+
+def _deserialize_coin_shares(serialized_shares):
+    if isinstance(serialized_shares, dict):
+        # These coin shares come from a dealing units -- represent threshold coins
+        coin_shares = {}
+        coin_shares['sks'] = [PAIRING_GROUP.deserialize(sk) for sk in serialized_shares['sks']]
+        coin_shares['vks'] = [PAIRING_GROUP.deserialize(vk) for vk in serialized_shares['vks']]
+        coin_shares['vk'] = PAIRING_GROUP.deserialize(serialized_shares['vk'])
+        return coin_shares
+    else:
+        # These coin shares come from a non-dealing unit -- they just represent regular coin shares
+        return [PAIRING_GROUP.deserialize(cs) for cs in serialized_shares]
+
+def _serialize_and_flatten_coin_shares(coin_shares):
+    '''
+    Return a list of bytestrings as a representation of coin shares.
+    '''
+    if isinstance(coin_shares,dict):
+        # we need to transform a dict of bytestrings into a list of bytestrings
+        serialized_shares = _serialize_coin_shares(coin_shares)
+        return serialized_shares['sks'] + serialized_shares['vks'] + [serialized_shares['vk']]
+    else:
+        # already in the right format
+        return _serialize_coin_shares(coin_shares)

@@ -166,8 +166,9 @@ async def _receive_units(process_id, ex_id, reader, mode, logger):
     logger.info(f'{mode} {process_id}: receiving units from {ex_id}')
     data = await reader.readuntil()
     n_bytes = int(data[:-1])
-    logger.info(f'{mode} {process_id}: received {n_bytes} bytes from {ex_id}')
+    logger.info(f'{mode} {process_id}: received message length: {n_bytes} from {ex_id}')
     data = await reader.readexactly(n_bytes)
+    logger.info(f'{mode} {process_id}: received {n_bytes} bytes from {ex_id}')
     units_received = pickle.loads(data)
     logger.info(f'{mode}, {process_id}: received units')
     return units_received
@@ -187,6 +188,7 @@ async def _send_units(process_id, ex_id, int_heights, ex_heights, process, write
     logger.info(f'{mode} {process_id}: sending {len(data)} bytes to {ex_id}')
     writer.write(b'\n')
     writer.write(data)
+    logger.info(f'{mode} {process_id}: sent {len(data)} bytes to {ex_id}')
     #writer.write_eof()
     await writer.drain()
 
