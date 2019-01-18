@@ -5,7 +5,7 @@ from functools import reduce
 import random
 import logging
 
-from aleph.crypto.signatures.threshold_signatures import generate_keys
+from aleph.crypto.signatures.threshold_signatures import generate_keys, SecretKey, VerificationKey
 from aleph.crypto.threshold_coin import ThresholdCoin
 
 from aleph.data_structures.unit import Unit
@@ -400,12 +400,18 @@ class Poset:
         NOTE: to not create a new field in the Unit class the coin_shares field is reused to hold treshold coins in dealing units.
         (There will be no coin shares included at level 0 anyway.)
         '''
-        U.coin_shares = []
+        # create a dict of all VKs and SKs in a raw format -- charm group elements with no classes wrapped around them
+        cs_dict = {}
         vk, sks = generate_keys(self.n_processes, self.n_processes//3+1)
-        for process_id in range(self.n_processes):
-            # create and append the threshold coin black-box for committee member no process_id
-            threshold_coin = ThresholdCoin(self.process_id, process_id, self.n_processes, self.n_processes//3+1, sks[process_id], vk)
-            U.coin_shares.append(threshold_coin)
+        cs_dict['vk'] = vk.vk
+        # TODO: these should be encrypted using corresponding processes' public keys
+        cs_dict['sks'] = [secret_key.sk for secret_key in sks]
+        cs_dict['vks'] = vk.vks
+        #for process_id in range(self.n_processes):
+            # create the threshold coin black-box for committee member no process_id and extract its public key
+        #    threshold_coin = ThresholdCoin(self.process_id, process_id, self.n_processes, self.n_processes//3+1, sks[process_id], vk)
+        #    cs_dict['vks'].append
+        U.coin_shares = cs_dict
 
 
     def get_all_prime_units_by_level(self, level):
@@ -1029,7 +1035,6 @@ class Poset:
         logger = logging.getLogger(LOGGER_NAME)
         logger.info(f'Tossing coin at level {tossing_unit.level} for a unit at level {U_c.level}.')
         print('coin_toss!!!11')
-        #exit(0)
 
         if self.use_tcoin == False:
             return self._simple_coin(U_c, tossing_unit.level-1)
@@ -1261,7 +1266,12 @@ class Poset:
         return timing_established
 
     def extract_tcoin_from_dealing_unit(self, U, process_id):
-        self.threshold_coins[U.creator_id].append(U.coin_shares[process_id])
+        assert U.parents == [], "Trying to extract tcoin from a non-dealing unit."
+        threshold = self.n_processes//3+1
+        sk = SecretKey(U.coin_shares['sks'][process_id])
+        vk = VerificationKey(threshold, U.coin_shares['vk'], U.coin_shares['vks'])
+        threshold_coin = ThresholdCoin(U.creator_id, process_id, self.n_processes, threshold, sk, vk)
+        self.threshold_coins[U.creator_id].append(threshold_coin)
 
 
 

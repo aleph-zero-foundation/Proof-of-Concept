@@ -199,12 +199,8 @@ class Process:
             txs = self.prepared_txs
             new_unit = self.poset.create_unit(self.process_id, txs, strategy = "link_self_predecessor", num_parents = 2)
             if new_unit is not None:
-                self.poset.prepare_unit(U, add_tcoin_shares = self.enable_tcoin)
+                self.poset.prepare_unit(new_unit)
                 assert self.poset.check_compliance(new_unit), "A unit created by our process is not passing the compliance test!"
-                # if this is our dealing unit, we add threshold coin black-boxes for all committee members
-                # TODO: these coins should be encrypted...
-                if self.enable_tcoin and new_unit.level == 0:
-                    self.add_tcoin_to_dealing_unit(new_unit)
                 self.sign_unit(new_unit)
                 #self.poset.add_unit(new_unit)
                 self.add_unit_to_poset(new_unit)

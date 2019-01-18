@@ -14,6 +14,7 @@ async def main():
     n_forkers = 0
     txps = 50
     n_light_nodes = 100
+    use_tcoin = False
 
     processes = []
     host_ports = [8900+i for i in range(n_processes)]
@@ -36,7 +37,10 @@ async def main():
     for process_id in range(n_processes):
         sk = signing_keys[process_id]
         pk = public_keys[process_id]
-        new_process = Process(n_processes, process_id, sk, pk, addresses, public_keys, recv_addresses[process_id], userDB, 'LINEAR_ORDERING')
+        if use_tcoin:
+            new_process = Process(n_processes, process_id, sk, pk, addresses, public_keys, recv_addresses[process_id], userDB, 'LINEAR_ORDERING', True, process_id)
+        else:
+            new_process = Process(n_processes, process_id, sk, pk, addresses, public_keys, recv_addresses[process_id], userDB, 'LINEAR_ORDERING')
         processes.append(new_process)
         tasks.append(asyncio.create_task(new_process.run()))
 
@@ -55,21 +59,3 @@ if __name__ == '__main__':
 
 
 
-def f(n_processes, process_id, sk, pk, addresses, public_keys):
-    new_process = Process(n_processes, process_id, sk, pk, addresses, public_keys, None, validation_method='LINEAR_ORDERING')
-    new_process.poset = Poset(n_processes)
-    asyncio.run(new_process.run())
-
-def mp_main():
-    n_processes = 1
-    n_forkers = 0
-
-    host_ports = [8888+i for i in range(n_processes)]
-    addresses = [('127.0.0.1', port) for port in host_ports]
-
-    signing_keys = [SigningKey() for _ in range(n_processes)]
-    public_keys = [VerifyKey.from_SigningKey(sk) for sk in signing_keys]
-
-    procs = [multiprocessing.Process(target=f, args=(n_processes, process_id, sk, pk, addresses, public_keys)) for process_id, sk, pk in zip(range(n_processes), signing_keys, public_keys)]
-    for p in procs:
-        p.start()
