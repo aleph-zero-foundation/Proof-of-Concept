@@ -71,8 +71,6 @@ class ThresholdCoin:
 
         # return first bit
         signature = self.verification_key.combine_shares(shares)
-
-
         hex_string = hashPair(signature).decode()
         coin_value = bytes.fromhex(hex_string)[0]%2
 

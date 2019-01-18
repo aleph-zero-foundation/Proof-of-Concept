@@ -65,7 +65,7 @@ class VerificationKey:
 
     # Lagrange polynomial
     def L(self, S, i):
-        ONE = self.group.random(ZR)*0+1 # for some reason there is no group.get_identity() fct
+        ONE = self.group.init(ZR, 1)
         S = sorted(S)
         num = reduce(lambda x, y: x*y, [0 - j - 1 for j in S if j != i], ONE)
         den = reduce(lambda x, y: x*y, [i - j     for j in S if j != i], ONE)
