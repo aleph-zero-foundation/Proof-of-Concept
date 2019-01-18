@@ -73,8 +73,6 @@ class Poset:
             0. set U's self_predecessor and height
             1. set floor field
             2. set U's level
-            3. if it is prime and of level >=4, add coin shares to it
-        :param unit U: unit which fields are about to be set
         '''
 
         # 0. set U's self_predecessor and height
@@ -86,10 +84,6 @@ class Poset:
 
         # 2. set U's level
         U.level = self.level(U)
-
-        # 3. if it is prime of level >= ADD_SHARES, add coin shares to it
-        #if add_tcoin_shares and self.is_prime(U) and U.level >= ADD_SHARES:
-        #    self.add_coin_shares(U)
 
 
     def add_unit(self, U, newly_validated = None):
@@ -570,10 +564,14 @@ class Poset:
         if not self.check_signature_correct(U):
             return False
 
-        # This is a dealing unit, and its signature is correct --> it is compliant
+
         if len(U.parents) == 0:
+            # This is a dealing unit, and its signature is correct --> we only need to check whether threshold coin is included
             self.set_self_predecessor_and_height(U)
-            return True
+            if self.use_tcoin and not self.check_threshold_coin_included(U):
+                return False
+            else:
+                return True
 
         # 3. U has a well-defined self_predecessor
 
@@ -605,6 +603,34 @@ class Poset:
                 return False
 
         return True
+
+    def check_threshold_coin_included(self, U):
+        '''
+        Checks whether the dealing unit U has a threshold coin included.
+        We cannot really check whether it is valid (since the secret keys are encrypted).
+        Instead, we simply make sure whether the dictionary has all necessary fields and the corresponding lists are of appropriate length.
+        :returns: Boolean value, True if U's threshold coin is correct, False otherwise.
+        '''
+        if not isinstance(U.coin_shares, dict):
+            return False
+
+        # coin_shares['vk'] should be the "cumulative" public key
+        if not 'vk' in U.coin_shares:
+            return False
+
+        # coin_shares['vks'] should be a list of public keys for every process
+        if not 'vks' in U.coin_shares or len(U.coin_shares['vks']) != self.n_processes:
+            return False
+
+        # coin_shares['sks'] should be a list of private keys for every process
+        if not 'sks' in U.coin_shares or len(U.coin_shares['sks']) != self.n_processes:
+            return False
+
+        # TODO: one should also check whether vks and vk represent valid elements of the PAIRINGGROUP
+
+        return True
+
+
 
 
     def check_growth(self, U):
@@ -742,15 +768,30 @@ class Poset:
 
         return True
 
+    def validate_share(self, U, share_index, dealer_id):
+        '''
+        Checks whether a particular coin share agrees with the dealt public key.
+        Note that even if it does not, it does not follow that U.creator_id is adversary -- it could be that dealer_id is the cheater.
+        '''
+        ind = self.index_dealing_unit_below(dealer_id, U)
+        assert ind is not None
+        coin_share = U.coin_shares[share_index]
+        return self.threshold_coins[dealer_id][ind].verify_coin_share(coin_share, U.creator_id, U.level)
+
 
     def check_coin_shares(self, U):
         '''
-        Checks if coin shares stored in U are OK.
+        Checks if coin shares stored in U "are OK".
         :param unit U: unit which coin shares are checked
         :returns: True if everything works and False otherwise
         '''
 
-        #TODO check if shares are valid, i.e. if they can be combined
+        # NOTE: we cannot require that all the coinshares in U agree with the corresponding VK's dealt!
+        # NOTE: this is because the corresponding SK (which is encrypted) could be broken, in which case U.creator_id could not generate correct shares
+        # Instead, we require that the list of shares is at least of correct length...
+
+        # TODO (not sure this should be done here, if at all): check if shares are valid, i.e. if they can be combined
+
         indices = self.determine_coin_shares(U)
         if U.coin_shares is None:
             if indices:
@@ -763,8 +804,9 @@ class Poset:
         for (share_id, dealer_id), coin_share in zip(indices, U.coin_shares):
             # there should be exactly one threshold coin below U
             ind = self.index_dealing_unit_below(dealer_id, U)
-            if not self.threshold_coins[dealer_id][ind].verify_coin_share(coin_share, share_id, U.level):
-                return False
+            # NOTE: the check below cannot be performed, since U.creator_id has no control over the correctness of the tc dealt by dealer_id
+            #if not self.threshold_coins[dealer_id][ind].verify_coin_share(coin_share, share_id, U.level):
+            #    return False
 
         return True
 
@@ -1079,7 +1121,9 @@ class Poset:
             for cs_ind, (share_id, dealer_id) in enumerate(indices):
                 assert share_id == V.creator_id
                 if dealer_id == fai:
-                    coin_shares[V.creator_id] = V.coin_shares[cs_ind]
+                    # check if the share is correct, it might be incorrect even if V.creator_id is not a cheater
+                    if self.validate_share(V, cs_ind, dealer_id):
+                        coin_shares[V.creator_id] = V.coin_shares[cs_ind]
                     break
 
 
