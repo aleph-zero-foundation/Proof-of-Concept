@@ -4,9 +4,7 @@ from subprocess import call
 from utils import image_id_in_region, default_region_name, init_key_pair, security_group_id_by_region, generate_key_pair_all_regions, available_regions
 
 
-def launch_new_instances(count=1, region_name='default'):
-    from time import time
-    start = time()
+def launch_new_instances_in_region(count=1, region_name='default'):
     if region_name == 'default':
         region_name = default_region_name()
 
@@ -22,19 +20,33 @@ def launch_new_instances(count=1, region_name='default'):
     image_id = image_id_in_region(region_name)
 
     print('run instance')
-    ec2 = boto3.client('ec2', region_name)
-    instance = ec2.run_instances( ImageId=image_id, MinCount=count, MaxCount=count, InstanceType='t2.micro', BlockDeviceMappings=[ { 'DeviceName': '/dev/xvda', 'Ebs': { 'DeleteOnTermination': True, 'VolumeSize': 8, 'VolumeType': 'gp2' }, }, ], KeyName=key_name, Monitoring={ 'Enabled': False }, SecurityGroupIds = [security_group_id])
-    print('launching took', round(time()-start,2))
+    ec2 = boto3.resource('ec2', region_name)
+    instance = ec2.create_instances(ImageId=image_id,
+                                 MinCount=count, MaxCount=count,
+                                 InstanceType='t2.micro',
+                                 BlockDeviceMappings=[ {
+                                     'DeviceName': '/dev/xvda',
+                                     'Ebs': {
+                                         'DeleteOnTermination': True,
+                                         'VolumeSize': 8,
+                                         'VolumeType': 'gp2'
+                                     },
+                                 }, ],
+                                 KeyName=key_name,
+                                 Monitoring={ 'Enabled': False },
+                                 SecurityGroupIds = [security_group_id])
     return instance
 
 
-def terminate_instances(region_name):
+def terminate_instances_in_region(region_name):
+    if region_name == 'default':
+        region_name = default_region_name()
     ec2 = boto3.resource('ec2', region_name)
     for instance in ec2.instances.all():
         instance.terminate()
 
 
-def instances_id(region_name='default'):
+def instances_id_in_region(region_name='default'):
     if region_name == 'default':
         region_name = default_region_name()
     ec2 = boto3.resource('ec2', region_name)
@@ -45,7 +57,7 @@ def instances_id(region_name='default'):
     return ids
 
 
-def instances_ip(region_name='default'):
+def instances_ip_in_region(region_name='default'):
     if region_name == 'default':
         region_name = default_region_name()
     ec2 = boto3.resource('ec2', region_name)
@@ -56,13 +68,62 @@ def instances_ip(region_name='default'):
     return ips
 
 
+def instances_state_in_region(region_name='defalut'):
+    if region_name == 'default':
+        region_name = default_region_name()
+    ec2 = boto3.resource('ec2', region_name)
+    states = []
+    for instance in ec2.instances.all():
+        states.append(instance.state)
+
+    return states
+
+
+def exec_for_regions(func, regions='all'):
+    if regions == 'all':
+        regions = available_regions()
+
+    results = []
+    for region_name in regions:
+        print(f'executing {func} in region {region_name}')
+        result = func(region_name)
+        if isinstance(result, list):
+            results.extend(result)
+        else:
+            results.append(result)
+
+    return results
+
+
+def launch_new_instances(count=1, regions='all'):
+    def func(region_name):
+        return launch_new_instances_in_region(count, region_name)
+
+    return exec_for_regions(func, regions)
+
+
+def terminate_instances(regions='all'):
+    return exec_for_regions(terminate_instances_in_region, regions)
+
+
+def instances_id(regions='all'):
+    return exec_for_regions(instances_id_in_region, regions)
+
+
+def instances_ip(regions='all'):
+    return exec_for_regions(instances_ip_in_region, regions)
+
+
+def instances_state(regions='all'):
+    return exec_for_regions(instances_state_in_region, regions)
+
+
 def run_fab(ip_list=None, task='test'):
     if ip_list is None:
-        ip_list = []
-        for region_name in available_regions():
-            ip_list.extend(instances_ip(region_name))
+        ip_list = instances_ip()
 
-    call(f'fab -i key_pairs/aleph.pem -H ubuntu@{",".join(ip_list)} {task}'.split())
+    call(f'fab -i key_pairs/aleph.pem -H {",".join(["ubuntu@"+ip for ip in ip_list])} {task}'.split())
+
 
 if __name__=='__main__':
     import IPython; IPython.embed()

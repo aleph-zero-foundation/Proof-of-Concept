@@ -154,6 +154,11 @@ def available_regions():
     return boto3.Session(region_name='eu-west-1').get_available_regions('ec2')
 
 
+def badger_regions():
+    return ['us-east-1', 'us-west-1', 'us-west-2', 'eu-west-1',
+            'sa-east-1', 'ap-southeast-1', 'ap-southeast-2', 'ap-northeast-1']
+
+
 def default_region_name():
     return boto3.Session().region_name
 
