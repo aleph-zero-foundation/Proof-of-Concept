@@ -3,6 +3,7 @@ import os
 from pathlib import Path
 from subprocess import check_output, call
 
+from aleph.crypto.keys import SigningKey
 
 def _def_filter(name, values):
     return {'Name': name, 'Values': values}
@@ -141,13 +142,24 @@ def init_key_pair(region_name, key_name='aleph'):
         generate_key_pair_all_regions(key_name)
 
 
-def read_keys():
+def read_aws_keys():
     creds_path = str(Path.joinpath(Path.home(), Path('.aws/credentials')))
     with open(creds_path, 'r') as f:
         f.readline() # skip block description
         access_key_id = f.readline().strip().split('=')[-1].strip()
         secret_access_key = f.readline().strip().split('=')[-1].strip()
         return access_key_id, secret_access_key
+
+
+def generate_signing_keys(n_processes):
+    file_path = f'signing_keys_{n_processes}'
+    if os.path.exists(file_path):
+        return
+
+    priv_keys = [SigningKey() for _ in range(n_processes)]
+    with open('file_path', 'w') as f:
+        for _ in range(n_processes):
+            f.write(SigningKey().to_hex().decode()+'\n')
 
 
 def available_regions():

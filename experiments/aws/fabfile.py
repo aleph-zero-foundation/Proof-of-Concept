@@ -2,23 +2,6 @@ from fabric import task
 
 
 @task
-def test(conn):
-    conn.run('uname -a')
-
-
-@task
-def run_tests(conn):
-    with conn.cd('proof-of-concept'):
-        conn.run('pytest aleph')
-
-
-@task
-def sync_keys(conn):
-    #conn.put()
-    pass
-
-
-@task
 def install_dependencies(conn):
     conn.sudo('apt update')
 
@@ -42,18 +25,52 @@ def install_dependencies(conn):
 
 @task
 def clone_repo(conn):
-    conn.run('git clone http://gitlab+deploy-token-38770:usqkQKRbQiVFyKZ2byZw@gitlab.com/alephledger/proof-of-concept.git')
+    user_token = 'gitlab+deploy-token-38770:usqkQKRbQiVFyKZ2byZw'
+    conn.run(f'git clone http://{user_token}@gitlab.com/alephledger/proof-of-concept.git')
     with conn.cd('proof-of-concept'):
         conn.run('git checkout devel')
         conn.run('sudo pip3 install -e .')
 
+
+@task
+def sync_keys(conn):
+    with conn.cd('proof-of-concept/experiments/aws'):
+        conn.put('signing_keys', '.')
+
+
+@task
+def sync_hosts(conn):
+    with conn.cd('proof-of-concept/experiments/aws'):
+        conn.put('hosts', '.')
+
+
 @task
 def init(conn):
-    sync_keys(conn)
+    print('installing dependencies')
     install_dependencies(conn)
+    print('cloning the repo')
     clone_repo(conn)
+    print('syncing signing keys')
+    sync_keys(conn)
+    print('syncing hosts file')
+    sync_hosts(conn)
+    print('init complete')
 
 
 @task
 def stop_world(conn):
     pass
+
+
+@task
+def test(conn):
+    conn.run('uname -a')
+
+
+@task
+def run_tests(conn):
+    with conn.cd('proof-of-concept'):
+        conn.run('pytest aleph')
+
+
+
