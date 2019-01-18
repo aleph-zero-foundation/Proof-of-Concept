@@ -11,6 +11,7 @@ setup(
         "numpy",
         "matplotlib",
         "joblib",
+        "pytest-xdist",
         ],
     license="",
 )
