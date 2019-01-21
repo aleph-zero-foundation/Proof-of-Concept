@@ -4,15 +4,15 @@ import random
 
 def toss_for_prime(U, poset, dag, results, additional_args):
     '''
-    For every prime unit of level>=5 try to toss a coin for some random prime unit >=4 levels below.
+    For every prime unit of level>=5 try to toss a coin for some random prime at level>=3 that is >=4 levels below.
     '''
     if additional_args is None:
         primes = []
     else:
         primes = additional_args
-    if poset.is_prime(U):
+    if poset.is_prime(U) and U.level>=3:
         primes.append(U)
-        if U.level>=5:
+        if U.level>=7:
             random.shuffle(primes)
             # find any prime unit that is >=4 levels below U
             for U_c in primes:
