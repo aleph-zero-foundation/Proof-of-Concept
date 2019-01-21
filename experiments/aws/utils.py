@@ -9,9 +9,12 @@ def _def_filter(name, values):
     return {'Name': name, 'Values': values}
 
 
-def image_id_in_region(region_name):
+def image_id_in_region(region_name, version='bionic'):
     '''Find id of os image we use. It may differ for different regions'''
-    image_name = 'ubuntu/images/hvm-ssd/ubuntu-bionic-18.04-amd64-server-20181203'
+    if version == 'bionic':
+    	image_name = 'ubuntu/images/hvm-ssd/ubuntu-bionic-18.04-amd64-server-20181203'
+    elif version == 'cosmic':
+        image_name = 'ubuntu/images/hvm-ssd/ubuntu-cosmic-18.10-amd64-server-20190110'
     ec2 = boto3.resource('ec2', region_name)
     # below there is only one image in the iterator
     for image in ec2.images.filter(Filters=[{'Name': 'name', 'Values':[image_name]}]):
@@ -152,12 +155,12 @@ def read_aws_keys():
 
 
 def generate_signing_keys(n_processes):
-    file_path = f'signing_keys_{n_processes}'
+    file_path = f'signing_keys'
     if os.path.exists(file_path):
         return
 
     priv_keys = [SigningKey() for _ in range(n_processes)]
-    with open('file_path', 'w') as f:
+    with open(file_path, 'w') as f:
         for _ in range(n_processes):
             f.write(SigningKey().to_hex().decode()+'\n')
 
