@@ -1089,7 +1089,7 @@ class Poset:
         n_collected = len(coin_shares)
         n_required = self.n_processes//3 + 1
         if len(coin_shares) == n_required:
-            coin, correct = self.threshold_coins[fai][ind_dealer].combine_coin_shares(coin_shares, verify = True, nonce = str(level))
+            coin, correct = self.threshold_coins[fai][ind_dealer].combine_coin_shares(coin_shares, str(level))
             if correct:
                 logger.info(f'Toss coin {self.process_id}: succeded -- {n_collected} out of required {n_required} shares collected.')
                 return coin

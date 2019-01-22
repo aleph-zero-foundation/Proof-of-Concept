@@ -60,14 +60,13 @@ class ThresholdCoin:
         return self.verification_key.verify_share(coin_share, process_id, msg_hash)
 
 
-    def combine_coin_shares(self, shares, verify = False, nonce = None):
+    def combine_coin_shares(self, shares, nonce):
         """
         Assumes that all shares are valid (the)
         :param dict shares: keys are processes ids, values are shares (tuples (dealer_id, nonce, coin_shares))
-        :param bool verify: make True to verify whether the combined signature is correct, in this case the nonce parameter is also mandatory
-        :returns:   if verify = False: bool (coin toss),
-                    if verify = True:  pair (bool, bool) :  (coin toss) , (whether combining shares was succesful)
-        NOTE: combining shares should always succeed except when some of the shares were invalid,
+        :param string nonce: the nonce the shares were created for -- necessary for verifying the result of combining
+        :returns:  pair (bool, bool) :  (coin toss) , (whether combining shares was succesful)
+        NOTE: combining shares should always succeed except when some of the shares were invalid or the dealer was dishonest,
               in which case the toss might be biased and should ideally be discarded
         """
         # there are enough shares of a coin
@@ -76,13 +75,11 @@ class ThresholdCoin:
 
         signature = self.verification_key.combine_shares(shares)
         hex_string = hashPair(signature).decode()
-        # we just use the first bit
+        # we just use the first bit as the coin toss
         coin_value = bytes.fromhex(hex_string)[0]%2
 
-        if verify:
-            assert nonce is not None, "Verification of coin toss requested but nonce not provided."
-            nonce_hash = self.verification_key.hash_fct(nonce)
-            correctness = self.verification_key.verify_signature(signature, nonce_hash)
-            return (coin_value, correctness)
-        else:
-            return coin_value
+        # verify the result
+        nonce_hash = self.verification_key.hash_fct(nonce)
+        correctness = self.verification_key.verify_signature(signature, nonce_hash)
+
+        return (coin_value, correctness)

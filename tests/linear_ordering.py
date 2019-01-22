@@ -33,7 +33,7 @@ def translate_parents_and_copy(U, hashes_to_units):
 #random.seed(194)
 n_processes = 16
 n_units = 1000
-use_tcoin = False
+use_tcoin = True
 processes = []
 host_ports = [8900+i for i in range(n_processes)]
 addresses = [('127.0.0.1', port) for port in host_ports]

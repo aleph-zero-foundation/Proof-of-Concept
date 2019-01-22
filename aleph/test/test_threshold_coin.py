@@ -25,4 +25,4 @@ class TestThresholdCoin():
         _shares = {i:shares[i] for i in random.sample(range(n_parties), threshold)}
 
         pid = random.randrange(n_parties)
-        assert TCs[pid].combine_coin_shares(_shares) in [0, 1]
+        assert TCs[pid].combine_coin_shares(_shares, str(nonce))[0] in [0, 1]
