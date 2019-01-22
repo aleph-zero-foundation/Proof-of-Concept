@@ -60,18 +60,26 @@ class ThresholdCoin:
         return self.verification_key.verify_share(coin_share, process_id, msg_hash)
 
 
-    def combine_coin_shares(self, shares):
+    def combine_coin_shares(self, shares, nonce):
         """
-        Assumes that all shares are valid.
-        :param dict shares: keys are processes ids, values are shares (tuples (dealer_id, nonce, coin_shares))
-        :returns: bool
+        Combines the coin shares by forming a threshold signature and taking its 1st bit, subsequently it verifies the result.
+        NOTE: combining shares should always succeed except when some of the shares were invalid or the dealer was dishonest,
+              in which case the toss might be biased and should ideally be discarded
+        :param dict shares: keys are processes ids, values are shares (group G1 elements)
+        :param string nonce: the nonce the shares were created for -- necessary for verifying the result of combining
+        :returns:  pair (int, bool) :  (coin toss in {0,1}) , (whether combining shares was succesful)
         """
         # there are enough shares of a coin
         assert len(shares) == self.threshold
 
-        # return first bit
+
         signature = self.verification_key.combine_shares(shares)
         hex_string = hashPair(signature).decode()
+        # we just use the first bit as the coin toss
         coin_value = bytes.fromhex(hex_string)[0]%2
 
-        return coin_value
+        # verify the result
+        nonce_hash = self.verification_key.hash_fct(nonce)
+        correctness = self.verification_key.verify_signature(signature, nonce_hash)
+
+        return (coin_value, correctness)
