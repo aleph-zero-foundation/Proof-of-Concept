@@ -83,7 +83,6 @@ def simulate_with_checks(
     forkers = random.sample(range(n_processes), n_forkers)
     dag = DAG(n_processes)
     posets = initialize_posets(n_processes, use_tcoin)
-    generate_threshold_coins(posets)
 
     name_to_unit = [{} for process_id in range(n_processes)]
     unit_to_name = [{} for process_id in range(n_processes)]
