@@ -341,9 +341,13 @@ class Poset:
         # as we start adding coin shares to units of level 6, everything is just fine
         level = 3
 
-        # construct the list of all prime units below U at level 3
-        # it can be proved that these are enough instead of *all* prime units at levels 3<= ... <= U.level-3
-        prime_below_U = [V for Vs in self.prime_units_by_level[level] for V in Vs if self.below(V, U)]
+        # construct the list of all prime units below U at level 3 (or higher, if no unit at level=3 for a given process)
+        # it can be proved that these are enough instead of *all* prime units at levels 3 <= ... <= U.level - 1
+        prime_below_U = []
+        for process_id in range(self.n_processes):
+            Vs = self.get_prime_unit_above_level(process_id, level)
+            if Vs and Vs[0].level <= U.level - 1:
+                prime_below_U += [V for V in Vs if self.below(V,U)]
 
 
         sigma = self.crp[U.level]
@@ -1325,6 +1329,35 @@ class Poset:
 # HELPER FUNCTIONS LOOSELY RELATED TO POSETS
 #===============================================================================================================================
 
+    def get_prime_unit_above_level(self, process_id, level):
+        '''
+        Let L be the smallest level s.t. L>=level and there exists a prime unit created by process_id at level l.
+        Then this outputs the list of all prime units created by process_id at level L.
+        :param int process_id: the id number of a process
+        :param int level: the target level
+        :returns: List of prime units by process id with level = level (or higher if no such exists), or None
+        '''
+        # NOTE: this implementation is efficient only if level is relatively small
+        # this assumption is realistic since it is normally called for level = 3
+        # if there is no unit at lvl level yet, return None
+        if not level in self.prime_units_by_level:
+            return None
+
+        # there is a unit/units by this process at this level, just return it
+        if self.prime_units_by_level[level][process_id] != []:
+            return self.prime_units_by_level[level][process_id]
+
+        # need to find the lowest level above 'level' that has a unit created by process_id
+        for U in self.max_units_per_process[process_id]:
+            if U.level >= level:
+                V = U
+                # go down as long as we are above 'level'
+                while V.self_predecessor.level >= level:
+                    V = V.self_predecessor
+
+                return self.prime_units_by_level[V.level][process_id]
+
+        return None
 
 
     def order_units_topologically(self, units_list):
