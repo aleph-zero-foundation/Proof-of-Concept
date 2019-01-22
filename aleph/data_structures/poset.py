@@ -350,7 +350,6 @@ class Poset:
         # construct the list of all prime units below U at level 3 (or higher, if no unit at level=3 for a given process)
         # it can be proved that these are enough instead of *all* prime units at levels 3 <= ... <= U.level - 1
         prime_below_U = []
-        [V for Vs in self.prime_units_by_level[level] for V in Vs if self.below(V, U)]
         for process_id in range(self.n_processes):
             Vs = self.get_prime_unit_above_level(process_id, level)
             if Vs and Vs[0].level <= U.level - 1:
@@ -1301,7 +1300,7 @@ class Poset:
             return None
 
         # there is a unit/units by this process at this level, just return it
-        if self.prime_units_by_level[level][process_id]:
+        if self.prime_units_by_level[level][process_id] != []:
             return self.prime_units_by_level[level][process_id]
 
         # need to find the lowest level above 'level' that has a unit created by process_id
