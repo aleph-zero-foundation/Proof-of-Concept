@@ -29,11 +29,12 @@ def install_dependencies(conn):
 
 @task
 def clone_repo(conn):
+    conn.run('rm -rf proof-of-concept')
     user_token = 'gitlab+deploy-token-38770:usqkQKRbQiVFyKZ2byZw'
     conn.run(f'git clone http://{user_token}@gitlab.com/alephledger/proof-of-concept.git')
     with conn.cd('proof-of-concept'):
         conn.run('git checkout devel')
-        conn.run('sudo python3.7 -m pip install -e .')
+        conn.run('source /home/ubuntu/p37/bin/activate && pip install .')
 
 
 @task
@@ -62,11 +63,22 @@ def init(conn):
 
 
 @task
+def zip_repo(conn):
+    # pack current version
+    conn.local("find . -name '*.pyc' -delete")
+    conn.local('zip -rq poc.zip ../../../proof-of-concept')
+
+
+@task
+def install_repo(conn):
+    with conn.cd('proof-of-concept'):
+        conn.run('source /home/ubuntu/p37/bin/activate && pip install .')
+
+
+@task
 def send_testing_repo(conn):
     # rename main repo temporarily
     conn.run('mv proof-of-concept proof-of-concept.old')
-    # pack current version
-    conn.local('zip -rq poc.zip ../../../proof-of-concept')
     # send it upstream
     conn.put('poc.zip', '.')
     # unpack
@@ -81,9 +93,10 @@ def delete_testing_repo(conn):
 
 @task
 def run_simple_ec2_test(conn):
-    conn.run('env PYTHONPATH=.:/home/ubuntu/proof-of-concept echo $PYTHONPATH')
     with conn.cd('proof-of-concept/experiments'):
-        conn.run('env PYTHONPATH=.:/home/ubuntu/proof-of-concept python3.7 simple_ec2_test.py -h hosts -s signing_keys')
+        conn.run('export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/local/lib &&'
+                 'source /home/ubuntu/p37/bin/activate &&'
+                 'python3.7 simple_ec2_test.py -h ~/hosts -s ~/signing_keys')
 
 @task
 def run_processes(conn):
