@@ -1,10 +1,10 @@
 import asyncio
 import logging
 import pickle
-import zlib
 import random
 import socket
 import socketserver
+import zlib
 
 from time import time
 
@@ -155,8 +155,10 @@ async def listener(process, process_id, addresses, public_key_list, executor, se
     logger = logging.getLogger(consts.LOGGER_NAME)
     logger.info(f'server_start {process_id} | Starting sync server on {host_ip}:{host_port}')
 
+    serverStarted.set()
     async with server:
         await server.serve_forever()
+
 
 
 async def sync(process, initiator_id, target_id, target_addr, public_key_list, executor):
