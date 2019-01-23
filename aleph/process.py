@@ -3,6 +3,9 @@ import concurrent
 import logging
 import multiprocessing
 import random
+import psutil
+import os
+
 
 from aleph.data_structures import Poset, UserDB
 from aleph.crypto import CommonRandomPermutation
@@ -169,7 +172,7 @@ class Process:
             assert user_public_key in self.pending_txs.keys(), f"No transaction is pending for user {user_public_key}."
             assert (tx, U) in self.pending_txs[user_public_key], "Transaction not found among pending"
             if tx.index != self.userDB.last_transaction(tx.issuer) + 1:
-                self.logger.info(f'tx validation: transaction failed to validate because its index is {tx.index}, while the previous one was {self.userDB.last_transaction(tx.issuer)}')
+                self.logger.info(f'tx_validation {self.process_id} | transaction failed to validate because its index is {tx.index}, while the previous one was {self.userDB.last_transaction(tx.issuer)}')
                 continue
             transaction_fork_present = False
             for (pending_txs, V) in self.pending_txs[user_public_key]:
@@ -194,6 +197,9 @@ class Process:
         await serverStarted.wait()
         #while True:
         for _ in range(40):
+            # log current memory consumption
+            memory_usage_in_mib = round((psutil.Process(os.getpid()).memory_info().rss)/(2**20))
+            self.logger.info(f'memory_usage {self.process_id} | Memory {memory_usage_in_mb} MiB')
             txs = self.prepared_txs
             new_unit = self.poset.create_unit(self.process_id, txs, strategy = "link_self_predecessor", num_parents = 2)
             if new_unit is not None:
@@ -237,7 +243,7 @@ class Process:
         syncing_task = asyncio.create_task(self.keep_syncing(executor, serverStarted))
 
         await asyncio.gather(syncing_task, creator_task)
-        self.logger.info(f'{self.process_id} gathered results; cancelling listener')
+        self.logger.info(f'listener_done {self.process_id} | Gathered results; cancelling listener')
         listener_task.cancel()
 
         p.kill()

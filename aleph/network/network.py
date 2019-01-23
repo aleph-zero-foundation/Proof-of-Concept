@@ -157,38 +157,38 @@ async def _send_poset_info(sync_id, process_id, ex_id, writer, int_heights, int_
     writer.write(b'\n')
     writer.write(data)
     await writer.drain()
-    logger.info(f'{mode} {process_id}: sending forkers/heights {int_heights} to {ex_id}')
+    logger.info(f'send_{mode} {process_id} {sync_id} | sending forkers/heights {int_heights} to {ex_id}')
 
 
 async def _receive_poset_info(sync_id, process_id, n_processes, reader, mode, logger):
-    logger.info(f'receive_{mode} {process_id} | Receiving info about forkers and heights&hashes from an unknown process')
+    logger.info(f'receive_poset_{mode} {process_id} {sync_id} | Receiving info about forkers and heights&hashes from an unknown process')
     data = await reader.readuntil()
     n_bytes = int(data[:-1])
     data = await reader.readexactly(n_bytes)
     ex_id, ex_heights, ex_hashes = pickle.loads(data)
     assert ex_id != process_id, "It seems we are syncing with ourselves."
     assert ex_id in range(n_processes), "Incorrect process id received."
-    logger.info(f'{mode} {process_id}: got forkers/heights {ex_heights} from {ex_id}')
+    logger.info(f'receive_poset_{mode} {process_id} {sync_id} | Got forkers/heights {ex_heights} from {ex_id}')
 
     return ex_id, ex_heights, ex_hashes
 
 
 async def _receive_units(sync_id, process_id, ex_id, reader, mode, logger):
-    logger.info(f'{mode} {process_id}: receiving units from {ex_id}')
+    logger.info(f'receive_units_start_{mode} {process_id} {sync_id} | Receiving units from {ex_id}')
     data = await reader.readuntil()
     n_bytes = int(data[:-1])
-    logger.info(f'{mode} {process_id}: received message length: {n_bytes} from {ex_id}')
     data = await reader.readexactly(n_bytes)
-    logger.info(f'{mode} {process_id}: received {n_bytes} bytes from {ex_id}')
+    logger.info(f'receive_units_bytes_{mode} {process_id} {sync_id} | Received {n_bytes} bytes from {ex_id}')
     units_received = pickle.loads(data)
-    logger.info(f'{mode}, {process_id}: received units')
+    n_units = len(units_received)
+    logger.info(f'receive_units_done_{mode} {process_id} {sync_id} | Received {n_units} units')
     return units_received
 
 
 async def _send_units(sync_id, process_id, ex_id, int_heights, ex_heights, process, writer, mode, logger):
     send_ind = [i for i, (int_height, ex_height) in enumerate(zip(int_heights, ex_heights)) if int_height > ex_height]
 
-    logger.info(f'{mode} {process_id}: sending units to {ex_id}')
+    logger.info(f'send_units_start_{mode} {process_id} {sync_id} | Sending units to {ex_id}')
     units_to_send = []
     for i in send_ind:
         units = process.poset.units_by_height_interval(creator_id=i, min_height=ex_heights[i]+1, max_height=int_heights[i])
@@ -196,14 +196,14 @@ async def _send_units(sync_id, process_id, ex_id, int_heights, ex_heights, proce
     units_to_send = process.poset.order_units_topologically(units_to_send)
     data = pickle.dumps(units_to_send)
     writer.write(str(len(data)).encode())
-    logger.info(f'{mode} {process_id}: sending {len(data)} bytes to {ex_id}')
+    logger.info(f'send_units_wait_{mode} {process_id} {sync_id} | Sending {len(data)} bytes to {ex_id}')
     writer.write(b'\n')
     writer.write(data)
-    logger.info(f'{mode} {process_id}: sent {len(data)} bytes to {ex_id}')
+    logger.info(f'send_units_sent_{mode} {process_id} {sync_id} | Sent {len(data)} bytes to {ex_id}')
     #writer.write_eof()
     await writer.drain()
 
-    logger.info(f'{mode} {process_id}: units sent to {ex_id}')
+    logger.info(f'send_units_done_{mode} {process_id} {sync_id} | Units sent {ex_id}')
 
 
 async def _verify_signatures(sync_id, process_id, units_received, public_key_list, executor, mode, logger):
@@ -221,19 +221,19 @@ async def _verify_signatures(sync_id, process_id, units_received, public_key_lis
             if not coro.result():
                 return False
 
-    logger.info(f'{mode} {process_id}: signatures verified')
+    logger.info(f'verify_sign_{mode} {process_id} {sync_id} | Signatures verified')
 
     return True
 
 
 async def _add_units(sync_id, process_id, ex_id, units_received, process, mode, logger):
-    logger.info(f'{mode} {process_id}: trying to add {len(units_received)} units from {ex_id} to poset')
+    logger.info(f'add_received_{mode} {process_id} {sync_id} | trying to add {len(units_received)} units from {ex_id} to poset')
     for unit in units_received:
         process.poset.fix_parents(unit)
         if not process.add_unit_to_poset(unit):
-            logger.error(f'{mode} {process_id}: unit {unit} from {ex_id} was rejected')
+            logger.error(f'add_received_fail_{mode} {process_id} {sync_id} | unit {unit.short_name()} from {ex_id} was rejected')
             return False
-    logger.info(f'{mode} {process_id}: units from {ex_id} were added succesfully')
+    logger.info(f'add_received_done_{mode} {process_id} {sync_id} | units from {ex_id} were added succesfully')
     return True
 
 

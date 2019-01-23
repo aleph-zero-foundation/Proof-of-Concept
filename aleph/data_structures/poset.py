@@ -1139,11 +1139,11 @@ class Poset:
                 logger.info(f'toss_coin_succ {self.process_id} | Succeded - {n_collected} out of required {n_required} shares collected')
                 return coin
             else:
-                logger.info(f'toss_coin_fail {self.process_id} | Failed - {n_collected} out of required {n_required} shares collected, but combine unsuccesful')
+                logger.warning(f'toss_coin_fail {self.process_id} | Failed - {n_collected} out of required {n_required} shares collected, but combine unsuccesful')
                 return self._simple_coin(U_c, level)
 
         else:
-            logger.info(f'toss_coin_fail {self.process_id} | Failed - {n_collected} out of required {n_required} shares were collected')
+            logger.warning(f'toss_coin_fail {self.process_id} | Failed - {n_collected} out of required {n_required} shares were collected')
             return self._simple_coin(U_c, level)
 
 
@@ -1233,6 +1233,7 @@ class Poset:
 
     def decide_unit_is_timing(self, U_c):
         # go over even levels starting from U_c.level + 2
+        logger = logging.getLogger(LOGGER_NAME)
         U_c_hash = U_c.hash()
 
         if U_c_hash not in self.timing_partial_results:
@@ -1252,6 +1253,9 @@ class Poset:
                         pass
                     else:
                         memo['decision'] = decision
+                        if decision == 1:
+                            process_id = self.process_id or (-1)
+                            logger.info(f'decide_timing {process_id} | Timing unit for lvl {U_c.level} decided at lvl + {level - U_c.level}')
                         return decision
         return -1
 
