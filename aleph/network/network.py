@@ -52,7 +52,7 @@ async def listener(process, process_id, addresses, public_key_list, executor, se
         #logger.debug('listener: assuming that addresses are different')
 
         # new sync id
-        sync_id = process.sync_ids
+        sync_id = process.sync_id
         process.sync_id += 1
 
         if peer_addr[0] not in ips:
@@ -115,7 +115,7 @@ async def sync(process, initiator_id, target_id, target_addr, public_key_list, e
     logger = logging.getLogger(LOGGER_NAME)
 
     # new sync id
-    sync_id = process.sync_ids
+    sync_id = process.sync_id
     process.sync_id += 1
 
     logger.info(f'sync_establish_try {initiator_id} {sync_id} | Establishing connection to {target_id}')
@@ -124,11 +124,11 @@ async def sync(process, initiator_id, target_id, target_addr, public_key_list, e
 
     int_heights, int_hashes = process.poset.get_max_heights_hashes()
 
-    await _send_poset_info(initiator_id, target_id, writer, int_heights, int_hashes, 'sync', logger)
+    await _send_poset_info(sync_id, initiator_id, target_id, writer, int_heights, int_hashes, 'sync', logger)
 
     ex_id, ex_heights, ex_hashes = await _receive_poset_info(sync_id, initiator_id, process.poset.n_processes, reader, 'sync', logger)
 
-    await _send_units(initiator_id, target_id, int_heights, ex_heights, process, writer, 'sync', logger)
+    await _send_units(sync_id, initiator_id, target_id, int_heights, ex_heights, process, writer, 'sync', logger)
 
     units_received = await _receive_units(sync_id, initiator_id, target_id, reader, 'sync', logger)
 
@@ -142,7 +142,7 @@ async def sync(process, initiator_id, target_id, target_addr, public_key_list, e
         logger.error(f'sync_not_compliant {initiator_id} {sync_id} | Got unit from {target_id} that does not comply to the rules; aborting')
         return
 
-    logger.info(f'sync {initiator_id} {sync_id} | Syncing with {target_id} succesful')
+    logger.info(f'sync_done {initiator_id} {sync_id} | Syncing with {target_id} succesful')
 
     # TODO: at some point we need to add exceptions and exception handling and make sure that the two lines below are executed no matter what happens
     writer.close()
@@ -150,14 +150,14 @@ async def sync(process, initiator_id, target_id, target_addr, public_key_list, e
 
 
 async def _send_poset_info(sync_id, process_id, ex_id, writer, int_heights, int_hashes, mode, logger):
-    logger.info(f'{mode} {process_id}: sending info about forkers and heights&hashes to {ex_id}')
+    logger.info(f'send_poset_{mode} {process_id} {sync_id} | sending info about forkers and heights&hashes to {ex_id}')
 
     data = pickle.dumps((process_id, int_heights, int_hashes))
     writer.write(str(len(data)).encode())
     writer.write(b'\n')
     writer.write(data)
     await writer.drain()
-    logger.info(f'send_{mode} {process_id} {sync_id} | sending forkers/heights {int_heights} to {ex_id}')
+    logger.info(f'send_poset_{mode} {process_id} {sync_id} | sending forkers/heights {int_heights} to {ex_id}')
 
 
 async def _receive_poset_info(sync_id, process_id, n_processes, reader, mode, logger):
@@ -207,7 +207,7 @@ async def _send_units(sync_id, process_id, ex_id, int_heights, ex_heights, proce
 
 
 async def _verify_signatures(sync_id, process_id, units_received, public_key_list, executor, mode, logger):
-    logger.info(f'{mode} {process_id}: verifying signatures')
+    logger.info(f'{mode} {process_id} {sync_id} | Verifying signatures')
 
     loop = asyncio.get_running_loop()
     # TODO check if it possible to create one tast that waits for verifying all units

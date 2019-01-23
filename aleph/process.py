@@ -112,9 +112,9 @@ class Process:
         self.unordered_units.add(U.hash())
         if self.poset.is_prime(U):
             new_timing_units = self.poset.attempt_timing_decision()
-            self.logger.info(f'Lin-order {self.process_id}: New prime unit added at level {U.level}')
+            self.logger.info(f'prime_unit {self.process_id} | New prime unit at level {U.level} : {U.short_name()}')
             for U_timing in new_timing_units:
-                self.logger.info(f'Lin-order {self.process_id}: New timing unit at level {U_timing.level} established.')
+                self.logger.info(f'timing_new {self.process_id} | Timing unit at level {U_timing.level} established.')
             for U_timing in new_timing_units:
                 units_to_order = []
                 for V_hash in self.unordered_units:
@@ -127,7 +127,7 @@ class Process:
                 self.unordered_units = self.unordered_units.difference(ordered_units_hashes)
 
                 printable_unit_hashes = ''.join([' '+W.short_name() for W in ordered_units])
-                self.logger.info(f'add_linear_order {self.process_id} | Added {len(units_to_order)} units to the linear order :{printable_unit_hashes}')
+                self.logger.info(f'add_linear_order {self.process_id} | Added {len(units_to_order)} units to the linear order {printable_unit_hashes}')
 
 
     def add_unit_to_poset(self, U):
@@ -199,7 +199,7 @@ class Process:
         for _ in range(40):
             # log current memory consumption
             memory_usage_in_mib = round((psutil.Process(os.getpid()).memory_info().rss)/(2**20))
-            self.logger.info(f'memory_usage {self.process_id} | Memory {memory_usage_in_mb} MiB')
+            self.logger.info(f'memory_usage {self.process_id} | {memory_usage_in_mib} MiB')
             txs = self.prepared_txs
             new_unit = self.poset.create_unit(self.process_id, txs, strategy = "link_self_predecessor", num_parents = 2)
             if new_unit is not None:
