@@ -67,6 +67,9 @@ class Process:
         # hashes of units in linear order
         self.linear_order = []
 
+        # we number all the syncs performed by process with unique ids (both outcoming and incoming)
+        self.sync_id = 0
+
         # initialize logger
         self.logger = logging.getLogger(LOGGER_NAME)
 
