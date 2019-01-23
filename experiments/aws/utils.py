@@ -38,7 +38,7 @@ def create_security_group(region_name, security_group_name):
     ec2 = boto3.resource('ec2', region_name)
 
     vpc_id = vpc_id_in_region(region_name)
-    sg = ec2.create_security_group(GroupName=security_group_name, Description='ssh', VpcId=vpc_id)
+    sg = ec2.create_security_group(GroupName=security_group_name, Description='ssh and gossip', VpcId=vpc_id)
     sg.authorize_ingress(
         GroupName=security_group_name,
         IpPermissions = [
@@ -47,6 +47,22 @@ def create_security_group(region_name, security_group_name):
                 'IpProtocol': 'tcp',
                 'IpRanges': [{'CidrIp': '0.0.0.0/0'}],
                 'ToPort': 22,
+            },
+            {
+                'FromPort': 8888,
+                'IpProtocol': 'tcp',
+                'IpRanges': [{'CidrIp': '0.0.0.0/0'}],
+                'ToPort': 8888,
+            }
+        ]
+    )
+    sg.authorize_egress(
+        IpPermissions = [
+            {
+                'FromPort': 8000,
+                'IpProtocol': 'tcp',
+                'IpRanges': [{'CidrIp': '0.0.0.0/0'}],
+                'ToPort': 20000,
             }
         ]
     )
@@ -102,6 +118,7 @@ def generate_key_pair_all_regions(key_name='aleph'):
         if pk_material is None:
             print('generating key pair')
             call(f'openssl genrsa -out {key_path} 2048'.split())
+            call(f'chmod 400 {key_path}'.split())
             call(f'openssl rsa -in {key_path} -outform PEM -pubout -out {key_path}.pub'.split())
             with open(key_path+'.pub', 'r') as f:
                 pk_material = ''.join([line[:-1] for line in f.readlines()[1:-1]])

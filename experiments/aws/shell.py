@@ -1,33 +1,20 @@
-import boto3
+'''This is a shell for orchestrating experiments on AWS EC 2'''
 import os
 
-from fabric import executor
 from functools import partial
-from joblib import Parallel, delayed
 from subprocess import call, check_output
 from time import sleep
+from joblib import Parallel, delayed
 
+import boto3
 
-from utils import image_id_in_region, default_region_name, init_key_pair, security_group_id_by_region, generate_key_pair_all_regions, available_regions, badger_regions, generate_signing_keys
+from utils import image_id_in_region, default_region_name, init_key_pair, security_group_id_by_region, available_regions, badger_regions, generate_signing_keys
 from config import N_JOBS
 
 
-#======================================================================================
-#                              routines for instances
-#======================================================================================
-
-def wait_for_instances(insts, target_state):
-    wait = True
-    while wait:
-        sleep(1)
-        for i in insts:
-            i.load()
-        wait = not all(i.state['Name']==target_state for i in insts)
-
-
-#======================================================================================
+#==============================================================================
 #                              routines for some region
-#======================================================================================
+#==============================================================================
 
 def launch_new_instances_in_region(n_hosts=1, region_name='default'):
     if region_name == 'default':
@@ -38,7 +25,7 @@ def launch_new_instances_in_region(n_hosts=1, region_name='default'):
     init_key_pair(region_name, key_name)
 
     #print(region_name, 'sg init')
-    security_group_name = 'ssh'
+    security_group_name = 'aleph'
     security_group_id = security_group_id_by_region(region_name, security_group_name)
 
     #print(region_name, 'image init')
@@ -72,7 +59,7 @@ def terminate_instances_in_region(region_name='default'):
         instance.terminate()
 
 
-def instances_in_region(region_name='default'):
+def all_instances_in_region(region_name='default'):
     if region_name == 'default':
         region_name = default_region_name()
     ec2 = boto3.resource('ec2', region_name)
@@ -144,11 +131,34 @@ def run_task_in_region(task='test', region_name='default', parallel=False, outpu
 def wait_in_region(target_state, region_name):
     if region_name == 'default':
         region_name = default_region_name()
-    instances = boto3.resource('ec2', region_name).instances.all()
-    wait = True
-    print(region_name, 'waiting')
-    while wait:
-        wait = not all(inst.state['Name'] in target_state for inst in instances)
+    instances = all_instances_in_region(region_name)
+    '''Waits for instances reaching target state'''
+    if target_state == 'running':
+        for i in instances: i.wait_until_running()
+    if target_state == 'terminated':
+        for i in instances: i.wait_until_terminated()
+    if target_state == 'ssh ready':
+        ids = [instance.id for instance in instances]
+        initializing = True
+        while initializing:
+            responses = boto3.client('ec2', region_name).describe_instance_status(InstanceIds=ids)
+            statuses = responses['InstanceStatuses']
+            all_initialized = True
+            if statuses:
+                for status in statuses:
+                    if status['InstanceStatus']['Status'] != 'ok' or status['SystemStatus']['Status'] != 'ok':
+                        all_initialized = False
+            else:
+                all_initialized = False
+
+            if all_initialized:
+                initializing = False
+            else:
+                print('.', end='')
+                import sys
+                sys.stdout.flush()
+                sleep(5)
+        print()
 
 
 def installation_finished_in_region(region_name):
@@ -197,8 +207,8 @@ def terminate_instances(regions='badger regions'):
     return exec_for_regions(terminate_instances_in_region, regions)
 
 
-def instances(regions='badger regions'):
-    return exec_for_regions(instances_in_region, regions, parallel=False)
+def all_instances(regions='badger regions'):
+    return exec_for_regions(all_instances_in_region, regions, parallel=False)
 
 
 def instances_ip(regions='badger regions'):
@@ -222,7 +232,7 @@ def wait(target_state, regions='badger regions'):
 def wait_install(regions='badger regions'):
     wait_for_regions = regions.copy()
     while wait_for_regions:
-        sleep(1)
+        sleep(10)
         finished = []
         results = Parallel(n_jobs=N_JOBS)(delayed(installation_finished_in_region)(r) for r in wait_for_regions)
 
@@ -240,32 +250,27 @@ def run_experiment(n_processes, regions, experiment):
     if regions == 'all':
         regions = available_regions()
 
-    # TODO there is some wierd exception thrown by launch_new_instances
+    print('launching machines')
     n_proc_per_region = n_processes//len(regions)
     launch_new_instances(n_proc_per_region, regions)
     if n_processes % len(regions):
         launch_new_instances_in_region(n_processes%len(regions), default_region_name())
 
     print('waiting for transition from pending to running')
-    insts = instances(regions)
-    wait_for_instances(insts, 'running')
+    wait('running', regions)
 
     print('generating keys')
     # generate signing and keys
     generate_signing_keys(n_processes)
 
-    print('generating hist')
+    print('generating hosts files')
     # prepare hosts file
     ip_list = instances_ip(regions)
     with open('hosts', 'w') as f:
         f.writelines([ip+'\n' for ip in ip_list])
 
     print('waiting till ports are open on machines')
-    sleep(15)
-
-    print('syncing files')
-    # send files: hosts, signing_keys, setup.sh, set_env.sh
-    run_task('sync-files', regions, parallel)
+    wait('ssh ready', regions)
 
     print('installing dependencies')
     # install dependencies on hosts
@@ -283,17 +288,21 @@ def run_experiment(n_processes, regions, experiment):
     # send testing repo
     run_task('send-testing-repo', regions, parallel)
 
+    print('syncing files')
+    # send files: hosts, signing_keys, light_nodes_public_keys
+    run_task('sync-files', regions, parallel)
+
     # run the experiment
+    run_task('run-simple-ec2-test', regions, parallel)
+
+    print('terminate instances')
     # TODO
 
 
 
 #======================================================================================
-#                               aggregates
+#                                        shortcuts
 #======================================================================================
-
-
-
 
 
 #======================================================================================

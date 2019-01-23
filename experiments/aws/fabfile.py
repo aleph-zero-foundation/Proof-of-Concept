@@ -46,6 +46,7 @@ def sync_keys(conn):
 @task
 def sync_hosts(conn):
     with conn.cd('proof-of-concept/experiments/aws'):
+        conn.run(f'echo {conn.host} > my_ip')
         conn.put('hosts', '.')
 
 
@@ -86,17 +87,38 @@ def send_testing_repo(conn):
 
 
 @task
+def send_file_simple(conn):
+    conn.put('../simple_ec2_test.py', 'proof-of-concept/experiments/')
+
+@task
 def delete_testing_repo(conn):
     conn.sudo('rm -rf proof-of-concept')
     conn.run('mv proof-of-concept.old proof-of-concept')
 
 
+
+@task
+def resync_repo(conn):
+    conn.sudo('rm -rf proof-of-concept')
+    # send it upstream
+    conn.put('poc.zip', '.')
+    # unpack
+    conn.run('unzip -q poc.zip')
+    sync_files(conn)
+    with conn.cd('proof-of-concept'):
+        conn.run('source /home/ubuntu/p37/bin/activate && pip install .')
+
 @task
 def run_simple_ec2_test(conn):
+    conn.put('../simple_ec2_test.py', 'proof-of-concept/experiments/')
     with conn.cd('proof-of-concept/experiments'):
         conn.run('export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/local/lib &&'
                  'source /home/ubuntu/p37/bin/activate &&'
-                 'python3.7 simple_ec2_test.py -h ~/hosts -s ~/signing_keys')
+                 'python simple_ec2_test.py -i hosts -s signing_keys')
+
+@task
+def kill(conn):
+    conn.run('killall python')
 
 @task
 def run_processes(conn):
@@ -110,7 +132,7 @@ def stop_world(conn):
 
 @task
 def test(conn):
-    conn.run('ls', hide='out')
+    print(type(conn.host))
 
 
 @task
@@ -121,15 +143,16 @@ def run_tests(conn):
 
 @task
 def sync_files(conn):
-    # send files: hosts, signing_keys, setup.sh, set_env.sh
-    with conn.cd('proof-of-concept/experiments/aws'):
-        conn.put('hosts', '.')
-        conn.put('signing_keys', '.')
-        conn.put('setup.sh', '.')
-        conn.put('set_env.sh', '.')
+    # send files: hosts, signing_keys, setup.sh, set_env.sh, light_nodes_public_keys
+    conn.run(f'echo {conn.host} > proof-of-concept/experiments/my_ip')
+    conn.put('hosts', 'proof-of-concept/experiments/')
+    conn.put('signing_keys', 'proof-of-concept/experiments/')
+    conn.put('light_nodes_public_keys', 'proof-of-concept/experiments/')
 
 @task
 def inst_dep(conn):
+    conn.put('setup.sh', '.')
+    conn.put('set_env.sh', '.')
     conn.sudo('apt update', hide='out')
     conn.sudo('apt install dtach', hide='out')
     conn.run('dtach -n `mktemp -u /tmp/dtach.XXXX` bash setup.sh', hide='out')
