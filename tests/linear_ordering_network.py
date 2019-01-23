@@ -14,7 +14,7 @@ async def main():
     n_forkers = 0
     txps = 50
     n_light_nodes = 100
-    use_tcoin = True
+    use_tcoin = False
 
     processes = []
     host_ports = [8900+i for i in range(n_processes)]

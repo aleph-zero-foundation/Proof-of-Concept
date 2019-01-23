@@ -10,6 +10,7 @@ from aleph.network import listener, sync, tx_listener
 from aleph.config import CREATE_FREQ, SYNC_INIT_FREQ, LOGGER_NAME
 
 
+
 class Process:
     '''This class is the main component of the Aleph protocol.'''
 
@@ -66,6 +67,9 @@ class Process:
         # hashes of units in linear order
         self.linear_order = []
 
+        # initialize logger
+        self.logger = logging.getLogger(LOGGER_NAME)
+
 
     def sign_unit(self, U):
         '''
@@ -80,10 +84,9 @@ class Process:
         '''
         Add a (compliant) unit to the poset and attempt fast validation of transactions inside.
         '''
-        logger = logging.getLogger(LOGGER_NAME)
         list_of_validated_units = []
         self.poset.add_unit(U, list_of_validated_units)
-        logger.info(f'add_unit_to_poset {self.process_id} -> Validated a set of {len(list_of_validated_units)} units.')
+        self.logger.info(f'add_unit_to_poset {self.process_id} -> Validated a set of {len(list_of_validated_units)} units.')
         for tx in U.transactions():
             if tx.issuer not in self.pending_txs.keys():
                 self.pending_txs[tx.issuer] = set()
@@ -91,7 +94,7 @@ class Process:
         for V in list_of_validated_units:
             if V.transactions():
                 newly_validated = self.validate_transactions_in_unit(V, U)
-                logger.info(f'add_unit_to_poset {self.process_id} -> Validated a set of {len(newly_validated)} transactions.')
+                self.logger.info(f'add_unit_to_poset {self.process_id} -> Validated a set of {len(newly_validated)} transactions.')
                 self.validated_transactions.extend(newly_validated)
 
 
@@ -99,24 +102,26 @@ class Process:
         '''
         Add a (compliant) unit to the poset, try to find a new timing unit and if succeded, extend the linear order.
         '''
-        logger = logging.getLogger(LOGGER_NAME)
         self.poset.add_unit(U)
         self.unordered_units.add(U.hash())
         if self.poset.is_prime(U):
             new_timing_units = self.poset.attempt_timing_decision()
-            logger.info(f'Lin-order {self.process_id}: New prime unit added at level {U.level}')
+            self.logger.info(f'Lin-order {self.process_id}: New prime unit added at level {U.level}')
             for U_timing in new_timing_units:
-                logger.info(f'Lin-order {self.process_id}: New timing unit at level {U_timing.level} established.')
+                self.logger.info(f'Lin-order {self.process_id}: New timing unit at level {U_timing.level} established.')
             for U_timing in new_timing_units:
                 units_to_order = []
                 for V_hash in self.unordered_units:
                     V = self.poset.unit_by_hash(V_hash)
                     if self.poset.below(V, U_timing):
                         units_to_order.append(V)
-                units_to_order = [W.hash() for W in self.poset.break_ties(units_to_order)]
-                logger.info(f'Lin-order {self.process_id}: Added {len(units_to_order)} units to the linear order.')
-                self.linear_order += units_to_order
-                self.unordered_units = self.unordered_units.difference(units_to_order)
+                ordered_units = self.poset.break_ties(units_to_order)
+                ordered_units_hashes = [W.hash() for W in ordered_units]
+                self.linear_order += ordered_units_hashes
+                self.unordered_units = self.unordered_units.difference(ordered_units_hashes)
+
+                printable_unit_hashes = ''.join([' '+W.short_name() for W in ordered_units])
+                self.logger.info(f'add_linear_order {self.process_id} | Added {len(units_to_order)} units to the linear order :{printable_unit_hashes}')
 
 
     def add_unit_to_poset(self, U):
@@ -125,20 +130,23 @@ class Process:
         :param unit U: the unit to be added
         :returns: boolean value: True if succesfully added, False if unit is not compliant
         '''
-
         if U.hash() in self.poset.units.keys():
             return True
 
         self.poset.prepare_unit(U)
         if self.poset.check_compliance(U):
+            old_level = self.poset.level_reached
+
             if self.validation_method == 'SNAP':
                 self.add_unit_and_snap_validate(U)
             elif self.validation_method == 'LINEAR_ORDERING':
                 self.add_unit_and_extend_linear_order(U)
             else:
                 self.poset.add_unit(U)
-            if self.enable_tcoin and len(U.parents) == 0:
-                self.poset.extract_tcoin_from_dealing_unit(U, self.process_id)
+
+            if self.poset.level_reached > old_level:
+                self.logger.info(f"new_level {self.process_id} | Level {self.poset.level_reached} reached")
+
         else:
             return False
 
@@ -151,7 +159,6 @@ class Process:
         :param unit U_validator: a unit that validates U (is high above U)
         :returns: list of all transactions in unit U that can be fast-validated
         '''
-        logger = logging.getLogger(LOGGER_NAME)
         validated_transactions = []
         for tx in U.transactions():
             user_public_key = tx.issuer
@@ -159,7 +166,7 @@ class Process:
             assert user_public_key in self.pending_txs.keys(), f"No transaction is pending for user {user_public_key}."
             assert (tx, U) in self.pending_txs[user_public_key], "Transaction not found among pending"
             if tx.index != self.userDB.last_transaction(tx.issuer) + 1:
-                logger.info(f'tx validation: transaction failed to validate because its index is {tx.index}, while the previous one was {self.userDB.last_transaction(tx.issuer)}')
+                self.logger.info(f'tx validation: transaction failed to validate because its index is {tx.index}, while the previous one was {self.userDB.last_transaction(tx.issuer)}')
                 continue
             transaction_fork_present = False
             for (pending_txs, V) in self.pending_txs[user_public_key]:
@@ -182,7 +189,7 @@ class Process:
 
     async def create_add(self, txs_queue, serverStarted):
         await serverStarted.wait()
-    #while True:
+        #while True:
         for _ in range(40):
             txs = self.prepared_txs
             new_unit = self.poset.create_unit(self.process_id, txs, strategy = "link_self_predecessor", num_parents = 2)
@@ -190,6 +197,7 @@ class Process:
                 self.poset.prepare_unit(new_unit)
                 assert self.poset.check_compliance(new_unit), "A unit created by our process is not passing the compliance test!"
                 self.sign_unit(new_unit)
+                self.logger.info(f"create_add {self.process_id} | Created a new unit {new_unit.short_name()}")
                 #self.poset.add_unit(new_unit)
                 self.add_unit_to_poset(new_unit)
 
@@ -215,8 +223,6 @@ class Process:
 
     async def run(self):
         # start another process listening for incoming txs
-        logger = logging.getLogger(LOGGER_NAME)
-
         txs_queue = multiprocessing.Queue()
         p = multiprocessing.Process(target=tx_listener, args=(self.tx_receiver_address, txs_queue))
         p.start()
@@ -228,7 +234,7 @@ class Process:
         syncing_task = asyncio.create_task(self.keep_syncing(executor, serverStarted))
 
         await asyncio.gather(syncing_task, creator_task)
-        logger.info(f'{self.process_id} gathered results; cancelling listener')
+        self.logger.info(f'{self.process_id} gathered results; cancelling listener')
         listener_task.cancel()
 
         p.kill()
