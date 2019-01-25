@@ -8,6 +8,9 @@ split_on_bar = compile("{left}|{right}")
 def get_tokens(space_separated_string):
     return [s.strip() for s in space_separated_string.split()]
 
+def parse_unit_list(space_separated_units):
+    return [s[1:-1] for s in space_separated_units.split()]
+
 
 def parse_create(ev_type, ev_params, msg_body, event):
     event['process_id'] = int(ev_params[0])
@@ -18,6 +21,15 @@ def parse_mem_usg(ev_type, ev_params, msg_body, event):
     event['process_id'] = int(ev_params[0])
     pattern_memory = compile("{usage:d} MiB")
     event['memory'] = pattern_memory.search(msg_body)['usage']
+
+def parse_add_lin_order(ev_type, ev_params, msg_body, event):
+    event['process_id'] = int(ev_params[0])
+    pattern_add_line = compile("Added {n_units:d} units to the linear order {unit_list}")
+    parsed = pattern_memory.parse(msg_body)
+    event['n_units'] = parsed['n_units']
+    event['units'] = parse_unit_list(parsed['unit_list'])
+    assert event['n_units'] == len(event['units'])
+
 
 
 def event_from_log_line(line):
