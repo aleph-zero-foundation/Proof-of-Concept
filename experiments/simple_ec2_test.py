@@ -9,6 +9,7 @@ from aleph.data_structures.userDB import UserDB
 from aleph.network import tx_generator
 from aleph.process import Process
 
+
 def read_hosts_ip(hosts_path):
     with open(hosts_path, 'r') as f:
         return [line[:-1] for line in f]
@@ -31,7 +32,7 @@ def prepare_DB():
     return UserDB(initial_balances_and_indices)
 
 
-def sort_and_get_my_pid(public_keys, hosts_ip):
+def sort_and_get_my_pid(public_keys, signing_keys, hosts_ip):
     with open('my_ip') as f:
         my_ip = f.readline().strip()
     ind = hosts_ip.index(my_ip)
@@ -40,9 +41,10 @@ def sort_and_get_my_pid(public_keys, hosts_ip):
     pk_hexes = [pk.to_hex() for pk in public_keys]
     arg_sort = [i for i, _ in sorted(enumerate(pk_hexes), key = lambda x: x[1])]
     public_keys = [public_keys[i] for i in arg_sort]
+    signing_keys = [signing_keys[i] for i in arg_sort]
     hosts_ip = [hosts_ip[i] for i in arg_sort]
 
-    return public_keys.index(my_pk), public_keys, hosts_ip
+    return public_keys.index(my_pk), public_keys, signing_keys, hosts_ip
 
 
 async def main():
@@ -60,7 +62,7 @@ async def main():
     assert len(hosts_ip) == len(signing_keys), 'number of hosts and signing keys dont match!!!'
     n_processes = len(hosts_ip)
     public_keys = [VerifyKey.from_SigningKey(sk) for sk in signing_keys]
-    process_id, public_keys, hosts_ip = sort_and_get_my_pid(public_keys, hosts_ip)
+    process_id, public_keys, signing_keys, hosts_ip = sort_and_get_my_pid(public_keys, signing_keys, hosts_ip)
     addresses = [(ip, 8888) for ip in hosts_ip]
     sk, pk = signing_keys[process_id], public_keys[process_id]
     recv_address = ('127.0.0.1', 8888)
@@ -73,12 +75,11 @@ async def main():
     txps = 10
 
 
-    # p = multiprocessing.Process(target=tx_generator, args=([recv_address], userDB.user_balance.keys(), txps))
-    # p.start()
+    p = multiprocessing.Process(target=tx_generator, args=([recv_address], userDB.user_balance.keys(), txps))
+    p.start()
     tasks = [asyncio.create_task(process.run())]
-    await asyncio.sleep(3)
     await asyncio.gather(*tasks)
-    # p.kill()
+    p.kill()
 
 
 if __name__ == '__main__':
