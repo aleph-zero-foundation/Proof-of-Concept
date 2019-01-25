@@ -1254,7 +1254,7 @@ class Poset:
                     else:
                         memo['decision'] = decision
                         if decision == 1:
-                            process_id = self.process_id or (-1)
+                            process_id = (-1) if (self.process_id is None) else self.process_id
                             logger.info(f'decide_timing {process_id} | Timing unit for lvl {U_c.level} decided at lvl + {level - U_c.level}')
                         return decision
         return -1

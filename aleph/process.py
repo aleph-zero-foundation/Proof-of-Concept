@@ -46,10 +46,7 @@ class Process:
         self.prepared_txs = []
 
         self.crp = CommonRandomPermutation([pk.to_hex() for pk in public_key_list])
-        if enable_tcoin:
-            self.poset = Poset(self.n_processes, self.crp, use_tcoin = enable_tcoin, process_id = self.process_id)
-        else:
-            self.poset =  Poset(self.n_processes, self.crp)
+        self.poset = Poset(self.n_processes, self.crp, use_tcoin = enable_tcoin, process_id = self.process_id)
         self.userDB = userDB
         if self.userDB is None:
             self.userDB = UserDB()
@@ -127,7 +124,7 @@ class Process:
                 self.unordered_units = self.unordered_units.difference(ordered_units_hashes)
 
                 printable_unit_hashes = ''.join([' '+W.short_name() for W in ordered_units])
-                self.logger.info(f'add_linear_order {self.process_id} | Added {len(units_to_order)} units to the linear order {printable_unit_hashes}')
+                self.logger.info(f'add_linear_order {self.process_id} | At lvl {U_timing.level} added {len(units_to_order)} units to the linear order {printable_unit_hashes}')
 
 
     def add_unit_to_poset(self, U):
@@ -196,7 +193,7 @@ class Process:
     async def create_add(self, txs_queue, serverStarted):
         await serverStarted.wait()
         #while True:
-        for _ in range(40):
+        for _ in range(80):
             # log current memory consumption
             memory_usage_in_mib = round((psutil.Process(os.getpid()).memory_info().rss)/(2**20))
             self.logger.info(f'memory_usage {self.process_id} | {memory_usage_in_mib} MiB')
@@ -221,7 +218,7 @@ class Process:
     async def keep_syncing(self, executor, serverStarted):
         await serverStarted.wait()
         #while True:
-        for _ in range(40):
+        for _ in range(80):
             sync_candidates = list(range(self.n_processes))
             sync_candidates.remove(self.process_id)
             target_id = random.choice(sync_candidates)

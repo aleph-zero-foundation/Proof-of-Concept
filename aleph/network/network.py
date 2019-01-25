@@ -230,6 +230,7 @@ async def _add_units(sync_id, process_id, ex_id, units_received, process, mode, 
     logger.info(f'add_received_{mode} {process_id} {sync_id} | trying to add {len(units_received)} units from {ex_id} to poset')
     for unit in units_received:
         process.poset.fix_parents(unit)
+        logger.info(f'add_foreign {process_id} {sync_id} | trying to add {unit.short_name()} from {ex_id} to poset')
         if not process.add_unit_to_poset(unit):
             logger.error(f'add_received_fail_{mode} {process_id} {sync_id} | unit {unit.short_name()} from {ex_id} was rejected')
             return False
