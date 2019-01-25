@@ -52,7 +52,7 @@ def clone_repo(conn):
     with conn.cd('proof-of-concept'):
         conn.run('git checkout devel')
         # python 3.7 is established in virtual env, hence we need to activate it in every conn.run
-        conn.run('source /home/ubuntu/p37/bin/activate && pip install .')
+        conn.run('source /home/ubuntu/p37/bin/activate && pip install .', hide='out')
 
 
 @task
@@ -90,7 +90,7 @@ def init(conn):
 def install_repo(conn):
     '''Installs the repo via pip in the virtual env.'''
 
-    conn.run('source p37/bin/activate && pip install proof-of-concept')
+    conn.run('source p37/bin/activate && pip install proof-of-concept/', hide='out')
 
 #======================================================================================
 #                                   syncing local version
@@ -102,6 +102,8 @@ def zip_repo(conn):
 
     # clears __pycache__
     conn.local("find ../../../proof-of-concept -name '*.pyc' -delete")
+    # remove logs
+    conn.local("find ../../../proof-of-concept -name '*.log' -delete")
     conn.local('zip -rq poc.zip ../../../proof-of-concept')
 
 
@@ -115,6 +117,8 @@ def send_testing_repo(conn):
     conn.put('poc.zip', '.')
     # unpack
     conn.run('unzip -q poc.zip')
+    # install new version
+    install_repo(conn)
 
 
 @task
@@ -136,6 +140,8 @@ def resync_local_repo(conn):
     conn.run('unzip -q poc.zip')
     # install
     install_repo(conn)
+    # resend hosts and keys
+    sync_files(conn)
 
 
 @task
@@ -155,9 +161,17 @@ def run_simple_ec2_test(conn):
     conn.put('../simple_ec2_test.py', 'proof-of-concept/experiments/')
     with conn.cd('proof-of-concept/experiments'):
         # export env var needed for pbc, activate venv, cross fingers, and run the experiment
+        cmd = 'python simple_ec2_test.py -i hosts -s signing_keys'
         conn.run('export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/local/lib &&'
                  'source /home/ubuntu/p37/bin/activate &&'
-                 'python simple_ec2_test.py -i hosts -s signing_keys')
+                 f'dtach -n `mktemp -u /tmp/dtach.XXXX` {cmd}')
+
+@task
+def get_logs(conn):
+    ''' Retrieves aleph.log from the server.'''
+
+    ip = conn.host.replace('.', '-')
+    conn.get('proof-of-concept/experiments/aleph.log', f'../results/{ip}-aleph.log')
 
 
 @task
@@ -172,11 +186,12 @@ def stop_world(conn):
 def test(conn):
     ''' Always changing task for experimenting with fab.'''
 
-    print(type(conn.host))
+    #print(type(conn.host))
+    conn.run('source p37/bin/activate && pip install proof-of-concept/', hide='out')
 
 
 #======================================================================================
-#                                   run experiments
+#                                   ?
 #======================================================================================
 
 
@@ -216,3 +231,21 @@ def inst_dep_completed(conn):
 
     result = conn.run('tail -1 setup.log')
     return result.stdout.strip()
+
+
+#======================================================================================
+#                                   new
+#======================================================================================
+
+@task
+def experiment_started(conn):
+    pass
+
+
+@task
+def experiment_stopped(conn):
+    pass
+
+@task
+def latency(conn):
+    pass

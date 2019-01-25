@@ -214,7 +214,7 @@ def generate_signing_keys(n_processes):
     ''' Generate signing keys for the committee.'''
 
     # if file exists check if it is of appropriate size
-    if os.path.exists(file_path):
+    if os.path.exists(SIGN_KEYS_FP):
         with open(SIGN_KEYS_FP, 'r') as f:
             if n_processes == sum(1 for line in f):
                 return
