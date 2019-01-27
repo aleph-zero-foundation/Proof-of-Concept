@@ -1,8 +1,7 @@
 import matplotlib.pyplot as plt
 import numpy as np
+
 from aleph.log_analyzer.log_parser import LogParser
-
-
 
 
 
@@ -11,6 +10,8 @@ from aleph.log_analyzer.log_parser import LogParser
 class LogAnalyzer:
     '''
     A class for producing statistics about the protocol execution given logged events.
+    The events (in the form of dictionaries) are created by the LogParser class.
+    It also creates diagrams for certain statistics.
     '''
     def __init__(self, file_path, process_id):
         self.units = {}
@@ -25,11 +26,18 @@ class LogAnalyzer:
         self.start_date = None
 
     def set_start_date(self, date):
+        '''
+        Set the "genesis" date (when the process is run), if it has not been set yet.
+        '''
         if self.start_date is None:
             self.start_date = date
             self.levels[0] = {'date': date}
 
     def handle_event(self, event):
+        '''
+        Takes one event as input and udates the internal state of the analyzer appropriately.
+        :param dict event: event describing one line in the log.
+        '''
         ev_type = event['type']
         if ev_type == 'create_add':
             assert event['units'] not in self.units, "Unit hash collision?"
@@ -93,10 +101,10 @@ class LogAnalyzer:
             self.current_recv_sync_no.append(event['n_recv_syncs'])
 
 
-
-
-
     def analyze(self):
+        '''
+        Reads events from the log using the LogParser class and pulls them through handle_event.
+        '''
         log_parser = LogParser(self.file_path)
         for event in log_parser.get_events():
             if event['process_id'] != self.process_id:
@@ -105,6 +113,9 @@ class LogAnalyzer:
 
 
     def get_delays_create_order(self):
+        '''
+        Computes delays between all consecutive create_unit events.
+        '''
         delay_list = []
         for U, U_dict in self.units.items():
             if 'created' in U_dict and 'ordered' in U_dict:
@@ -114,6 +125,10 @@ class LogAnalyzer:
         return delay_list
 
     def get_delays_add_foreign_order(self):
+        '''
+        Computes delays between adding a unit to the poset (a foreign unit, i.e. not created by us)
+        and having it linearly ordered by the algorithm.
+        '''
         delay_list = []
         for U, U_dict in self.units.items():
             if 'received' in U_dict and 'ordered' in U_dict:
@@ -123,6 +138,9 @@ class LogAnalyzer:
         return delay_list
 
     def get_new_level_times(self):
+        '''
+        Computes delays between creation times of consecutive levels.
+        '''
         delay_list = []
         for level in self.levels:
             if level == 0:
@@ -136,7 +154,7 @@ class LogAnalyzer:
 
     def get_timing_decision_stats(self):
         '''
-        returns 4 lists:
+        Returns 4 lists:
         [level],
         [n_units decided at this level],
         [+levels of timing decision at this level],
@@ -162,7 +180,16 @@ class LogAnalyzer:
         return levels, n_units_per_level, levels_plus_decided, level_delays
 
     def get_sync_info(self, plot_file = None):
-
+        '''
+        Returns statistics regarding synchronizations with other processes. More precisely:
+        -- units_sent_per_sync: the (list of) number of units sent to the other process in a sync
+        -- units_received_per_sync: the same as above but received instead of sent
+        -- time_per_sync: the (list of) durations (in sec) of syncs
+        -- time_per_unit_exchanged: the (list of) times of syncs per one unit
+        -- bytes_per_unit_exchanged: the (list of) number of bytes exchanged per one unit
+        -- syncs_not_succeeded: one int - the number of syncs that started (i.e. n_recv_sync was incremented)
+                                but for some reason did not terminate succesfully
+        '''
         units_sent_per_sync = []
         units_received_per_sync = []
         time_per_sync = []
@@ -197,7 +224,7 @@ class LogAnalyzer:
 
     def get_memory_usage_vs_poset_size(self, plot_file=None, show_plot=False):
         '''
-        Returns a list of pairs: ( poset size (#units) , memory usage in MiB)
+        Returns a list of memory usages (in MiB) of the python process at regular times.
         '''
 
         data = []
@@ -227,6 +254,13 @@ class LogAnalyzer:
         return create_delays, sync_delays
 
     def prepare_basic_report(self, report_file = 'report.txt'):
+        '''
+        Read the log and create the file with a succinct summary of the data in the report_file.
+        It also creates some plots of the analyzed data.
+        :param string report_file: the path to the file where the report should be written
+        WARNING: call this function only once per instance of LogAnalyzer.
+                 It does not wipe the internal state when called for the second time.
+        '''
         self.analyze()
 
         lines = []
@@ -238,7 +272,6 @@ class LogAnalyzer:
             stats = compute_basic_stats(data)
             stats['name'] = name
             lines.append(format_line(fields, stats))
-
 
 
         # timing_decision
@@ -282,9 +315,6 @@ class LogAnalyzer:
         _append_stat_line(data, 'memory_MiB')
 
 
-
-
-
         with open(report_file, "w") as report_file:
             for line in lines:
                 report_file.write(line+'\n')
@@ -311,6 +341,9 @@ def compute_basic_stats(list_of_numbers):
     return summ
 
 def format_line(field_list, data = None):
+    '''
+    Construct one line of the report file.
+    '''
     if data == []:
         # to avoid problems with empty data
         data = [-1]

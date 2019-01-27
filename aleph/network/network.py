@@ -60,7 +60,7 @@ async def listener(process, process_id, addresses, public_key_list, executor, se
             logger.info(f'listener_close {process_id} {sync_id} | Closing conn with {peer_addr[0]}, not in address book')
             return
 
-        logger.info(f'listener_sync_no {process_id} {sync_id} | Number of syncs is {n_recv_syncs}')
+        logger.info(f'listener_sync_no {process_id} {sync_id} | Number of syncs is {n_recv_syncs+1}')
         if n_recv_syncs > N_RECV_SYNC:
             logger.info(f'listener_too_many_syncs {process_id} {sync_id} | Too many syncs, rejecting {peer_addr}')
             return

@@ -4,8 +4,14 @@ from datetime import datetime
 
 
 
-
 class LogParser:
+    '''
+    A class for parsing Aleph logs.
+    It's basic purpose is to turn a log file into a list of "events" -- one line is one event,
+    though the parser does not support all log messages yet.
+    Each event is essentially a dict with appropriate fields (depeding on the log message).
+    These events are then fed into an instance of LogAnalyzer.
+    '''
 
     def __init__(self, file_path):
         self.msg_pattern =  compile("[{date}] [{msg_level}] [{name}] {msg} [{file_line}]")
@@ -25,6 +31,38 @@ class LogParser:
         self.pattern_send_units_sent = compile("Sent {n_units:d} units and {n_bytes:d} bytes to {ex_id:d}")
         self.pattern_try_sync = compile("Establishing connection to {target:d}")
         self.pattern_listener_sync_no = compile("Number of syncs is {n_recv_syncs:d}")
+
+        # create the mapping between event types and the functions used for parsing this types of events
+
+        self.parse_mapping = {
+            'create_add' : self.parse_create,
+            'memory_usage' : self.parse_mem_usg,
+            'add_linear_order' : self.parse_add_lin_order,
+            'new_level' : self.parse_new_level,
+            'add_foreign' : self.parse_add_foreign,
+            'decide_timing' : self.parse_decide_timing,
+            'sync_establish' : self.parse_establish,
+            'listener_establish' : self.parse_establish,
+            'sync_done' : self.parse_listener_succ,
+            'listener_succ' : self.parse_listener_succ,
+            'receive_units_done_listener' : self.parse_receive_units_done,
+            'receive_units_done_sync' : self.parse_receive_units_done,
+            'send_units_sent_listener' : self.parse_send_units_sent,
+            'send_units_sent_sync' : self.parse_send_units_sent,
+            'sync_establish_try' : self.parse_try_sync,
+            'listener_sync_no' : self.parse_listener_sync_no
+            }
+
+    # Functions for parsing specific types of log messages. Typically one function per log lessage type.
+    # Although some functions support more of them at the same time
+    # Each of these functions takes the same set of parameters, being:
+    # -- ev_type: type of log event
+    # -- ev_params: parameters of the log event, typically process_id or/and sync_id
+    # -- msg_body: the remaining part of the log message that carries information specific to this event type
+    # -- event: this is the partial result of parsing of the current line, it is supposed to be modified
+    #           by adding additional data fields to it or in some cases overwrite existing
+
+    # ----------- START PARSING FUNCTIONS ---------------
 
     def parse_create(self, ev_type, ev_params, msg_body, event):
         event['units'] = self.pattern_create.parse(msg_body)['unit']
@@ -91,14 +129,25 @@ class LogParser:
         event['sync_id'] = int(ev_params[1])
         event['type'] = 'send_units'
 
+    # ----------- END PARSING FUNCTIONS ---------------
+
 
 
     def event_from_log_line(self, line):
+        '''
+        Given a line from the log, output a dictionary containing all relevant information that it carries.
+        :param string line: one line from the log
+        :returns: a dictionary being a summary of the data in the line
+        '''
+        # use a parse pattern to extract the date, the logger name etc. from the line
         parsed_line =  self.msg_pattern.parse(line)
         assert parsed_line is not None
+        # create the event to be the dict of parsed data from the line
+        # some of the fields might be then overwritten or removed and, of course, added
         event = parsed_line.named
 
         msg = event['msg']
+        # the bar '|' splits the message into "msg_type + basic parameters" and "msg_body"
         split_msg = self.split_on_bar.parse(msg)
         if split_msg is None:
             # this happens when some log message is not formatted using "|"
@@ -107,42 +156,31 @@ class LogParser:
         event_descr, msg_body = split_msg['left'].strip(), split_msg['right'].strip()
         ev_tokens = get_tokens(event_descr)
 
+        # this is the "event type"
         ev_type = ev_tokens[0]
 
-        parse_mapping = {
-            'create_add' : self.parse_create,
-            'memory_usage' : self.parse_mem_usg,
-            'add_linear_order' : self.parse_add_lin_order,
-            'new_level' : self.parse_new_level,
-            'add_foreign' : self.parse_add_foreign,
-            'decide_timing' : self.parse_decide_timing,
-            'sync_establish' : self.parse_establish,
-            'listener_establish' : self.parse_establish,
-            'sync_done' : self.parse_listener_succ,
-            'listener_succ' : self.parse_listener_succ,
-            'receive_units_done_listener' : self.parse_receive_units_done,
-            'receive_units_done_sync' : self.parse_receive_units_done,
-            'send_units_sent_listener' : self.parse_send_units_sent,
-            'send_units_sent_sync' : self.parse_send_units_sent,
-            'sync_establish_try' : self.parse_try_sync,
-            'listener_sync_no' : self.parse_listener_sync_no
-            }
+
         if ev_type in parse_mapping:
             event['type'] = ev_type
             if len(ev_tokens) > 1:
                 event['process_id'] = int(ev_tokens[1])
-            parse_mapping[ev_type](ev_type, ev_tokens[1:], msg_body, event)
+            # use the mapping created in __init__ to parse the msg using the appropriate function
+            self.parse_mapping[ev_type](ev_type, ev_tokens[1:], msg_body, event)
         else:
+            # this event type is not supported yet... but we don't even need to support all of them
             return None
+        # discard some unnecessary fields from the event dict
         event.pop('msg', None)
         event.pop('msg_level', None)
         event.pop('name', None)
+        # parse the timestamp
         event['date'] = datetime.strptime(event['date'], "%Y-%m-%d %H:%M:%S,%f")
         return event
 
 
 
     def get_events(self):
+        # an iterator that reads lines from the log file and produces events
         with open(self.file_path, "r") as log_file:
             for line in log_file:
                 e = self.event_from_log_line(line.strip())
