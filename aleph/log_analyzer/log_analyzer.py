@@ -16,6 +16,9 @@ class LogAnalyzer:
         self.units = {}
         self.syncs = {}
         self.levels = {}
+        self.sync_attempt_dates = []
+        self.create_attempt_dates = []
+        self.current_recv_sync_no = []
         self.process_id = process_id
         self.file_path = file_path
         self.memory_info = []
@@ -33,6 +36,7 @@ class LogAnalyzer:
             self.set_start_date(event['date'])
             U = event['units']
             self.units[U] = {'created': event['date']}
+            self.create_attempt_dates.append(event['date'])
 
         if ev_type == 'add_linear_order':
             level = event['level']
@@ -81,6 +85,13 @@ class LogAnalyzer:
         if ev_type == 'sync_success':
             sync_id = event['sync_id']
             self.syncs[sync_id]['stop_date'] = event['date']
+
+        if ev_type == 'try_sync':
+            self.sync_attempt_dates.append(event['date'])
+
+        if ev_type == 'listener_sync_no':
+            self.current_recv_sync_no.append(event['n_recv_syncs'])
+
 
 
 
@@ -189,8 +200,6 @@ class LogAnalyzer:
         Returns a list of pairs: ( poset size (#units) , memory usage in MiB)
         '''
 
-
-
         data = []
         for entry in self.memory_info:
             data.append((entry['poset_size'], entry['memory']))
@@ -204,6 +213,18 @@ class LogAnalyzer:
         if show_plot:
             plt.show()
         return [point[1] for point in data]
+
+
+    def get_delay_stats(self):
+        '''
+        Returns statistics on the delays between two consecutive creates and sync attempts.
+        '''
+        create_delays = [diff_in_seconds(self.create_attempt_dates[i-1], self.create_attempt_dates[i])
+                        for i in range(1,len(self.create_attempt_dates))]
+        sync_delays = [diff_in_seconds(self.sync_attempt_dates[i-1], self.sync_attempt_dates[i])
+                        for i in range(1,len(self.sync_attempt_dates))]
+
+        return create_delays, sync_delays
 
     def prepare_basic_report(self, report_file = 'report.txt'):
         self.analyze()
@@ -247,9 +268,20 @@ class LogAnalyzer:
         _append_stat_line(bytes_per_unit_ex, 'bytes_per_unit_ex')
         _append_stat_line([syncs_not_succ], 'sync_fail')
 
+        # delay stats
+        create_delays, sync_delays = self.get_delay_stats()
+        _append_stat_line(create_delays, 'create_freq')
+        _append_stat_line(sync_delays, 'sync_freq')
+
+        # number of concurrent received syncs
+        data = self.current_recv_sync_no
+        _append_stat_line(data, 'n_recv_syncs')
+
         # memory
         data = self.get_memory_usage_vs_poset_size('memory.png')
         _append_stat_line(data, 'memory_MiB')
+
+
 
 
 
@@ -297,13 +329,5 @@ def format_line(field_list, data = None):
         entry = entry.ljust(just_len)
         line += entry
     return line
-
-
-
-
-
-
-
-
 
 

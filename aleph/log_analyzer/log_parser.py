@@ -5,9 +5,6 @@ from datetime import datetime
 
 
 
-
-
-
 class LogParser:
 
     def __init__(self, file_path):
@@ -26,13 +23,14 @@ class LogParser:
         self.pattern_listener_succ = compile("Syncing with {process_id:d} succesful")
         self.pattern_receive_units_done = compile("Received {n_bytes:d} bytes and {n_units:d} units")
         self.pattern_send_units_sent = compile("Sent {n_units:d} units and {n_bytes:d} bytes to {ex_id:d}")
-
+        self.pattern_try_sync = compile("Establishing connection to {target:d}")
+        self.pattern_listener_sync_no = compile("Number of syncs is {n_recv_syncs:d}")
 
     def parse_create(self, ev_type, ev_params, msg_body, event):
-        event['units'] = self.pattern_create.search(msg_body)['unit']
+        event['units'] = self.pattern_create.parse(msg_body)['unit']
 
     def parse_mem_usg(self, ev_type, ev_params, msg_body, event):
-        event['memory'] = self.pattern_memory.search(msg_body)['usage']
+        event['memory'] = self.pattern_memory.parse(msg_body)['usage']
 
     def parse_new_level(self, ev_type, ev_params, msg_body, event):
         event['level'] = self.pattern_level.parse(msg_body)['level']
@@ -43,6 +41,15 @@ class LogParser:
         event['target'] = parsed['process_id']
         event['type'] = 'sync_success'
 
+    def parse_try_sync(self, ev_type, ev_params, msg_body, event):
+        parsed = self.pattern_try_sync.parse(msg_body)
+        event['sync_id'] = int(ev_params[1])
+        event['target'] = parsed['target']
+        event['type'] = 'try_sync'
+
+    def parse_listener_sync_no(self, ev_type, ev_params, msg_body, event):
+        parsed = self.pattern_listener_sync_no.parse(msg_body)
+        event['n_recv_syncs'] = parsed['n_recv_syncs']
 
     def parse_establish(self, ev_type, ev_params, msg_body, event):
         if ev_type == 'listener_establish':
@@ -53,7 +60,6 @@ class LogParser:
             event['target'] = parsed['process_id']
         event['sync_id'] = int(ev_params[1])
         event['type'] = 'sync_establish'
-
 
     def parse_add_foreign(self, ev_type, ev_params, msg_body, event):
         event['sync_id'] = int(ev_params[1])
@@ -118,6 +124,8 @@ class LogParser:
             'receive_units_done_sync' : self.parse_receive_units_done,
             'send_units_sent_listener' : self.parse_send_units_sent,
             'send_units_sent_sync' : self.parse_send_units_sent,
+            'sync_establish_try' : self.parse_try_sync,
+            'listener_sync_no' : self.parse_listener_sync_no
             }
         if ev_type in parse_mapping:
             event['type'] = ev_type
