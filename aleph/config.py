@@ -13,6 +13,8 @@ LOGGER_NAME = 'aleph'
 
 ADD_SHARES = 4
 
+SEND_COMPRESSED = True # use zlib compressing/decompressing when sending data over the network
+
 import charm.toolbox.pairinggroup
 PAIRING_GROUP = charm.toolbox.pairinggroup.PairingGroup('MNT224')
 # initialize group generator

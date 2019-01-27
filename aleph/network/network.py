@@ -1,12 +1,13 @@
 import asyncio
 import logging
 import pickle
+import zlib
 import socketserver
 
 from time import time
 
 from aleph.data_structures import Unit, Tx
-from aleph.config import N_TXS, CREATE_FREQ, LOGGER_NAME, N_RECV_SYNC
+from aleph.config import N_TXS, CREATE_FREQ, LOGGER_NAME, N_RECV_SYNC, SEND_COMPRESSED
 from aleph.crypto import VerifyKey
 
 
@@ -153,6 +154,8 @@ async def _send_poset_info(sync_id, process_id, ex_id, writer, int_heights, int_
     logger.info(f'send_poset_{mode} {process_id} {sync_id} | sending info about forkers and heights&hashes to {ex_id}')
 
     data = pickle.dumps((process_id, int_heights, int_hashes))
+    if SEND_COMPRESSED:
+        data = zlib.compress(data)
     writer.write(str(len(data)).encode())
     writer.write(b'\n')
     writer.write(data)
@@ -165,6 +168,8 @@ async def _receive_poset_info(sync_id, process_id, n_processes, reader, mode, lo
     data = await reader.readuntil()
     n_bytes = int(data[:-1])
     data = await reader.readexactly(n_bytes)
+    if SEND_COMPRESSED:
+        data = zlib.decompress(data)
     ex_id, ex_heights, ex_hashes = pickle.loads(data)
     assert ex_id != process_id, "It seems we are syncing with ourselves."
     assert ex_id in range(n_processes), "Incorrect process id received."
@@ -179,6 +184,8 @@ async def _receive_units(sync_id, process_id, ex_id, reader, mode, logger):
     n_bytes = int(data[:-1])
     data = await reader.readexactly(n_bytes)
     logger.info(f'receive_units_bytes_{mode} {process_id} {sync_id} | Received {n_bytes} bytes from {ex_id}')
+    if SEND_COMPRESSED:
+        data = zlib.decompress(data)
     units_received = pickle.loads(data)
     n_units = len(units_received)
     logger.info(f'receive_units_done_{mode} {process_id} {sync_id} | Received {n_bytes} bytes and {n_units} units')
@@ -195,6 +202,8 @@ async def _send_units(sync_id, process_id, ex_id, int_heights, ex_heights, proce
         units_to_send.extend(units)
     units_to_send = process.poset.order_units_topologically(units_to_send)
     data = pickle.dumps(units_to_send)
+    if SEND_COMPRESSED:
+        data = zlib.compress(data)
     writer.write(str(len(data)).encode())
     logger.info(f'send_units_wait_{mode} {process_id} {sync_id} | Sending {len(units_to_send)} units and {len(data)} bytes to {ex_id}')
     writer.write(b'\n')
