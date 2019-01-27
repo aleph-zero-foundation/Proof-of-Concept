@@ -181,7 +181,7 @@ async def _receive_units(sync_id, process_id, ex_id, reader, mode, logger):
     logger.info(f'receive_units_bytes_{mode} {process_id} {sync_id} | Received {n_bytes} bytes from {ex_id}')
     units_received = pickle.loads(data)
     n_units = len(units_received)
-    logger.info(f'receive_units_done_{mode} {process_id} {sync_id} | Received {n_units} units')
+    logger.info(f'receive_units_done_{mode} {process_id} {sync_id} | Received {n_bytes} bytes and {n_units} units')
     return units_received
 
 
@@ -196,10 +196,10 @@ async def _send_units(sync_id, process_id, ex_id, int_heights, ex_heights, proce
     units_to_send = process.poset.order_units_topologically(units_to_send)
     data = pickle.dumps(units_to_send)
     writer.write(str(len(data)).encode())
-    logger.info(f'send_units_wait_{mode} {process_id} {sync_id} | Sending {len(data)} bytes to {ex_id}')
+    logger.info(f'send_units_wait_{mode} {process_id} {sync_id} | Sending {len(units_to_send)} units and {len(data)} bytes to {ex_id}')
     writer.write(b'\n')
     writer.write(data)
-    logger.info(f'send_units_sent_{mode} {process_id} {sync_id} | Sent {len(data)} bytes to {ex_id}')
+    logger.info(f'send_units_sent_{mode} {process_id} {sync_id} | Sent {len(units_to_send)} units and {len(data)} bytes to {ex_id}')
     #writer.write_eof()
     await writer.drain()
 

@@ -1,48 +1,8 @@
-from parse import parse, compile
-from datetime import datetime
-
 import matplotlib.pyplot as plt
 import numpy as np
+from aleph.log_analyzer.log_parser import LogParser
 
 
-
-def diff_in_seconds(date_from, date_to):
-    return (date_to-date_from).total_seconds()
-
-def compute_basic_stats(list_of_numbers):
-    '''
-    Compute the basic statistics of a data set (list of numbers) and output them as a dict.
-    '''
-    np_array = np.array(list_of_numbers)
-    summ = {}
-    summ['n_samples'] = len(list_of_numbers)
-    summ['avg'] = np.mean(np_array)
-    summ['stdev'] = np.std(np_array)
-    summ['min'] = np.min(np_array)
-    summ['max'] = np.max(np_array)
-
-    return summ
-
-def format_line(field_list, data = None):
-    if data == []:
-        # to avoid problems with empty data
-        data = [-1]
-    line = ''
-    for field in field_list:
-        if data is None:
-            value = field
-        else:
-            value = data[field]
-
-        if isinstance(value, str):
-            entry = value
-        else:
-            entry = f"{float(value):.4f}"
-        just_len = 25 if field == 'name' else 12
-        print(just_len)
-        entry = entry.ljust(just_len)
-        line += entry
-    return line
 
 
 
@@ -83,7 +43,6 @@ class LogAnalyzer:
 
         if ev_type == 'add_foreign':
             U = event['units']
-            #print(U)
             if U not in self.units:
                 self.units[U] = {'received': [event['date']]}
             else:
@@ -104,6 +63,27 @@ class LogAnalyzer:
             self.levels[event['level']]['timing_decided_level'] = event['timing_decided_level']
             self.levels[event['level']]['timing_decided_date'] = event['date']
 
+        if ev_type == 'sync_establish':
+            sync_id = event['sync_id']
+            self.syncs[sync_id] = {}
+            self.syncs[sync_id]['start_date'] = event['date']
+
+        if ev_type == 'send_units':
+            sync_id = event['sync_id']
+            self.syncs[sync_id]['units_sent'] = event['n_units']
+            self.syncs[sync_id]['bytes_sent'] = event['n_bytes']
+
+        if ev_type == 'receive_units':
+            sync_id = event['sync_id']
+            self.syncs[sync_id]['units_received'] = event['n_units']
+            self.syncs[sync_id]['bytes_received'] = event['n_bytes']
+
+        if ev_type == 'sync_success':
+            sync_id = event['sync_id']
+            self.syncs[sync_id]['stop_date'] = event['date']
+
+
+
 
     def analyze(self):
         log_parser = LogParser(self.file_path)
@@ -111,13 +91,11 @@ class LogAnalyzer:
             if event['process_id'] != self.process_id:
                 continue
             self.handle_event(event)
-            #print(event)
 
 
     def get_delays_create_order(self):
         delay_list = []
         for U, U_dict in self.units.items():
-            #print(U_dict)
             if 'created' in U_dict and 'ordered' in U_dict:
                 diff = diff_in_seconds(U_dict['created'], U_dict['ordered'])
                 delay_list.append(diff)
@@ -127,7 +105,6 @@ class LogAnalyzer:
     def get_delays_add_foreign_order(self):
         delay_list = []
         for U, U_dict in self.units.items():
-            #print(U_dict)
             if 'received' in U_dict and 'ordered' in U_dict:
                 diff = diff_in_seconds(U_dict['received'][0], U_dict['ordered'])
                 delay_list.append(diff)
@@ -173,11 +150,47 @@ class LogAnalyzer:
                     level_delays.append(delay)
         return levels, n_units_per_level, levels_plus_decided, level_delays
 
+    def get_sync_info(self, plot_file = None):
+
+        units_sent_per_sync = []
+        units_received_per_sync = []
+        time_per_sync = []
+        syncs_not_succeeded = 0
+        time_per_unit_exchanged = []
+        bytes_per_unit_exchanged = []
+
+        for sync_id, sync in self.syncs.items():
+            if not 'stop_date' in sync:
+                syncs_not_succeeded += 1
+                continue
+            time_sync = diff_in_seconds(sync['start_date'], sync['stop_date'])
+            time_per_sync.append(time_sync)
+            units_sent_per_sync.append(sync['units_sent'])
+            units_received_per_sync.append(sync['units_received'])
+            bytes_exchanged = sync['bytes_sent'] + sync['bytes_received']
+            n_units_exchanged = sync['units_sent'] + sync['units_received']
+            if n_units_exchanged:
+                time_per_unit_exchanged.append(time_sync/n_units_exchanged)
+                bytes_per_unit_exchanged.append(bytes_exchanged/n_units_exchanged)
+
+        if plot_file is not None:
+            fig, ax = plt.subplots()
+            units_exchanged = [s + r for (s,r) in zip(units_sent_per_sync, units_received_per_sync)]
+            x_series, y_series = units_exchanged, time_per_sync
+            ax.scatter(x_series, y_series)
+            ax.set(xlabel='#units', ylabel='sync time (sec)', title='Units exchanged vs sync time')
+            fig.savefig(plot_file)
+
+        return units_sent_per_sync, units_received_per_sync, time_per_sync, time_per_unit_exchanged, bytes_per_unit_exchanged, syncs_not_succeeded
+
 
     def get_memory_usage_vs_poset_size(self, plot_file=None, show_plot=False):
         '''
         Returns a list of pairs: ( poset size (#units) , memory usage in MiB)
         '''
+
+
+
         data = []
         for entry in self.memory_info:
             data.append((entry['poset_size'], entry['memory']))
@@ -193,6 +206,7 @@ class LogAnalyzer:
         return [point[1] for point in data]
 
     def prepare_basic_report(self, report_file = 'report.txt'):
+        self.analyze()
 
         lines = []
         fields = ["name", "avg", "min", "max", "stdev", "n_samples"]
@@ -202,12 +216,9 @@ class LogAnalyzer:
             nonlocal fields, lines
             stats = compute_basic_stats(data)
             stats['name'] = name
-            print(stats)
             lines.append(format_line(fields, stats))
 
-        # memory
-        data = self.get_memory_usage_vs_poset_size('memory.png')
-        _append_stat_line(data, 'memory_MiB')
+
 
         # timing_decision
         levels, n_units_per_level, levels_plus_decided, level_delays = self.get_timing_decision_stats()
@@ -227,7 +238,20 @@ class LogAnalyzer:
         data = self.get_delays_add_foreign_order()
         _append_stat_line(data, 'add_ord_del')
 
-        print(lines)
+        # info about syncs
+        sent_per_sync, recv_per_sync, time_per_sync, time_per_unit_ex, bytes_per_unit_ex, syncs_not_succ = self.get_sync_info('sync_data.png')
+        _append_stat_line(sent_per_sync, 'units_sent_sync')
+        _append_stat_line(recv_per_sync, 'units_recv_sync')
+        _append_stat_line(time_per_sync, 'time_per_sync')
+        _append_stat_line(time_per_unit_ex, 'time_per_unit_ex')
+        _append_stat_line(bytes_per_unit_ex, 'bytes_per_unit_ex')
+        _append_stat_line([syncs_not_succ], 'sync_fail')
+
+        # memory
+        data = self.get_memory_usage_vs_poset_size('memory.png')
+        _append_stat_line(data, 'memory_MiB')
+
+
 
         with open(report_file, "w") as report_file:
             for line in lines:
@@ -235,120 +259,51 @@ class LogAnalyzer:
 
 
 
+# ------------- Helper Functions for the Log Analyzer ------------------
 
+def diff_in_seconds(date_from, date_to):
+    return (date_to-date_from).total_seconds()
 
+def compute_basic_stats(list_of_numbers):
+    '''
+    Compute the basic statistics of a data set (list of numbers) and output them as a dict.
+    '''
+    np_array = np.array(list_of_numbers)
+    summ = {}
+    summ['n_samples'] = len(list_of_numbers)
+    summ['avg'] = np.mean(np_array)
+    summ['stdev'] = np.std(np_array)
+    summ['min'] = np.min(np_array)
+    summ['max'] = np.max(np_array)
 
+    return summ
 
-
-
-
-
-
-
-
-def get_tokens(space_separated_string):
-    return [s.strip() for s in space_separated_string.split()]
-
-def parse_unit_list(space_separated_units):
-    return [s[1:-1] for s in space_separated_units.split()]
-
-
-
-class LogParser:
-
-    def __init__(self, file_path):
-        self.msg_pattern =  compile("[{date}] [{msg_level}] [{name}] {msg} [{file_line}]")
-        self.split_on_bar = compile("{left}|{right}")
-        self.file_path = file_path
-
-    def parse_create(self, ev_type, ev_params, msg_body, event):
-        pattern_create = compile("Created a new unit <{unit}>")
-        event['units'] = pattern_create.search(msg_body)['unit']
-
-    def parse_mem_usg(self, ev_type, ev_params, msg_body, event):
-        pattern_memory = compile("{usage:d} MiB")
-        event['memory'] = pattern_memory.search(msg_body)['usage']
-
-    def parse_new_level(self, ev_type, ev_params, msg_body, event):
-        pattern_level = compile("Level {level:d} reached")
-        event['level'] = pattern_level.parse(msg_body)['level']
-
-    def parse_add_foreign(self, ev_type, ev_params, msg_body, event):
-        pattern_add_foreign = compile("trying to add <{unit}> from {ex_id} to poset")
-        event['sync_id'] = int(ev_params[1])
-        event['units'] = pattern_add_foreign.parse(msg_body)['unit']
-
-    def parse_add_lin_order(self, ev_type, ev_params, msg_body, event):
-        pattern_add_line = compile("At lvl {timing_level:d} added {n_units:d} units to the linear order {unit_list}")
-        parsed = pattern_add_line.parse(msg_body)
-        event['n_units'] = parsed['n_units']
-        event['units'] = parse_unit_list(parsed['unit_list'])
-        event['level'] = parsed['timing_level']
-        assert event['n_units'] == len(event['units'])
-
-    def parse_decide_timing(self, ev_type, ev_params, msg_body, event):
-        pattern_decide_timing = compile("Timing unit for lvl {level:d} decided at lvl + {plus_level:d}")
-        parsed = pattern_decide_timing.parse(msg_body)
-        event['level'] = parsed['level']
-        event['timing_decided_level'] = parsed['level'] + parsed['plus_level']
-
-
-    def event_from_log_line(self, line):
-        parsed_line =  self.msg_pattern.parse(line)
-        assert parsed_line is not None
-        event = parsed_line.named
-
-        msg = event['msg']
-        split_msg = self.split_on_bar.parse(msg)
-        if split_msg is None:
-            # this happens when some log message is not formatted using "|"
-            # it means we should skip it
-            return None
-        event_descr, msg_body = split_msg['left'].strip(), split_msg['right'].strip()
-        #print(event_descr)
-
-        ev_tokens = get_tokens(event_descr)
-
-        ev_type = ev_tokens[0]
-
-        parse_mapping = {
-            'create_add' : self.parse_create,
-            'memory_usage' : self.parse_mem_usg,
-            'add_linear_order' : self.parse_add_lin_order,
-            'new_level' : self.parse_new_level,
-            'add_foreign' : self.parse_add_foreign,
-            'decide_timing' : self.parse_decide_timing,
-            }
-        if ev_type in parse_mapping:
-            event['type'] = ev_type
-            if len(ev_tokens) > 1:
-                event['process_id'] = int(ev_tokens[1])
-            parse_mapping[ev_type](ev_type, ev_tokens[1:], msg_body, event)
+def format_line(field_list, data = None):
+    if data == []:
+        # to avoid problems with empty data
+        data = [-1]
+    line = ''
+    for field in field_list:
+        if data is None:
+            value = field
         else:
-            return None
-        event.pop('msg', None)
-        event.pop('msg_level', None)
-        event.pop('name', None)
-        event['date'] = datetime.strptime(event['date'], "%Y-%m-%d %H:%M:%S,%f")
-        return event
+            value = data[field]
 
-
-
-    def get_events(self):
-        with open(self.file_path, "r") as log_file:
-            for line in log_file:
-                e = self.event_from_log_line(line.strip())
-                if e is not None:
-                    yield e
-                    #evs.append(e)
-        #for e in evs:
-        #    print(e)
-        #print(cnt)
+        if isinstance(value, str):
+            entry = value
+        else:
+            entry = f"{float(value):.4f}"
+        just_len = 25 if field == 'name' else 12
+        entry = entry.ljust(just_len)
+        line += entry
+    return line
 
 
 
 
-path = r'../../tests/aleph.log'
-analyzer = LogAnalyzer(path, process_id = 0)
-analyzer.analyze()
-analyzer.prepare_basic_report()
+
+
+
+
+
+
