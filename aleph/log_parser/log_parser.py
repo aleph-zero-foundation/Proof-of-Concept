@@ -2,11 +2,51 @@ from parse import parse, compile
 from datetime import datetime
 
 import matplotlib.pyplot as plt
+import numpy as np
 
 
 
 def diff_in_seconds(date_from, date_to):
     return (date_to-date_from).total_seconds()
+
+def compute_basic_stats(list_of_numbers):
+    '''
+    Compute the basic statistics of a data set (list of numbers) and output them as a dict.
+    '''
+    np_array = np.array(list_of_numbers)
+    summ = {}
+    summ['n_samples'] = len(list_of_numbers)
+    summ['avg'] = np.mean(np_array)
+    summ['stdev'] = np.std(np_array)
+    summ['min'] = np.min(np_array)
+    summ['max'] = np.max(np_array)
+
+    return summ
+
+def format_line(field_list, data = None):
+    if data == []:
+        # to avoid problems with empty data
+        data = [-1]
+    line = ''
+    for field in field_list:
+        if data is None:
+            value = field
+        else:
+            value = data[field]
+
+        if isinstance(value, str):
+            entry = value
+        else:
+            entry = f"{float(value):.4f}"
+        just_len = 25 if field == 'name' else 12
+        print(just_len)
+        entry = entry.ljust(just_len)
+        line += entry
+    return line
+
+
+
+
 
 class LogAnalyzer:
     '''
@@ -108,10 +148,16 @@ class LogAnalyzer:
 
     def get_timing_decision_stats(self):
         '''
-        returns the list of tuples:
-        (level, n_units decided at this level, +levels of timing decision, time in sec to timing decision)
+        returns 4 lists:
+        [level],
+        [n_units decided at this level],
+        [+levels of timing decision at this level],
+        [time in sec to timing decision)
         '''
-        data = []
+        levels = []
+        n_units_per_level = []
+        levels_plus_decided = []
+        level_delays = []
         for level in self.levels:
             if level == 0:
                 # timing is not decided on level
@@ -121,9 +167,11 @@ class LogAnalyzer:
                     n_units = self.levels[level]['n_units_decided']
                     delay = diff_in_seconds(self.levels[level]['date'], self.levels[level]['timing_decided_date'])
                     level_diff = self.levels[level]['timing_decided_level'] - level
-                    data.append((level, n_units, level_diff, delay))
-
-        return data
+                    levels.append(level)
+                    n_units_per_level.append(n_units)
+                    levels_plus_decided.append(level_diff)
+                    level_delays.append(delay)
+        return levels, n_units_per_level, levels_plus_decided, level_delays
 
 
     def get_memory_usage_vs_poset_size(self, plot_file=None, show_plot=False):
@@ -142,10 +190,53 @@ class LogAnalyzer:
             fig.savefig(plot_file)
         if show_plot:
             plt.show()
-        return data
+        return [point[1] for point in data]
 
-    def prepare_basic_report():
-        pass
+    def prepare_basic_report(self, report_file = 'report.txt'):
+
+        lines = []
+        fields = ["name", "avg", "min", "max", "stdev", "n_samples"]
+        lines.append(format_line(fields))
+
+        def _append_stat_line(data, name):
+            nonlocal fields, lines
+            stats = compute_basic_stats(data)
+            stats['name'] = name
+            print(stats)
+            lines.append(format_line(fields, stats))
+
+        # memory
+        data = self.get_memory_usage_vs_poset_size('memory.png')
+        _append_stat_line(data, 'memory_MiB')
+
+        # timing_decision
+        levels, n_units_per_level, levels_plus_decided, level_delays = self.get_timing_decision_stats()
+        _append_stat_line(n_units_per_level, 'n_units_decision')
+        _append_stat_line(level_delays, 'time_decision')
+        _append_stat_line(levels_plus_decided, 'decision_height')
+
+        # new level
+        data = self.get_new_level_times()
+        _append_stat_line(data, 'new_level_times')
+
+        # delay between create and order
+        data = self.get_delays_create_order()
+        _append_stat_line(data, 'create_ord_del')
+
+        # delay between adding a new foreign unit and order
+        data = self.get_delays_add_foreign_order()
+        _append_stat_line(data, 'add_ord_del')
+
+        print(lines)
+
+        with open(report_file, "w") as report_file:
+            for line in lines:
+                report_file.write(line+'\n')
+
+
+
+
+
 
 
 
@@ -260,8 +351,4 @@ class LogParser:
 path = r'../../tests/aleph.log'
 analyzer = LogAnalyzer(path, process_id = 0)
 analyzer.analyze()
-print(analyzer.get_delays_create_order())
-print(analyzer.get_delays_add_foreign_order())
-print(analyzer.get_new_level_times())
-print(analyzer.get_memory_usage_vs_poset_size('memory.png'))
-print(analyzer.get_timing_decision_stats())
+analyzer.prepare_basic_report()
