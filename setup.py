@@ -10,6 +10,8 @@ setup(
         "networkx",
         "numpy",
         "matplotlib",
+        "parse",
+        "psutil",
         "joblib",
         "pytest-xdist",
         ],

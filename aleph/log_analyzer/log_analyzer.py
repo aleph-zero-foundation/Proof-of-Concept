@@ -12,8 +12,11 @@ class LogAnalyzer:
     A class for producing statistics about the protocol execution given logged events.
     The events (in the form of dictionaries) are created by the LogParser class.
     It also creates diagrams for certain statistics.
+    :param int process_id: Optional parameter: if specified only the log messages corresponding to this processes
+                           will be considered. If None, all log messages will be considered, yet in this case
+                           it is assumed that only one process wrote logs to this file.
     '''
-    def __init__(self, file_path, process_id):
+    def __init__(self, file_path, process_id = None):
         self.units = {}
         self.syncs = {}
         self.levels = {}
@@ -105,10 +108,8 @@ class LogAnalyzer:
         '''
         Reads events from the log using the LogParser class and pulls them through handle_event.
         '''
-        log_parser = LogParser(self.file_path)
+        log_parser = LogParser(self.file_path, self.process_id)
         for event in log_parser.get_events():
-            if event['process_id'] != self.process_id:
-                continue
             self.handle_event(event)
 
 
@@ -269,6 +270,9 @@ class LogAnalyzer:
 
         def _append_stat_line(data, name):
             nonlocal fields, lines
+            if data == []:
+                # to avoid problems with empty data
+                data = [-1]
             stats = compute_basic_stats(data)
             stats['name'] = name
             lines.append(format_line(fields, stats))
@@ -344,9 +348,7 @@ def format_line(field_list, data = None):
     '''
     Construct one line of the report file.
     '''
-    if data == []:
-        # to avoid problems with empty data
-        data = [-1]
+
     line = ''
     for field in field_list:
         if data is None:

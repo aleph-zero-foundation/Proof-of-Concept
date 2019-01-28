@@ -13,10 +13,11 @@ class LogParser:
     These events are then fed into an instance of LogAnalyzer.
     '''
 
-    def __init__(self, file_path):
+    def __init__(self, file_path, process_id = None):
         self.msg_pattern =  compile("[{date}] [{msg_level}] [{name}] {msg} [{file_line}]")
         self.split_on_bar = compile("{left}|{right}")
         self.file_path = file_path
+        self.process_id = process_id
 
         # initialize a bunch of parsing patterns to speed up parsing
         self.pattern_create = compile("Created a new unit <{unit}>")
@@ -160,10 +161,12 @@ class LogParser:
         ev_type = ev_tokens[0]
 
 
-        if ev_type in parse_mapping:
+        if ev_type in self.parse_mapping:
             event['type'] = ev_type
             if len(ev_tokens) > 1:
                 event['process_id'] = int(ev_tokens[1])
+            if self.process_id is not None and event['process_id'] != self.process_id:
+                return None
             # use the mapping created in __init__ to parse the msg using the appropriate function
             self.parse_mapping[ev_type](ev_type, ev_tokens[1:], msg_body, event)
         else:
