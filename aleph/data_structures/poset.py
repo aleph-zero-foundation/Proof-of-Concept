@@ -1076,7 +1076,7 @@ class Poset:
         # (dealer_id, coin_share). This would require more space, but ease implementation and speed
         # tossing a coin. We believe that tossing coin is rare, hence current implementation is chosen
         logger = logging.getLogger(LOGGER_NAME)
-        logger.info(f'toss_coin_start | Tossing at lvl {tossing_unit.level} for unit {U.short_name()} at lvl {U_c.level}.')
+        logger.info(f'toss_coin_start | Tossing at lvl {tossing_unit.level} for unit {U_c.short_name()} at lvl {U_c.level}.')
 
         if self.use_tcoin == False:
             return self._simple_coin(U_c, tossing_unit.level-1)
