@@ -43,6 +43,11 @@ class LogAnalyzer:
         :param dict event: event describing one line in the log.
         '''
         ev_type = event['type']
+
+        if ev_type == 'start_process':
+            self.n_processes = event['n_processes']
+            self.set_start_date(event['date'])
+
         if ev_type == 'create_add':
             assert event['units'] not in self.units, "Unit hash collision?"
             self.set_start_date(event['date'])
@@ -81,8 +86,15 @@ class LogAnalyzer:
 
         if ev_type == 'sync_establish':
             sync_id = event['sync_id']
-            self.syncs[sync_id] = {}
-            self.syncs[sync_id]['start_date'] = event['date']
+            if sync_id not in self.syncs:
+                self.syncs[sync_id] = {}
+                self.syncs[sync_id]['start_date'] = event['date']
+            else:
+                self.syncs[sync_id]['conn_est_time'] = diff_in_seconds(self.syncs[sync_id]['start_date'], event['date'])
+
+        if ev_type == 'receive_units_start':
+            sync_id = event['sync_id']
+            self.syncs[sync_id]['target'] = event['target']
 
         if ev_type == 'send_units':
             sync_id = event['sync_id']
@@ -99,6 +111,13 @@ class LogAnalyzer:
             self.syncs[sync_id]['stop_date'] = event['date']
 
         if ev_type == 'try_sync':
+            # this is an outgoing sync
+            sync_id = event['sync_id']
+            assert sync_id not in self.syncs
+            self.syncs[sync_id] = {}
+            self.syncs[sync_id]['start_date'] = event['date']
+            self.syncs[sync_id]['target'] = event['target']
+
             self.sync_attempt_dates.append(event['date'])
 
         if ev_type == 'listener_sync_no':
@@ -196,6 +215,7 @@ class LogAnalyzer:
         -- time_per_sync: the (list of) durations (in sec) of syncs
         -- time_per_unit_exchanged: the (list of) times of syncs per one unit
         -- bytes_per_unit_exchanged: the (list of) number of bytes exchanged per one unit
+        -- establish_connection_times: the (list of) times to establish a connection when initiating a sync
         -- syncs_not_succeeded: one int - the number of syncs that started (i.e. n_recv_sync was incremented)
                                 but for some reason did not terminate succesfully
         '''
@@ -205,6 +225,7 @@ class LogAnalyzer:
         syncs_not_succeeded = 0
         time_per_unit_exchanged = []
         bytes_per_unit_exchanged = []
+        establish_connection_times = []
 
         for sync_id, sync in self.syncs.items():
             if not 'stop_date' in sync:
@@ -220,6 +241,10 @@ class LogAnalyzer:
                 time_per_unit_exchanged.append(time_sync/n_units_exchanged)
                 bytes_per_unit_exchanged.append(bytes_exchanged/n_units_exchanged)
 
+            if 'conn_est_time' in sync:
+                establish_connection_times.append(sync['conn_est_time'])
+
+
         if plot_file is not None:
             fig, ax = plt.subplots()
             units_exchanged = [s + r for (s,r) in zip(units_sent_per_sync, units_received_per_sync)]
@@ -228,7 +253,16 @@ class LogAnalyzer:
             ax.set(xlabel='#units', ylabel='sync time (sec)', title='Units exchanged vs sync time')
             fig.savefig(plot_file)
 
-        return units_sent_per_sync, units_received_per_sync, time_per_sync, time_per_unit_exchanged, bytes_per_unit_exchanged, syncs_not_succeeded
+        return units_sent_per_sync, units_received_per_sync, time_per_sync, \
+                time_per_unit_exchanged, bytes_per_unit_exchanged, \
+                establish_connection_times, syncs_not_succeeded
+
+
+
+
+
+
+
 
 
     def get_memory_usage_vs_poset_size(self, plot_file=None, show_plot=False):
@@ -269,6 +303,8 @@ class LogAnalyzer:
         n_units_series = [p[0] for p in self.add_run_times]
         run_time_series = [p[1] for p in self.add_run_times]
 
+        print(len(self.add_run_times))
+
         if plot_file is not None:
             fig, ax = plt.subplots()
             ax.plot(n_units_series , run_time_series)
@@ -277,7 +313,46 @@ class LogAnalyzer:
 
         return run_time_series
 
-    def prepare_basic_report(self, report_file = 'report.txt'):
+
+    def prepare_report_per_process(self, report_file = 'report-proc'):
+        #syncs_total = [0]*self.n_processes
+        syncs_failed = [0] * self.n_processes
+        syncs_succeded = [0] * self.n_processes
+        tot_time = [0.0] * self.n_processes
+        for sync_id, sync in self.syncs.items():
+            if 'target' not in sync:
+                # this sync has no info on which process are we talking to, cannot do much
+                print(sync_id, sync)
+                continue
+
+            target = sync['target']
+            if 'stop_date' not in sync:
+                syncs_failed[target] += 1
+                continue
+
+            syncs_succeded[target] += 1
+            tot_time[target] += diff_in_seconds(sync['start_date'], sync['stop_date'])
+
+
+        fields = ['name', 'sync_fail', 'sync_succ', 'avg_time']
+        lines = []
+        lines.append(format_line(fields))
+
+        for target in range(self.n_processes):
+            if syncs_succeded[target]:
+                tot_time[target] /= syncs_succeded[target]
+            data = {'name' : f'proc_{target}'}
+            data['sync_fail'] = syncs_failed[target]
+            data['sync_succ'] = syncs_succeded[target]
+            data['avg_time'] = tot_time[target]
+            lines.append(format_line(fields, data))
+
+        with open(report_file+'.txt', "w") as rep_file:
+            for line in lines:
+                rep_file.write(line+'\n')
+
+
+    def prepare_basic_report(self, report_file = 'report'):
         '''
         Read the log and create the file with a succinct summary of the data in the report_file.
         It also creates some plots of the analyzed data.
@@ -320,12 +395,14 @@ class LogAnalyzer:
         _append_stat_line(data, 'add_ord_del')
 
         # info about syncs
-        sent_per_sync, recv_per_sync, time_per_sync, time_per_unit_ex, bytes_per_unit_ex, syncs_not_succ = self.get_sync_info('sync_data.png')
+        sent_per_sync, recv_per_sync, time_per_sync, time_per_unit_ex, \
+            bytes_per_unit_ex, est_conn_time, syncs_not_succ = self.get_sync_info('sync_data.png')
         _append_stat_line(sent_per_sync, 'units_sent_sync')
         _append_stat_line(recv_per_sync, 'units_recv_sync')
         _append_stat_line(time_per_sync, 'time_per_sync')
         _append_stat_line(time_per_unit_ex, 'time_per_unit_ex')
         _append_stat_line(bytes_per_unit_ex, 'bytes_per_unit_ex')
+        _append_stat_line(est_conn_time, 'est_conn_time')
         _append_stat_line([syncs_not_succ], 'sync_fail')
 
         # delay stats
@@ -346,9 +423,15 @@ class LogAnalyzer:
         _append_stat_line(data, 'add_unit_time_s')
 
 
-        with open(report_file, "w") as report_file:
+        #self.get_sync_info_per_process()
+
+
+        with open(report_file+'.txt', "w") as rep_file:
             for line in lines:
-                report_file.write(line+'\n')
+                rep_file.write(line+'\n')
+
+
+        self.prepare_report_per_process(report_file+'-proc')
 
 
 
@@ -385,8 +468,10 @@ def format_line(field_list, data = None):
 
         if isinstance(value, str):
             entry = value
-        else:
+        elif isinstance(value, float):
             entry = f"{float(value):.4f}"
+        else:
+            entry = str(value)
         just_len = 25 if field == 'name' else 12
         entry = entry.ljust(just_len)
         line += entry

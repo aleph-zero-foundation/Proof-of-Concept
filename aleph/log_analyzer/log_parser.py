@@ -33,6 +33,8 @@ class LogParser:
         self.pattern_try_sync = compile("Establishing connection to {target:d}")
         self.pattern_listener_sync_no = compile("Number of syncs is {n_recv_syncs:d}")
         self.pattern_add_run_time = compile("Added {n_units:d} in {tot_time:f} sec")
+        self.pattern_start_process = compile("Starting a new process in committee of size {n_processes:d}")
+        self.pattern_receive_units_start = compile("Receiving units from {target:d}")
 
         # create the mapping between event types and the functions used for parsing this types of events
 
@@ -54,6 +56,9 @@ class LogParser:
             'sync_establish_try' : self.parse_try_sync,
             'listener_sync_no' : self.parse_listener_sync_no,
             'add_run_time' : self.parse_add_run_time,
+            'start_process' : self.parse_start_process,
+            'receive_units_start_listener': self.parse_receive_units_start,
+            'receive_untis_start_sync' : self.parse_receive_units_start,
             }
 
     # Functions for parsing specific types of log messages. Typically one function per log lessage type.
@@ -75,6 +80,16 @@ class LogParser:
 
     def parse_new_level(self, ev_type, ev_params, msg_body, event):
         event['level'] = self.pattern_level.parse(msg_body)['level']
+
+    def parse_start_process(self, ev_type, ev_params, msg_body, event):
+        parsed = self.pattern_start_process.parse(msg_body)
+        event['n_processes'] = parsed['n_processes']
+
+    def parse_receive_units_start(self, ev_type, ev_params, msg_body, event):
+        parsed = self.pattern_receive_units_start.parse(msg_body)
+        event['target'] = parsed['target']
+        event['sync_id'] = int(ev_params[1])
+        event['type'] = 'receive_units_start'
 
     def parse_add_run_time(self, ev_type, ev_params, msg_body, event):
         parsed = self.pattern_add_run_time.parse(msg_body)
