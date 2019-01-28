@@ -17,6 +17,8 @@ from config import N_JOBS
 #======================================================================================
 
 def launch_new_instances_in_region(n_hosts=1, region_name='default'):
+    '''Launches n_hosts in a given region.'''
+
     if region_name == 'default':
         region_name = default_region_name()
 
@@ -53,6 +55,8 @@ def launch_new_instances_in_region(n_hosts=1, region_name='default'):
 
 
 def terminate_instances_in_region(region_name='default'):
+    '''Terminates all running instances in a given regions.'''
+
     if region_name == 'default':
         region_name = default_region_name()
     ec2 = boto3.resource('ec2', region_name)
@@ -62,8 +66,11 @@ def terminate_instances_in_region(region_name='default'):
 
 
 def all_instances_in_region(region_name='default'):
+    '''Returns all running or pending instances in a given region.'''
+
     if region_name == 'default':
         region_name = default_region_name()
+
     ec2 = boto3.resource('ec2', region_name)
     instances = []
     print(region_name, 'collecting instances')
@@ -75,6 +82,8 @@ def all_instances_in_region(region_name='default'):
 
 
 def instances_ip_in_region(region_name='default'):
+    '''Returns ips of all running or pending instances in a given region.'''
+
     if region_name == 'default':
         region_name = default_region_name()
     ec2 = boto3.resource('ec2', region_name)
@@ -88,6 +97,8 @@ def instances_ip_in_region(region_name='default'):
 
 
 def instances_state_in_region(region_name='default'):
+    '''Returns states of all instances in a given regions.'''
+
     if region_name == 'default':
         region_name = default_region_name()
     ec2 = boto3.resource('ec2', region_name)
@@ -99,9 +110,43 @@ def instances_state_in_region(region_name='default'):
     return states
 
 
-def run_cmd_in_region(cmd='ls', region_name='default', output=False):
+def run_task_in_region(task='test', region_name='default', parallel=False, output=False):
+    '''
+    Runs a task from fabfile.py on all instances in a given region.
+    :param string task: name of a task defined in fabfile.py
+    :param string region_name: region from which instances are picked
+    :param bool parallel: indicates whether task should be dispatched in parallel
+    :param bool output: indicates whether output of task is needed
+    '''
+
     if region_name == 'default':
         region_name = default_region_name()
+
+    ip_list = instances_ip_in_region(region_name)
+    if parallel:
+        hosts = " ".join(["ubuntu@"+ip for ip in ip_list])
+        cmd = 'parallel fab -i key_pairs/aleph.pem -H {} '+task+' ::: '+hosts
+    else:
+        hosts = ",".join(["ubuntu@"+ip for ip in ip_list])
+        cmd = f'fab -i key_pairs/aleph.pem -H {hosts} {task}'
+
+    print(region_name, f'calling {cmd}')
+    if output:
+        return check_output(cmd.split())
+    return call(cmd.split())
+
+
+def run_cmd_in_region(cmd='ls', region_name='default', output=False):
+    '''
+    Runs a shell command cmd on all instances in a given region.
+    :param string cmd: a shell command that is run on instances
+    :param string region_name: region from which instances are picked
+    :param bool output: indicates whether output of cmd is needed
+    '''
+
+    if region_name == 'default':
+        region_name = default_region_name()
+
     ip_list = instances_ip_in_region(region_name)
     results = []
     for ip in ip_list:
@@ -114,27 +159,13 @@ def run_cmd_in_region(cmd='ls', region_name='default', output=False):
     return results
 
 
-def run_task_in_region(task='test', region_name='default', parallel=False, output=False):
-    if region_name == 'default':
-        region_name = default_region_name()
-    ip_list = instances_ip_in_region(region_name)
-    if parallel:
-        hosts = " ".join(["ubuntu@"+ip for ip in ip_list])
-        cmd = 'parallel fab -i key_pairs/aleph.pem -H {} '+task+' ::: '+hosts
-    else:
-        hosts = ",".join(["ubuntu@"+ip for ip in ip_list])
-        cmd = f'fab -i key_pairs/aleph.pem -H {hosts} {task}'
-    print(region_name, f'calling {cmd}')
-    if output:
-        return check_output(cmd.split())
-    return call(cmd.split())
-
-
 def wait_in_region(target_state, region_name):
+    '''Waits until all machines in a given region reach a given state.'''
+
     if region_name == 'default':
         region_name = default_region_name()
+
     instances = all_instances_in_region(region_name)
-    '''Waits for instances reaching target state'''
     if target_state == 'running':
         for i in instances: i.wait_until_running()
     if target_state == 'terminated':
@@ -164,6 +195,8 @@ def wait_in_region(target_state, region_name):
 
 
 def installation_finished_in_region(region_name):
+    '''Checks if installation has finished on all instances in a given region.'''
+
     ip_list = instances_ip_in_region(region_name)
     results = []
     cmd = "tail -1 setup.log"
@@ -175,10 +208,13 @@ def installation_finished_in_region(region_name):
     print(f'installation in {region_name} finished')
     return True
 
+#======================================================================================
 #                              routines for all regions
 #======================================================================================
 
 def exec_for_regions(func, regions='badger regions', parallel=True):
+    '''A helper function for running routines in all regions.'''
+
     if regions == 'badger regions':
         regions = available_regions()
     if regions == 'badger regions':
@@ -201,36 +237,68 @@ def exec_for_regions(func, regions='badger regions', parallel=True):
 
 
 def launch_new_instances(n_hosts_per_region=1, regions='badger regions'):
+    '''Launches n_hosts_per_region in ever region from given regions.'''
+
     return exec_for_regions(partial(launch_new_instances_in_region, n_hosts_per_region), regions)
 
 
 def terminate_instances(regions='badger regions'):
+    '''Terminates all instances in ever region from given regions.'''
+
     return exec_for_regions(terminate_instances_in_region, regions)
 
 
 def all_instances(regions='badger regions'):
+    '''Returns all running or pending instances from given regions.'''
+
     return exec_for_regions(all_instances_in_region, regions, parallel=False)
 
 
 def instances_ip(regions='badger regions'):
+    '''Returns ip addresses of all running or pending instances from given regions.'''
+
     return exec_for_regions(instances_ip_in_region, regions)
 
 
 def instances_state(regions='badger regions'):
+    '''Returns states of all instances in given regions.'''
+
     return exec_for_regions(instances_state_in_region, regions)
 
 
 def run_task(task='test', regions='badger regions', parallel=False, output=False):
+    '''
+    Runs a task from fabfile.py on all instances in all given regions.
+    :param string task: name of a task defined in fabfile.py
+    :param list regions: collections of regions in which the tast should be performed
+    :param bool parallel: indicates whether task should be dispatched in parallel
+    :param bool output: indicates whether output of task is needed
+    '''
+
     return exec_for_regions(partial(run_task_in_region, task, parallel=parallel, output=output), regions)
 
 
 def run_cmd(cmd='ls', regions='badger regions', output=False):
+    '''
+    Runs a shell command cmd on all instances in all given regions.
+    :param string cmd: a shell command that is run on instances
+    :param list regions: collections of regions in which the tast should be performed
+    :param bool parallel: indicates whether task should be dispatched in parallel
+    :param bool output: indicates whether output of task is needed
+    '''
+
     return exec_for_regions(partial(run_cmd_in_region, cmd), regions)
 
+
 def wait(target_state, regions='badger regions'):
+    '''Waits until all machines in all given regions reach a given state.'''
+
     exec_for_regions(partial(wait_in_region, target_state), regions)
 
+
 def wait_install(regions='badger regions'):
+    '''Waits till installation finishes in all given regions.'''
+
     wait_for_regions = regions.copy()
     while wait_for_regions:
         sleep(10)
@@ -245,6 +313,8 @@ def wait_install(regions='badger regions'):
 #======================================================================================
 
 def run_experiment(n_processes, regions, experiment):
+    '''Runs an experiment.'''
+
     start = time()
     parallel = n_processes > 1
     if regions == 'badger_regions':
@@ -301,34 +371,37 @@ def run_experiment(n_processes, regions, experiment):
 
     print(f'establishing the environment took {round(time()-start, 2)}s')
     # run the experiment
-    run_task('run-simple-ec2-test', regions, parallel)
+    run_task(experiment, regions, parallel)
 
 
-    # TODO
-    # print('wait till rexperiments finishes')
+def get_logs(regions=badger_regions()):
+    '''Retrieves all logs from instances.'''
 
-    # run_task('get_logs', regions, parallel)
-
-    # TODO
-    # print('terminate instances')
-
-
+    run_task('get_logs', regions, parallel=True)
 
 #======================================================================================
 #                                        shortcuts
 #======================================================================================
 
+rtr = run_task_in_region
+rt = run_task
+
+rcr = run_cmd_in_region
+rc = run_cmd
+
+re = run_experiment
+
+ti = terminate_instances
 
 #======================================================================================
 #                                         main
 #======================================================================================
 
-#if __name__=='__main__':
-#    assert os.getcwd().split('/')[-1] == 'aws', 'Wrong dir! go to experiments/aws'
-#
-#    import IPython; IPython.embed()
-#     try:
-#         __IPYTHON__
-#     except NameError:
-#         import IPython
-#         IPython.embed()
+if __name__=='__main__':
+    assert os.getcwd().split('/')[-1] == 'aws', 'Wrong dir! go to experiments/aws'
+
+    from IPython import embed
+    from traitlets.config import get_config
+    c = get_config()
+    c.InteractiveShellEmbed.colors = "Linux"
+    embed(config=c)
