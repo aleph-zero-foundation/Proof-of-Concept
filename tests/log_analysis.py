@@ -6,5 +6,6 @@ analyzer = LogAnalyzer(path, process_id = 0)
 
 
 #path = r'results/52-77-251-76-aleph.log'
+#path = r'results/13-231-122-167-aleph.log'
 #analyzer = LogAnalyzer(path)
 analyzer.prepare_basic_report()

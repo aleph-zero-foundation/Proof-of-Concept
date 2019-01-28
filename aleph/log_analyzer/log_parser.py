@@ -32,6 +32,7 @@ class LogParser:
         self.pattern_send_units_sent = compile("Sent {n_units:d} units and {n_bytes:d} bytes to {ex_id:d}")
         self.pattern_try_sync = compile("Establishing connection to {target:d}")
         self.pattern_listener_sync_no = compile("Number of syncs is {n_recv_syncs:d}")
+        self.pattern_add_run_time = compile("Added {n_units:d} in {tot_time:f} sec")
 
         # create the mapping between event types and the functions used for parsing this types of events
 
@@ -51,7 +52,8 @@ class LogParser:
             'send_units_sent_listener' : self.parse_send_units_sent,
             'send_units_sent_sync' : self.parse_send_units_sent,
             'sync_establish_try' : self.parse_try_sync,
-            'listener_sync_no' : self.parse_listener_sync_no
+            'listener_sync_no' : self.parse_listener_sync_no,
+            'add_run_time' : self.parse_add_run_time,
             }
 
     # Functions for parsing specific types of log messages. Typically one function per log lessage type.
@@ -73,6 +75,11 @@ class LogParser:
 
     def parse_new_level(self, ev_type, ev_params, msg_body, event):
         event['level'] = self.pattern_level.parse(msg_body)['level']
+
+    def parse_add_run_time(self, ev_type, ev_params, msg_body, event):
+        parsed = self.pattern_add_run_time.parse(msg_body)
+        event['n_units'] = parsed['n_units']
+        event['tot_time'] = parsed['tot_time']
 
     def parse_listener_succ(self, ev_type, ev_params, msg_body, event):
         parsed = self.pattern_listener_succ.parse(msg_body)

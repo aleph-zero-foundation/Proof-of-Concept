@@ -10,7 +10,7 @@ from aleph.utils.dag_utils import generate_random_forking, poset_from_dag
 
 
 async def main():
-    n_processes = 32
+    n_processes = 16
     n_forkers = 0
     txps = 50
     n_light_nodes = 100

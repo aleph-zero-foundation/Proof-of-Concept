@@ -27,6 +27,7 @@ class LogAnalyzer:
         self.file_path = file_path
         self.memory_info = []
         self.start_date = None
+        self.add_run_times = []
 
     def set_start_date(self, date):
         '''
@@ -102,6 +103,13 @@ class LogAnalyzer:
 
         if ev_type == 'listener_sync_no':
             self.current_recv_sync_no.append(event['n_recv_syncs'])
+
+        if ev_type == 'add_run_time':
+            avg_time = event['tot_time']/event['n_units']
+            units_in_poset = len(self.units)
+            # good to have the number of units as well to create a nice plot
+            self.add_run_times.append((units_in_poset, avg_time))
+
 
 
     def analyze(self):
@@ -254,6 +262,21 @@ class LogAnalyzer:
 
         return create_delays, sync_delays
 
+    def get_run_time_stats(self, plot_file = None):
+        '''
+        Return statistics regarding the time of adding one unit to the poset.
+        '''
+        n_units_series = [p[0] for p in self.add_run_times]
+        run_time_series = [p[1] for p in self.add_run_times]
+
+        if plot_file is not None:
+            fig, ax = plt.subplots()
+            ax.plot(n_units_series , run_time_series)
+            ax.set(xlabel='#units', ylabel='adding to poset time (sec)', title='Units in poset vs processing time of 1 unit.')
+            fig.savefig(plot_file)
+
+        return run_time_series
+
     def prepare_basic_report(self, report_file = 'report.txt'):
         '''
         Read the log and create the file with a succinct summary of the data in the report_file.
@@ -317,6 +340,10 @@ class LogAnalyzer:
         # memory
         data = self.get_memory_usage_vs_poset_size('memory.png')
         _append_stat_line(data, 'memory_MiB')
+
+        # running time of add_unit
+        data = self.get_run_time_stats('run_time.png')
+        _append_stat_line(data, 'add_unit_time_s')
 
 
         with open(report_file, "w") as report_file:

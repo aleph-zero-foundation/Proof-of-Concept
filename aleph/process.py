@@ -5,6 +5,7 @@ import multiprocessing
 import random
 import psutil
 import os
+import time
 
 
 from aleph.data_structures import Poset, UserDB
@@ -19,7 +20,7 @@ class Process:
 
 
     def __init__(self, n_processes, process_id, secret_key, public_key, address_list, public_key_list, tx_receiver_address,
-                userDB=None, validation_method='SNAP', enable_tcoin=False):
+                userDB=None, validation_method='SNAP', enable_tcoin=False, profile_add_unit=True):
         '''
         :param int n_processes: the committee size
         :param int process_id: the id of the current process
@@ -72,6 +73,8 @@ class Process:
 
         # initialize logger
         self.logger = logging.getLogger(LOGGER_NAME)
+        self.profile_add_unit = profile_add_unit
+        self.add_unit_runtimes = []
 
 
     def sign_unit(self, U):
@@ -133,6 +136,9 @@ class Process:
         :param unit U: the unit to be added
         :returns: boolean value: True if succesfully added, False if unit is not compliant
         '''
+        if self.profile_add_unit:
+            start_time = time.time()
+
         if U.hash() in self.poset.units.keys():
             return True
 
@@ -152,6 +158,10 @@ class Process:
 
         else:
             return False
+
+        if self.profile_add_unit:
+            tot_time = time.time() - start_time
+            self.add_unit_runtimes.append(tot_time)
 
         return True
 
@@ -197,6 +207,15 @@ class Process:
             # log current memory consumption
             memory_usage_in_mib = round((psutil.Process(os.getpid()).memory_info().rss)/(2**20))
             self.logger.info(f'memory_usage {self.process_id} | {memory_usage_in_mib} MiB')
+
+            # log running time of add_unit
+            if len(self.add_unit_runtimes) > 0:
+                tot_time_of_add_unit = sum(self.add_unit_runtimes)
+                n_units_added = len(self.add_unit_runtimes)
+                self.logger.info(f'add_run_time {self.process_id} | Added {n_units_added} in {tot_time_of_add_unit:.4f} sec')
+                # empty the list
+                self.add_unit_runtimes = []
+
             txs = self.prepared_txs
             new_unit = self.poset.create_unit(self.process_id, txs, strategy = "link_self_predecessor", num_parents = 2)
             if new_unit is not None:
