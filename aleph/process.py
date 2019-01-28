@@ -29,6 +29,8 @@ class Process:
         :param list addresses: the list of length n_processes containing addresses (host, port) of all committee members
         :param list public_keys: the list of public keys of all committee members
         :param string validation_method: the method of validating transactions/units: either "SNAP" or "LINEAR_ORDERING" or None for no validation
+        :param int n_create: number of units created by this process; -1 for no limit
+        :param int n_create: number of synchronizations performed by this process; -1 for no limit
         '''
 
         self.n_processes = n_processes
@@ -80,7 +82,6 @@ class Process:
 
         # initialize logger
         self.logger = logging.getLogger(consts.LOGGER_NAME)
-
 
     def sign_unit(self, U):
         '''
@@ -241,7 +242,6 @@ class Process:
         await serverStarted.wait()
         created_count, max_level_reached = 0, False
         while created_count != consts.UNITS_LIMIT and not max_level_reached:
-
             # log current memory consumption
             memory_usage_in_mib = (psutil.Process(os.getpid()).memory_info().rss)/(2**20)
             self.logger.info(f'memory_usage {self.process_id} | {memory_usage_in_mib:.4f} MiB')
@@ -251,6 +251,7 @@ class Process:
                 new_unit = create_unit(self.poset, self.process_id, txs)
             timer.write_summary(where=self.logger, groups=[self.process_id])
             timer.reset(self.process_id)
+
 
             if new_unit is not None:
                 created_count += 1
