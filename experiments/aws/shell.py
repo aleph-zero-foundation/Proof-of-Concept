@@ -452,7 +452,41 @@ def run_experiment(n_processes, regions, restricted, experiment, instance_type):
 def get_logs(regions=badger_regions()):
     '''Retrieves all logs from instances.'''
 
-    run_task('get_logs', regions, parallel=True)
+    run_task('get-logs', regions, parallel=True)
+
+    print('read hosts')
+    with open('hosts', 'r') as f:
+        hosts_ip = [line[:-1] for line in f]
+
+    print('read signing keys')
+    with open('signing_keys', 'r') as f:
+        hexes = [line[:-1].encode() for line in f]
+        signing_keys = [SigningKey(hexed) for hexed in hexes]
+
+    pk_hexes = [VerifyKey.from_SigningKey(sk).to_hex() for sk in signing_keys]
+    arg_sort = [i for i, _ in sorted(enumerate(pk_hexes), key = lambda x: x[1])]
+
+    signing_keys = [signing_keys[i] for i in arg_sort]
+    hosts_ip = [hosts_ip[i] for i in arg_sort]
+
+    print('write hosts')
+    with open('hosts_sorted', 'w') as f:
+        for ip in hosts_ip:
+            f.write(ip+'\n')
+
+    print('write signing keys')
+    with open('signing_keys_sorted', 'w') as f:
+        for sk in signing_keys:
+            f.write(sk.to_hex().decode()+'\n')
+
+    print('rename results')
+    for fp in os.listdir('../results'):
+        pid = hosts_ip.index(fp.split('-aleph.log')[0].replace('-','.'))
+        os.rename(f'../results/{fp}', f'../results/{pid}.aleph.log')
+
+
+
+
 
 #======================================================================================
 #                                        shortcuts
