@@ -9,8 +9,12 @@ from joblib import Parallel, delayed
 import boto3
 import numpy as np
 
-from utils import image_id_in_region, default_region_name, init_key_pair, security_group_id_by_region, available_regions, badger_regions, generate_signing_keys
+from aleph.crypto.keys import SigningKey, VerifyKey
+from utils import image_id_in_region, default_region_name, init_key_pair, security_group_id_by_region, available_regions, badger_regions, generate_signing_keys, n_hosts_per_regions, eu_regions
 from config import N_JOBS
+
+
+
 
 
 #======================================================================================
@@ -48,6 +52,8 @@ def launch_new_instances_in_region(n_hosts=1, region_name='default', instance_ty
     if region_name == 'default':
         region_name = default_region_name()
 
+    print('launching instances in', region_name)
+
     #print(region_name, 'key init')
     key_name = 'aleph'
     init_key_pair(region_name, key_name)
@@ -63,7 +69,7 @@ def launch_new_instances_in_region(n_hosts=1, region_name='default', instance_ty
     ec2 = boto3.resource('ec2', region_name)
     instances = ec2.create_instances(ImageId=image_id,
                                  MinCount=n_hosts, MaxCount=n_hosts,
-                                 InstanceType='t2.micro',
+                                 InstanceType=instance_type,
                                  BlockDeviceMappings=[ {
                                      'DeviceName': '/dev/xvda',
                                      'Ebs': {
@@ -85,6 +91,9 @@ def terminate_instances_in_region(region_name='default'):
 
     if region_name == 'default':
         region_name = default_region_name()
+
+    print('terminating instances in', region_name)
+
     ec2 = boto3.resource('ec2', region_name)
     print(region_name, 'terminating')
     for instance in ec2.instances.all():
@@ -96,6 +105,8 @@ def all_instances_in_region(region_name='default'):
 
     if region_name == 'default':
         region_name = default_region_name()
+
+    print('finging instances in', region_name)
 
     ec2 = boto3.resource('ec2', region_name)
     instances = []
@@ -112,6 +123,7 @@ def instances_ip_in_region(region_name='default'):
 
     if region_name == 'default':
         region_name = default_region_name()
+
     ec2 = boto3.resource('ec2', region_name)
     ips = []
     # print(region_name, 'collecting ips')
@@ -127,6 +139,9 @@ def instances_state_in_region(region_name='default'):
 
     if region_name == 'default':
         region_name = default_region_name()
+
+    print('finging states of instances in', region_name)
+
     ec2 = boto3.resource('ec2', region_name)
     states = []
     print(region_name, 'collecting instances states')
@@ -148,6 +163,8 @@ def run_task_in_region(task='test', region_name='default', parallel=False, outpu
     if region_name == 'default':
         region_name = default_region_name()
 
+    print('running task in', region_name)
+
     ip_list = instances_ip_in_region(region_name)
     if parallel:
         hosts = " ".join(["ubuntu@"+ip for ip in ip_list])
@@ -156,10 +173,12 @@ def run_task_in_region(task='test', region_name='default', parallel=False, outpu
         hosts = ",".join(["ubuntu@"+ip for ip in ip_list])
         cmd = f'fab -i key_pairs/aleph.pem -H {hosts} {task}'
 
-    print(region_name, f'calling {cmd}')
-    if output:
-        return check_output(cmd.split())
-    return call(cmd.split())
+    try:
+        if output:
+            return check_output(cmd.split())
+        return call(cmd.split())
+    except Exception as e:
+        print('paramiko troubles')
 
 
 def run_cmd_in_region(cmd='ls', region_name='default', output=False):
@@ -172,6 +191,9 @@ def run_cmd_in_region(cmd='ls', region_name='default', output=False):
 
     if region_name == 'default':
         region_name = default_region_name()
+
+
+    print('running command in', region_name)
 
     ip_list = instances_ip_in_region(region_name)
     results = []
@@ -190,6 +212,8 @@ def wait_in_region(target_state, region_name):
 
     if region_name == 'default':
         region_name = default_region_name()
+
+    print('waiting in', region_name)
 
     instances = all_instances_in_region(region_name)
     if target_state == 'running':
@@ -241,7 +265,7 @@ def installation_finished_in_region(region_name):
 def exec_for_regions(func, regions='badger regions', parallel=True):
     '''A helper function for running routines in all regions.'''
 
-    if regions == 'badger regions':
+    if regions == 'all':
         regions = available_regions()
     if regions == 'badger regions':
         regions = badger_regions()
@@ -256,16 +280,43 @@ def exec_for_regions(func, regions='badger regions', parallel=True):
         for region_name in regions:
             results.append(func(region_name))
 
+    print('test')
+
     if results and isinstance(results[0], list):
         return [res for res_list in results for res in res_list]
 
     return results
 
 
-def launch_new_instances(n_hosts_per_region=1, regions='badger regions'):
-    '''Launches n_hosts_per_region in ever region from given regions.'''
+def launch_new_instances(nhpr, regions='badger regions', instance_type='t2.micro'):
+    '''
+    Launches n_hosts_per_region in ever region from given regions.
+    :param dict nhpr: dict region_name --> n_hosts_per_region
+    '''
 
-    return exec_for_regions(partial(launch_new_instances_in_region, n_hosts_per_region), regions)
+    if regions == 'all':
+        regions = available_regions()
+    if regions == 'badger regions':
+        regions = badger_regions()
+
+    failed = []
+    print('launching instances')
+    for region_name in regions:
+        print(region_name, '', end='')
+        instances = launch_new_instances_in_region(nhpr[region_name], region_name, instance_type)
+        if not instances:
+            failed.append(region_name)
+
+    tries = 5
+    while failed and tries:
+        tries -= 1
+        sleep(5)
+        print('there were problems in launching instances in regions', *failed, 'retrying')
+        for region_name in failed.copy():
+            print(region_name, '', end='')
+            instances = launch_new_instances_in_region(nhpr[region_name], region_name, instance_type)
+            if instances:
+                failed.remove(region_name)
 
 
 def terminate_instances(regions='badger regions'):
@@ -301,7 +352,7 @@ def run_task(task='test', regions='badger regions', parallel=False, output=False
     :param bool output: indicates whether output of task is needed
     '''
 
-    return exec_for_regions(partial(run_task_in_region, task, parallel=parallel, output=output), regions)
+    return exec_for_regions(partial(run_task_in_region, task, parallel=parallel, output=output), regions, parallel)
 
 
 def run_cmd(cmd='ls', regions='badger regions', output=False):
@@ -338,7 +389,7 @@ def wait_install(regions='badger regions'):
 #                               aggregates
 #======================================================================================
 
-def run_experiment(n_processes, regions, experiment):
+def run_experiment(n_processes, regions, restricted, experiment, instance_type):
     '''Runs an experiment.'''
 
     start = time()
@@ -350,10 +401,8 @@ def run_experiment(n_processes, regions, experiment):
 
     # note: there are only 5 t2.micro machines in 'sa-east-1', 'ap-southeast-2' each
     print('launching machines')
-    n_proc_per_region = n_processes//len(regions)
-    launch_new_instances(n_proc_per_region, regions)
-    if n_processes % len(regions):
-        launch_new_instances_in_region(n_processes%len(regions), default_region_name())
+    nhpr = n_hosts_per_regions(n_processes, regions, restricted)
+    launch_new_instances(nhpr, regions, instance_type)
 
     print('waiting for transition from pending to running')
     wait('running', regions)
@@ -418,6 +467,8 @@ rc = run_cmd
 re = run_experiment
 
 ti = terminate_instances
+
+A = [104, badger_regions(), [], 'simple-ec2-test', 't2.medium']
 
 #======================================================================================
 #                                         main
