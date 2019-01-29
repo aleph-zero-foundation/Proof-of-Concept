@@ -104,6 +104,9 @@ def zip_repo(conn):
     conn.local("find ../../../proof-of-concept -name '*.pyc' -delete")
     # remove logs
     conn.local("find ../../../proof-of-concept -name '*.log' -delete")
+    # remove arxives
+    conn.local("find ../../../proof-of-concept -name '*.zip' -delete")
+
     conn.local('zip -rq poc.zip ../../../proof-of-concept')
 
 
@@ -155,13 +158,13 @@ def send_file_simple(conn):
 #======================================================================================
 
 @task
-def run_simple_ec2_test(conn):
+def simple_ec2_test(conn):
     ''' Sends current version of experiment and runs it.'''
 
     conn.put('../simple_ec2_test.py', 'proof-of-concept/experiments/')
     with conn.cd('proof-of-concept/experiments'):
         # export env var needed for pbc, activate venv, cross fingers, and run the experiment
-        cmd = 'python simple_ec2_test.py -i hosts -s signing_keys'
+        cmd = 'python simple_ec2_test.py -i hosts -k signing_keys -c 400 -s -1'
         conn.run('export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/local/lib &&'
                  'source /home/ubuntu/p37/bin/activate &&'
                  f'dtach -n `mktemp -u /tmp/dtach.XXXX` {cmd}')
