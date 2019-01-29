@@ -106,6 +106,7 @@ class LogParser:
         parsed = self.pattern_try_sync.parse(msg_body)
         event['sync_id'] = int(ev_params[1])
         event['target'] = parsed['target']
+        event['mode'] = 'sync'
         event['type'] = 'try_sync'
 
     def parse_listener_sync_no(self, ev_type, ev_params, msg_body, event):
@@ -164,7 +165,11 @@ class LogParser:
         '''
         # use a parse pattern to extract the date, the logger name etc. from the line
         parsed_line =  self.msg_pattern.parse(line)
-        assert parsed_line is not None
+        if parsed_line is None:
+            print('Line not parsed:')
+            print(line)
+            return None
+        #assert parsed_line is not None
         # create the event to be the dict of parsed data from the line
         # some of the fields might be then overwritten or removed and, of course, added
         event = parsed_line.named

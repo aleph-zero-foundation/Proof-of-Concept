@@ -23,7 +23,7 @@ class LogAnalyzer:
         self.sync_attempt_dates = []
         self.create_attempt_dates = []
         self.current_recv_sync_no = []
-        self.process_id = process_id
+        self.read_process_id = process_id
         self.file_path = file_path
         self.memory_info = []
         self.start_date = None
@@ -46,6 +46,7 @@ class LogAnalyzer:
 
         if ev_type == 'start_process':
             self.n_processes = event['n_processes']
+            self.process_id = event['process_id']
             self.set_start_date(event['date'])
 
         if ev_type == 'create_add':
@@ -68,7 +69,7 @@ class LogAnalyzer:
                 self.units[U] = {'received': [event['date']]}
             else:
                 U_dict = self.units[U]
-                assert 'created' not in U_dict, f"Unit created by {self.process_id} later also received from another process."
+                assert 'created' not in U_dict, f"Unit created by {self.read_process_id} later also received from another process."
                 U_dict['received'].append(event['date'])
 
         if ev_type == 'new_level':
@@ -115,6 +116,7 @@ class LogAnalyzer:
             sync_id = event['sync_id']
             assert sync_id not in self.syncs
             self.syncs[sync_id] = {}
+            self.syncs[sync_id]['tried'] = True
             self.syncs[sync_id]['start_date'] = event['date']
             self.syncs[sync_id]['target'] = event['target']
 
@@ -135,7 +137,7 @@ class LogAnalyzer:
         '''
         Reads events from the log using the LogParser class and pulls them through handle_event.
         '''
-        log_parser = LogParser(self.file_path, self.process_id)
+        log_parser = LogParser(self.file_path, self.read_process_id)
         for event in log_parser.get_events():
             self.handle_event(event)
 
@@ -249,9 +251,9 @@ class LogAnalyzer:
             fig, ax = plt.subplots()
             units_exchanged = [s + r for (s,r) in zip(units_sent_per_sync, units_received_per_sync)]
             x_series, y_series = units_exchanged, time_per_sync
-            ax.scatter(x_series, y_series)
+            ax.scatter(x_series, y_series, s=1)
             ax.set(xlabel='#units', ylabel='sync time (sec)', title='Units exchanged vs sync time')
-            fig.savefig(plot_file)
+            fig.savefig(plot_file, dpi=500)
 
         return units_sent_per_sync, units_received_per_sync, time_per_sync, \
                 time_per_unit_exchanged, bytes_per_unit_exchanged, \
@@ -303,7 +305,7 @@ class LogAnalyzer:
         n_units_series = [p[0] for p in self.add_run_times]
         run_time_series = [p[1] for p in self.add_run_times]
 
-        print(len(self.add_run_times))
+        #print(len(self.add_run_times))
 
         if plot_file is not None:
             fig, ax = plt.subplots()
@@ -319,13 +321,24 @@ class LogAnalyzer:
         syncs_failed = [0] * self.n_processes
         syncs_succeded = [0] * self.n_processes
         tot_time = [0.0] * self.n_processes
+        conn_est_time = [0.0] * self.n_processes
+        n_conn_est = [0] * self.n_processes
+        n_conn_fail = [0] * self.n_processes
         for sync_id, sync in self.syncs.items():
             if 'target' not in sync:
                 # this sync has no info on which process are we talking to, cannot do much
-                print(sync_id, sync)
+                #print(sync_id, sync)
                 continue
-
             target = sync['target']
+
+            if 'tried' in sync and 'conn_est_time' not in sync:
+                n_conn_fail[target] += 1
+
+            if 'conn_est_time' in sync:
+                n_conn_est[target] += 1
+                conn_est_time[target] += sync['conn_est_time']
+
+
             if 'stop_date' not in sync:
                 syncs_failed[target] += 1
                 continue
@@ -334,17 +347,28 @@ class LogAnalyzer:
             tot_time[target] += diff_in_seconds(sync['start_date'], sync['stop_date'])
 
 
-        fields = ['name', 'sync_fail', 'sync_succ', 'avg_time']
+        fields = ['name', 'sync_fail', 'sync_succ', 'avg_time', 'n_conn', 'conn_est_t', 'n_conn_fail']
         lines = []
         lines.append(format_line(fields))
 
         for target in range(self.n_processes):
             if syncs_succeded[target]:
                 tot_time[target] /= syncs_succeded[target]
+            else:
+                tot_time[target] = -1.0
             data = {'name' : f'proc_{target}'}
             data['sync_fail'] = syncs_failed[target]
             data['sync_succ'] = syncs_succeded[target]
             data['avg_time'] = tot_time[target]
+
+            if n_conn_est[target]:
+                conn_est_time[target] /= n_conn_est[target]
+            else:
+                conn_est_time[target] = -1.0
+            data['n_conn'] = n_conn_est[target]
+            data['n_conn_fail'] = n_conn_fail[target]
+            data['conn_est_t'] = conn_est_time[target]
+
             lines.append(format_line(fields, data))
 
         with open(report_file+'.txt', "w") as rep_file:
@@ -352,7 +376,7 @@ class LogAnalyzer:
                 rep_file.write(line+'\n')
 
 
-    def prepare_basic_report(self, report_file = 'report'):
+    def prepare_basic_report(self, report_file = r'rep/report'):
         '''
         Read the log and create the file with a succinct summary of the data in the report_file.
         It also creates some plots of the analyzed data.
@@ -360,7 +384,7 @@ class LogAnalyzer:
         WARNING: call this function only once per instance of LogAnalyzer.
                  It does not wipe the internal state when called for the second time.
         '''
-        self.analyze()
+
 
         lines = []
         fields = ["name", "avg", "min", "max", "stdev", "n_samples"]
@@ -425,13 +449,12 @@ class LogAnalyzer:
 
         #self.get_sync_info_per_process()
 
-
         with open(report_file+'.txt', "w") as rep_file:
             for line in lines:
                 rep_file.write(line+'\n')
 
 
-        self.prepare_report_per_process(report_file+'-proc')
+
 
 
 
