@@ -101,9 +101,9 @@ def _serialize_coin_shares(coin_shares):
     if isinstance(coin_shares, dict):
         # These coin shares come from a dealing units -- represent threshold coins
         serialized_shares = {}
-        serialized_shares['sks'] = [PAIRING_GROUP.serialize(sk) for sk in coin_shares['sks']]
-        serialized_shares['vks'] = [PAIRING_GROUP.serialize(vk) for vk in coin_shares['vks']]
-        serialized_shares['vk'] = PAIRING_GROUP.serialize(coin_shares['vk'])
+        serialized_shares['sks'] = [PAIRING_GROUP.serialize(sk, compression = False) for sk in coin_shares['sks']]
+        serialized_shares['vks'] = [PAIRING_GROUP.serialize(vk, compression = False) for vk in coin_shares['vks']]
+        serialized_shares['vk'] = PAIRING_GROUP.serialize(coin_shares['vk'], compression = False)
         return serialized_shares
     else:
         # These coin shares come from a non-dealing unit -- they just represent regular coin shares
@@ -113,13 +113,13 @@ def _deserialize_coin_shares(serialized_shares):
     if isinstance(serialized_shares, dict):
         # These coin shares come from a dealing units -- represent threshold coins
         coin_shares = {}
-        coin_shares['sks'] = [PAIRING_GROUP.deserialize(sk) for sk in serialized_shares['sks']]
-        coin_shares['vks'] = [PAIRING_GROUP.deserialize(vk) for vk in serialized_shares['vks']]
-        coin_shares['vk'] = PAIRING_GROUP.deserialize(serialized_shares['vk'])
+        coin_shares['sks'] = [PAIRING_GROUP.deserialize(sk, compression = False) for sk in serialized_shares['sks']]
+        coin_shares['vks'] = [PAIRING_GROUP.deserialize(vk, compression = False) for vk in serialized_shares['vks']]
+        coin_shares['vk'] = PAIRING_GROUP.deserialize(serialized_shares['vk'], compression = False)
         return coin_shares
     else:
         # These coin shares come from a non-dealing unit -- they just represent regular coin shares
-        return [PAIRING_GROUP.deserialize(cs) for cs in serialized_shares]
+        return [PAIRING_GROUP.deserialize(cs, compression = False) for cs in serialized_shares]
 
 def _serialize_and_flatten_coin_shares(coin_shares):
     '''
