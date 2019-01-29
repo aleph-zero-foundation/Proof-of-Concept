@@ -7,6 +7,7 @@ from time import sleep, time
 from joblib import Parallel, delayed
 
 import boto3
+import numpy as np
 
 from utils import image_id_in_region, default_region_name, init_key_pair, security_group_id_by_region, available_regions, badger_regions, generate_signing_keys
 from config import N_JOBS
@@ -16,7 +17,32 @@ from config import N_JOBS
 #                              routines for some region
 #======================================================================================
 
-def launch_new_instances_in_region(n_hosts=1, region_name='default'):
+def latency_in_region(region_name):
+    if region_name == 'default':
+        region_name = default_region_name()
+
+    print('finding latency', region_name)
+
+    ip_list = instances_ip_in_region(region_name)
+    assert ip_list, 'there are no instances running!'
+
+    reps = 10
+    cmd = f'parallel nping -q -c {reps} -p 22 ::: ' + ' '.join(ip_list)
+    output = check_output(cmd.split()).decode()
+    lines = output.split('\n')
+    times = []
+    for i in range(len(lines)//5):  # equivalent to range(len(ip_list))
+        times_ = lines[5*i+2].split('|')
+        times_ = [t.split()[2][:-2] for t in times_]
+        times.append([float(t.strip()) for t in times_])
+
+    latency = [f'{round(t, 2)}ms' for t in np.mean(times, 0)]
+    latency = dict(zip(['max', 'min', 'avg'], latency))
+
+    return latency
+
+
+def launch_new_instances_in_region(n_hosts=1, region_name='default', instance_type='t2.micrl'):
     '''Launches n_hosts in a given region.'''
 
     if region_name == 'default':
