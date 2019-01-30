@@ -85,6 +85,19 @@ class Process:
         U.signature = self.secret_key.sign(U.bytestring())
 
 
+    def process_txs_in_unit_list(self, list_U):
+        '''
+        For now this just counts unique transactions in all the units in list_U.
+        :returns: The number of unique transactions
+        '''
+        all_txs = set()
+        for U in list_U:
+            for tx in U.transactions():
+                all_txs.add(tx)
+
+        return len(all_txs)
+
+
 
     def add_unit_and_snap_validate(self, U):
         '''
@@ -127,7 +140,8 @@ class Process:
                 self.unordered_units = self.unordered_units.difference(ordered_units_hashes)
 
                 printable_unit_hashes = ''.join([' '+W.short_name() for W in ordered_units])
-                self.logger.info(f'add_linear_order {self.process_id} | At lvl {U_timing.level} added {len(units_to_order)} units to the linear order {printable_unit_hashes}')
+                n_txs = self.process_txs_in_unit_list(ordered_units)
+                self.logger.info(f'add_linear_order {self.process_id} | At lvl {U_timing.level} added {len(units_to_order)} units and {n_txs} txs to the linear order {printable_unit_hashes}')
 
 
     def add_unit_to_poset(self, U):
@@ -205,11 +219,11 @@ class Process:
         #while True:
         for _ in range(80):
             # log current memory consumption
-            memory_usage_in_mib = round((psutil.Process(os.getpid()).memory_info().rss)/(2**20))
-            self.logger.info(f'memory_usage {self.process_id} | {memory_usage_in_mib} MiB')
+            memory_usage_in_mib = (psutil.Process(os.getpid()).memory_info().rss)/(2**20)
+            self.logger.info(f'memory_usage {self.process_id} | {memory_usage_in_mib:.4f} MiB')
 
-            # log running time of add_unit
-            if len(self.add_unit_runtimes) > 0:
+            # log running time of add_unit, (>10 so that we do not pollute logs too much)
+            if len(self.add_unit_runtimes) > 10:
                 tot_time_of_add_unit = sum(self.add_unit_runtimes)
                 n_units_added = len(self.add_unit_runtimes)
                 self.logger.info(f'add_run_time {self.process_id} | Added {n_units_added} in {tot_time_of_add_unit:.4f} sec')

@@ -21,10 +21,10 @@ class LogParser:
 
         # initialize a bunch of parsing patterns to speed up parsing
         self.pattern_create = compile("Created a new unit <{unit}>")
-        self.pattern_memory = compile("{usage:d} MiB")
+        self.pattern_memory = compile("{usage:f} MiB")
         self.pattern_level = compile("Level {level:d} reached")
-        self.pattern_add_foreign = compile("trying to add <{unit}> from {ex_id:d} to poset")
-        self.pattern_add_line = compile("At lvl {timing_level:d} added {n_units:d} units to the linear order {unit_list}")
+        #self.pattern_add_foreign = compile("trying to add <{unit}> from {ex_id:d} to poset")
+        self.pattern_add_line = compile("At lvl {timing_level:d} added {n_units:d} units and {n_txs:d} txs to the linear order {unit_list}")
         self.pattern_decide_timing = compile("Timing unit for lvl {level:d} decided at lvl + {plus_level:d}")
         self.pattern_sync_establish = compile("Established connection to {process_id:d}")
         self.pattern_listener_succ = compile("Syncing with {process_id:d} succesful")
@@ -35,6 +35,8 @@ class LogParser:
         self.pattern_add_run_time = compile("Added {n_units:d} in {tot_time:f} sec")
         self.pattern_start_process = compile("Starting a new process in committee of size {n_processes:d}")
         self.pattern_receive_units_start = compile("Receiving units from {target:d}")
+        self.pattern_add_done = compile("units from {target:d} were added succesfully {unit_list}")
+
 
         # create the mapping between event types and the functions used for parsing this types of events
 
@@ -43,7 +45,7 @@ class LogParser:
             'memory_usage' : self.parse_mem_usg,
             'add_linear_order' : self.parse_add_lin_order,
             'new_level' : self.parse_new_level,
-            'add_foreign' : self.parse_add_foreign,
+            #'add_foreign' : self.parse_add_foreign,
             'decide_timing' : self.parse_decide_timing,
             'sync_establish' : self.parse_establish,
             'listener_establish' : self.parse_establish,
@@ -59,6 +61,8 @@ class LogParser:
             'start_process' : self.parse_start_process,
             'receive_units_start_listener': self.parse_receive_units_start,
             'receive_untis_start_sync' : self.parse_receive_units_start,
+            'add_received_done_listener' : self.parse_add_received_done,
+            'add_received_done_sync' : self.parse_add_received_done,
             }
 
     # Functions for parsing specific types of log messages. Typically one function per log lessage type.
@@ -84,6 +88,14 @@ class LogParser:
     def parse_start_process(self, ev_type, ev_params, msg_body, event):
         parsed = self.pattern_start_process.parse(msg_body)
         event['n_processes'] = parsed['n_processes']
+
+    def parse_add_received_done(self, ev_type, ev_params, msg_body, event):
+        # need to add '  ' at the end of msg_body so that empty unit list gets parsed correctly
+        parsed = self.pattern_add_done.parse(msg_body+'  ')
+        event['target'] = parsed['target']
+        event['units'] = parse_unit_list(parsed['unit_list'])
+        event['sync_id'] = int(ev_params[1])
+        event['type'] = 'add_done'
 
     def parse_receive_units_start(self, ev_type, ev_params, msg_body, event):
         parsed = self.pattern_receive_units_start.parse(msg_body)
@@ -123,13 +135,14 @@ class LogParser:
         event['sync_id'] = int(ev_params[1])
         event['type'] = 'sync_establish'
 
-    def parse_add_foreign(self, ev_type, ev_params, msg_body, event):
-        event['sync_id'] = int(ev_params[1])
-        event['units'] = self.pattern_add_foreign.parse(msg_body)['unit']
+    #def parse_add_foreign(self, ev_type, ev_params, msg_body, event):
+    #    event['sync_id'] = int(ev_params[1])
+    #    event['units'] = self.pattern_add_foreign.parse(msg_body)['unit']
 
     def parse_add_lin_order(self, ev_type, ev_params, msg_body, event):
         parsed = self.pattern_add_line.parse(msg_body)
         event['n_units'] = parsed['n_units']
+        event['n_txs'] = parsed['n_txs']
         event['units'] = parse_unit_list(parsed['unit_list'])
         event['level'] = parsed['timing_level']
         assert event['n_units'] == len(event['units'])
@@ -169,6 +182,9 @@ class LogParser:
             print('Line not parsed:')
             print(line)
             return None
+
+        if parsed_line['msg_level'] == 'ERROR':
+            print('ERROR msg', line)
         #assert parsed_line is not None
         # create the event to be the dict of parsed data from the line
         # some of the fields might be then overwritten or removed and, of course, added

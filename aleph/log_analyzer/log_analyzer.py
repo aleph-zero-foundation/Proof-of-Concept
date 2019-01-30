@@ -59,18 +59,28 @@ class LogAnalyzer:
         if ev_type == 'add_linear_order':
             level = event['level']
             self.levels[level]['n_units_decided'] = event['n_units']
+            self.levels[level]['n_txs_ordered'] = event['n_txs']
             for U in event['units']:
                 assert U in self.units, f"Unit {U} being added to linear order, but its appearance not noted."
                 self.units[U]['ordered'] = event['date']
 
-        if ev_type == 'add_foreign':
-            U = event['units']
-            if U not in self.units:
-                self.units[U] = {'received': [event['date']]}
-            else:
-                U_dict = self.units[U]
-                assert 'created' not in U_dict, f"Unit created by {self.read_process_id} later also received from another process."
-                U_dict['received'].append(event['date'])
+        if ev_type == 'add_done':
+            for U in event['units']:
+                if U not in self.units:
+                    self.units[U] = {'received': [event['date']]}
+                else:
+                    U_dict = self.units[U]
+                    assert 'created' not in U_dict, f"Unit created by {self.read_process_id} later also received from another process."
+                    U_dict['received'].append(event['date'])
+
+        # if ev_type == 'add_foreign':
+        #     U = event['units']
+        #     if U not in self.units:
+        #         self.units[U] = {'received': [event['date']]}
+        #     else:
+        #         U_dict = self.units[U]
+        #         assert 'created' not in U_dict, f"Unit created by {self.read_process_id} later also received from another process."
+        #         U_dict['received'].append(event['date'])
 
         if ev_type == 'new_level':
             level = event['level']
@@ -192,6 +202,7 @@ class LogAnalyzer:
         '''
         levels = []
         n_units_per_level = []
+        n_txs_per_level = []
         levels_plus_decided = []
         level_delays = []
         for level in self.levels:
@@ -207,7 +218,8 @@ class LogAnalyzer:
                     n_units_per_level.append(n_units)
                     levels_plus_decided.append(level_diff)
                     level_delays.append(delay)
-        return levels, n_units_per_level, levels_plus_decided, level_delays
+                    n_txs_per_level.append(self.levels[level]['n_txs_ordered'])
+        return levels, n_units_per_level, levels_plus_decided, level_delays, n_txs_per_level
 
     def get_sync_info(self, plot_file = None):
         '''
@@ -296,6 +308,7 @@ class LogAnalyzer:
         sync_delays = [diff_in_seconds(self.sync_attempt_dates[i-1], self.sync_attempt_dates[i])
                         for i in range(1,len(self.sync_attempt_dates))]
 
+
         return create_delays, sync_delays
 
     def get_run_time_stats(self, plot_file = None):
@@ -305,7 +318,6 @@ class LogAnalyzer:
         n_units_series = [p[0] for p in self.add_run_times]
         run_time_series = [p[1] for p in self.add_run_times]
 
-        #print(len(self.add_run_times))
 
         if plot_file is not None:
             fig, ax = plt.subplots()
@@ -327,7 +339,6 @@ class LogAnalyzer:
         for sync_id, sync in self.syncs.items():
             if 'target' not in sync:
                 # this sync has no info on which process are we talking to, cannot do much
-                #print(sync_id, sync)
                 continue
             target = sync['target']
 
@@ -387,7 +398,7 @@ class LogAnalyzer:
 
 
         lines = []
-        fields = ["name", "avg", "min", "max", "stdev", "n_samples"]
+        fields = ["name", "avg", "min", "max", "n_samples"]
         lines.append(format_line(fields))
 
         def _append_stat_line(data, name):
@@ -401,10 +412,12 @@ class LogAnalyzer:
 
 
         # timing_decision
-        levels, n_units_per_level, levels_plus_decided, level_delays = self.get_timing_decision_stats()
+        #print("level 1 decided: ", self.levels[1]['timing_decided_date'])
+        levels, n_units_per_level, levels_plus_decided, level_delays, n_txs_per_level = self.get_timing_decision_stats()
         _append_stat_line(n_units_per_level, 'n_units_decision')
         _append_stat_line(level_delays, 'time_decision')
         _append_stat_line(levels_plus_decided, 'decision_height')
+        _append_stat_line(n_txs_per_level, 'n_txs_ordered')
 
         # new level
         data = self.get_new_level_times()
@@ -471,7 +484,7 @@ def compute_basic_stats(list_of_numbers):
     summ = {}
     summ['n_samples'] = len(list_of_numbers)
     summ['avg'] = np.mean(np_array)
-    summ['stdev'] = np.std(np_array)
+    #summ['stdev'] = np.std(np_array)
     summ['min'] = np.min(np_array)
     summ['max'] = np.max(np_array)
 

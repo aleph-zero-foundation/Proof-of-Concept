@@ -290,8 +290,8 @@ class Poset:
                 processes_high_below += 1
 
             # For efficiency: break the loop if there is no way to collect supermajority
-            #if 3*(processes_high_below + self.n_processes - 1 - process_id) < 2*self.n_processes:
-            #    break
+            if 3*(processes_high_below + self.n_processes - 1 - process_id) < 2*self.n_processes:
+                break
 
 
         # same as (...)>=2/3*(...) but avoids floating point division

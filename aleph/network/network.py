@@ -84,7 +84,7 @@ async def listener(process, process_id, addresses, public_key_list, executor, se
             n_recv_syncs -= 1
             return
 
-        succesful = await _add_units(sync_id, process_id, ex_id, units_received, process, 'listener', logger)
+        succesful = _add_units(sync_id, process_id, ex_id, units_received, process, 'listener', logger)
         if not succesful:
             logger.error(f'listener_not_compliant {process_id} {sync_id} | got unit from {ex_id} that does not comply to the rules; aborting')
             n_recv_syncs -= 1
@@ -138,7 +138,7 @@ async def sync(process, initiator_id, target_id, target_addr, public_key_list, e
         logger.info(f'sync_invalid_sign {initiator_id} {sync_id} | Got a unit from {target_id} with invalid signature; aborting')
         return
 
-    succesful = await _add_units(sync_id, initiator_id, target_id, units_received, process, 'sync', logger)
+    succesful = _add_units(sync_id, initiator_id, target_id, units_received, process, 'sync', logger)
     if not succesful:
         logger.error(f'sync_not_compliant {initiator_id} {sync_id} | Got unit from {target_id} that does not comply to the rules; aborting')
         return
@@ -235,15 +235,17 @@ async def _verify_signatures(sync_id, process_id, units_received, public_key_lis
     return True
 
 
-async def _add_units(sync_id, process_id, ex_id, units_received, process, mode, logger):
+def _add_units(sync_id, process_id, ex_id, units_received, process, mode, logger):
     logger.info(f'add_received_{mode} {process_id} {sync_id} | trying to add {len(units_received)} units from {ex_id} to poset')
+    printable_unit_hashes = ''
     for unit in units_received:
         process.poset.fix_parents(unit)
-        logger.info(f'add_foreign {process_id} {sync_id} | trying to add {unit.short_name()} from {ex_id} to poset')
+        printable_unit_hashes += (' ' + unit.short_name())
+        #logger.info(f'add_foreign {process_id} {sync_id} | trying to add {unit.short_name()} from {ex_id} to poset')
         if not process.add_unit_to_poset(unit):
             logger.error(f'add_received_fail_{mode} {process_id} {sync_id} | unit {unit.short_name()} from {ex_id} was rejected')
             return False
-    logger.info(f'add_received_done_{mode} {process_id} {sync_id} | units from {ex_id} were added succesfully')
+    logger.info(f'add_received_done_{mode} {process_id} {sync_id} | units from {ex_id} were added succesfully {printable_unit_hashes} ')
     return True
 
 
