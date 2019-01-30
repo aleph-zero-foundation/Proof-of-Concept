@@ -177,16 +177,13 @@ class Poset:
 
         # NOTE: perhaps we (as an honest process) should always try (if possible)
         # NOTE: to create a unit that gives evidence of another process forking
-        logger = logging.getLogger(LOGGER_NAME)
         U = Unit(creator_id, [], txs)
-        logger.info(f"create: {creator_id} attempting to create a unit.")
         if len(self.max_units_per_process[creator_id]) == 0:
             # this is going to be our dealing unit
             if force_parents is not None:
                 assert force_parents == [], "A dealing unit should be created first."
             if self.use_tcoin:
                 self.add_tcoin_to_dealing_unit(U)
-            logger.info(f"create: {creator_id} created its dealing unit.")
             return U
 
 
@@ -1079,7 +1076,7 @@ class Poset:
         # (dealer_id, coin_share). This would require more space, but ease implementation and speed
         # tossing a coin. We believe that tossing coin is rare, hence current implementation is chosen
         logger = logging.getLogger(LOGGER_NAME)
-        logger.info(f'Tossing coin at level {tossing_unit.level} for a unit at level {U_c.level}.')
+        logger.info(f'toss_coin_start | Tossing at lvl {tossing_unit.level} for unit {U_c.short_name()} at lvl {U_c.level}.')
 
         if self.use_tcoin == False:
             return self._simple_coin(U_c, tossing_unit.level-1)
@@ -1139,15 +1136,14 @@ class Poset:
         if len(coin_shares) == n_required:
             coin, correct = self.threshold_coins[fai][ind_dealer].combine_coin_shares(coin_shares, str(level))
             if correct:
-                logger.info(f'Toss coin {self.process_id}: succeded -- {n_collected} out of required {n_required} shares collected.')
+                logger.info(f'toss_coin_succ {self.process_id} | Succeded - {n_collected} out of required {n_required} shares collected')
                 return coin
             else:
-                logger.info(f'Toss coin {self.process_id}: failed -- {n_collected} out of required {n_required} shares collected, but combine unsuccesful.')
+                logger.warning(f'toss_coin_fail {self.process_id} | Failed - {n_collected} out of required {n_required} shares collected, but combine unsuccesful')
                 return self._simple_coin(U_c, level)
 
         else:
-
-            logger.info(f'Toss coin {self.process_id}: failed because only {n_collected} out of required {n_required} shares were collected :(.')
+            logger.warning(f'toss_coin_fail {self.process_id} | Failed - {n_collected} out of required {n_required} shares were collected')
             return self._simple_coin(U_c, level)
 
 
@@ -1237,6 +1233,7 @@ class Poset:
 
     def decide_unit_is_timing(self, U_c):
         # go over even levels starting from U_c.level + 2
+        logger = logging.getLogger(LOGGER_NAME)
         U_c_hash = U_c.hash()
 
         if U_c_hash not in self.timing_partial_results:
@@ -1256,6 +1253,9 @@ class Poset:
                         pass
                     else:
                         memo['decision'] = decision
+                        if decision == 1:
+                            process_id = (-1) if (self.process_id is None) else self.process_id
+                            logger.info(f'decide_timing {process_id} | Timing unit for lvl {U_c.level} decided at lvl + {level - U_c.level}')
                         return decision
         return -1
 

@@ -2,6 +2,7 @@
 import hashlib
 import pickle
 import zlib
+import base64
 
 from aleph.config import PAIRING_GROUP
 
@@ -44,6 +45,15 @@ class Unit(object):
         creator = str(self.creator_id).encode()
         serialized_shares = _serialize_and_flatten_coin_shares(self.coin_shares)
         return b'|'.join([creator] + self.parents_hashes() + serialized_shares + [self.txs])
+
+    def short_name(self):
+        '''
+        Returns a 16 character string (surrounded by '< >' brackets) -- a shorter hash of the unit. To be used for printing units in logs.
+        NOTE: this has collision resistance as long there are roughly <= 10^12 units considered simultaneusly.
+        NOTE: this uses only characters in the set A-Z, 2-7 (base32 encoding)
+        '''
+        long_hash = base64.b32encode(self.hash()).decode()
+        return '<'+long_hash[:16]+'>'
 
 
     def __getstate__(self):
