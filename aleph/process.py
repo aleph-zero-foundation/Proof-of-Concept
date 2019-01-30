@@ -83,11 +83,8 @@ class Process:
 
         # initialize logger
         self.logger = logging.getLogger(consts.LOGGER_NAME)
-        # bounds of numbers of created units, prime units, and performed synchronizations
-        self.n_create = stop_conditions['n_create']
-        self.n_prime = stop_conditions['n_prime']
-        self.n_sync = stop_conditions['n_sync']
->>>>>>> adjust tx generation to badger scheme
+
+        self.keep_syncing = True
 
     def sign_unit(self, U):
         '''
@@ -283,6 +280,13 @@ class Process:
         elif created_count == consts.UNITS_LIMIT:
             logger.info(f'create_stop {self.process_id} | process created {consts.UNITS_LIMIT} units')
 
+        self.keep_syncing = False
+        logger = logging.getLogger(LOGGER_NAME)
+        if max_level_reached:
+            logger.info(f'create_stop {self.process_id} | process reached max_level {self.n_level}')
+        elif created_count == self.n_create:
+            logger.info(f'create_stop {self.process_id} | process created {self.n_create} units')
+
 
     async def dispatch_syncs(self, executor, serverStarted):
         await serverStarted.wait()
@@ -306,6 +310,8 @@ class Process:
         logger = logging.getLogger(consts.LOGGER_NAME)
         logger.info(f'sync_stop {self.process_id} | keep_syncing is {self.keep_syncing}')
 
+        logger = logging.getLogger(LOGGER_NAME)
+        logger.info(f'sync_stop {self.process_id} | keep_syncing is {self.keep_syncing}')
 
     async def run(self):
         # start another process listening for incoming txs

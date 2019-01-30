@@ -97,11 +97,11 @@ async def main():
     parser = OptionParser()
     parser.add_option('-k', '--signing-keys', dest='signing_keys', help="Location of processes' signing keys", metavar='KEYS')
     parser.add_option('-i', '--hosts', dest='hosts', help='Ip addresses of processes', default='hosts')
-    parser.add_option('-c', '--n_create', dest='n_create', help='Number of units to create', default=-1)
-    parser.add_option('-s', '--n_sync', dest='n_sync', help='Number of syncs to be performed', default=-1)
-    parser.add_option('-p', '--n_prime', dest='n_prime', help='Number of prime units to create', default=-1)
-    parser.add_option('-b', '--batch_size', dest='batch_size', help='Number of transactions to input to the system')
-    parser.add_option('-u', '--txpu', dest='txpu', help='Number of transactions per unit')
+    parser.add_option('-c', '--n_create', dest='n_create', type=int, help='Number of units to create', default=-1, )
+    parser.add_option('-s', '--n_sync', dest='n_sync', type=int, help='Number of syncs to be performed', default=-1)
+    parser.add_option('-l', '--n_level', dest='n_level', type=int, help='Number of level units to create', default=-1)
+    parser.add_option('-b', '--batch_size', dest='batch_size', type=int, help='Number of transactions to input to the system')
+    parser.add_option('-u', '--txpu', dest='txpu', type=int, help='Number of transactions per unit')
 
     options, args = parser.parse_args()
 
@@ -117,7 +117,7 @@ async def main():
     n_processes = len(hosts_ip)
     userDB = None
     use_tcoin = False
-    stop_conditions = dict(zip(['n_create', 'n_sync', 'n_prime'], [options.n_create, options.n_sync, options.n_prime]))
+    stop_conditions = dict(zip(['n_create', 'n_sync', 'n_level'], [options.n_create, options.n_sync, options.n_level]))
 
     recv_address = None
     tx_source = tx_source_gen(process_id, n_processes, options.batch_size, options.txpu)
@@ -133,7 +133,6 @@ async def main():
                       use_tcoin,
                       stop_conditions,
                       tx_source)
-
 
     await process.run()
 

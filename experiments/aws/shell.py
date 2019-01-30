@@ -106,7 +106,7 @@ def all_instances_in_region(region_name='default'):
     if region_name == 'default':
         region_name = default_region_name()
 
-    print('finging instances in', region_name)
+    print('finding instances in', region_name)
 
     ec2 = boto3.resource('ec2', region_name)
     instances = []
@@ -279,8 +279,6 @@ def exec_for_regions(func, regions='badger regions', parallel=True):
     else:
         for region_name in regions:
             results.append(func(region_name))
-
-    print('test')
 
     if results and isinstance(results[0], list):
         return [res for res_list in results for res in res_list]
@@ -484,25 +482,24 @@ def get_logs(regions=badger_regions()):
         pid = hosts_ip.index(fp.split('-aleph.log')[0].replace('-','.'))
         os.rename(f'../results/{fp}', f'../results/{pid}.aleph.log')
 
-
-
-
-
 #======================================================================================
 #                                        shortcuts
 #======================================================================================
 
-rtr = run_task_in_region
-rt = run_task
+tr = run_task_in_region
+t = run_task
 
-rcr = run_cmd_in_region
-rc = run_cmd
+cr = run_cmd_in_region
+c = run_cmd
 
-re = run_experiment
+e = run_experiment
 
 ti = terminate_instances
 
 A = [104, badger_regions(), [], 'simple-ec2-test', 't2.medium']
+res = ['sa-east-1', 'ap-southeast-2']
+
+rs = lambda n: re(n, badger_regions(), res, 'simple-ec2-test', 't2.micro')
 
 #======================================================================================
 #                                         main
