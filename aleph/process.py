@@ -46,6 +46,7 @@ class Process:
         self.ip = addresses[process_id][0]
         self.port = addresses[process_id][1]
 
+        self.tx_source = tx_source
         self.tx_receiver_address = tx_receiver_address
         self.prepared_txs = []
 
@@ -82,6 +83,11 @@ class Process:
 
         # initialize logger
         self.logger = logging.getLogger(consts.LOGGER_NAME)
+        # bounds of numbers of created units, prime units, and performed synchronizations
+        self.n_create = stop_conditions['n_create']
+        self.n_prime = stop_conditions['n_prime']
+        self.n_sync = stop_conditions['n_sync']
+>>>>>>> adjust tx generation to badger scheme
 
     def sign_unit(self, U):
         '''
@@ -101,7 +107,6 @@ class Process:
             n_txs += len(U.transactions())
 
         return n_txs
-
 
 
     def add_unit_and_snap_validate(self, U):

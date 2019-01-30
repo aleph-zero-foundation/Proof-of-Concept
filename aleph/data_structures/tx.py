@@ -1,14 +1,13 @@
 class Tx(object):
     '''This class stores a transactions issued by some user and is signed by the user'''
 
-    __slots__ = ['issuer', 'receiver', 'amount']#, 'signature']
+    __slots__ = ['issuer', 'receiver', 'amount']#, 'index', 'signature']
 
-    def __init__(self, issuer, receiver, amount):#, signature=None):
+    def __init__(self, issuer, receiver, amount):#, index):, signature=None):
         '''
         :param str issuer: public key of the issuer of the transaction
         :param str receiver: public key of the receiver of the transaction
         :param int amount: amount to be sent to the receiver
-        :param bytes signature: signature made by the issuer of the transaction preventing forging transactions by Byzantine processes
         '''
         self.issuer = issuer
         self.receiver = receiver
@@ -18,6 +17,8 @@ class Tx(object):
 
     def __getstate__(self):
         return (self.issuer, self.receiver, self.amount)
+        # self.index = index
+        # self.signature = signature
 
 
     def __setstate__(self, state):
@@ -38,7 +39,8 @@ class Tx(object):
         return (isinstance(other, Tx) and self.issuer == other.issuer
                 and self.receiver == other.receiver
                 and self.amount == other.amount)
-                #and self.signature == other.signature)
+                # and self.index == other.index)
+                # and self.signature == other.signature)
 
 
     def __hash__(self):
