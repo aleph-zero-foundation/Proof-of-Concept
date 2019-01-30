@@ -31,7 +31,9 @@ if len(sys.argv) == 4 and sys.argv[1] == 'ALL':
 		path = os.path.join(log_dir, log_name)
 		print(f'Analyzing {path}...')
 		analyzer = LogAnalyzer(path)
-		analyzer.analyze()
+		if not analyzer.analyze():
+			print('Failed because the log does not even contain the Process start message.')
+			continue
 		process_id = analyzer.process_id
 		basic_report_file_name = os.path.join(rep_dir,f"basic-report-{process_id:d}")
 		analyzer.prepare_basic_report(basic_report_file_name)
@@ -49,7 +51,9 @@ if len(sys.argv) in [2,3]:
 		process_id = None
 
 	analyzer = LogAnalyzer(path, process_id)
-	analyzer.analyze()
+	if not analyzer.analyze():
+		print('Failed because the log does not even contain the Process start message.')
+		sys.exit(0)
 	process_id = analyzer.process_id
 	basic_report_file_name = f'report-{process_id:d}'
 	analyzer.prepare_basic_report(basic_report_file_name)

@@ -28,6 +28,7 @@ class LogAnalyzer:
         self.memory_info = []
         self.start_date = None
         self.add_run_times = []
+        self.process_id = None
 
     def set_start_date(self, date):
         '''
@@ -151,6 +152,11 @@ class LogAnalyzer:
         log_parser = LogParser(self.file_path, self.read_process_id)
         for event in log_parser.get_events():
             self.handle_event(event)
+
+        if self.process_id is None:
+            return False
+
+        return True
 
 
     def get_delays_create_order(self):
