@@ -20,7 +20,7 @@ def image_id_in_region(region_name, version='bionic'):
     '''Find id of os image we use. The id may differ for different regions'''
 
     if version == 'bionic':
-    	image_name = 'ubuntu/images/hvm-ssd/ubuntu-bionic-18.04-amd64-server-20181203'
+    	image_name = 'ubuntu/images/hvm-ssd/ubuntu-bionic-18.04-amd64-server-20190122'
     elif version == 'cosmic':
         image_name = 'ubuntu/images/hvm-ssd/ubuntu-cosmic-18.10-amd64-server-20190110'
 
@@ -230,6 +230,15 @@ def available_regions():
     return boto3.Session().get_available_regions('ec2')
 
 
+def eu_regions():
+    eu_regs = []
+    for region in available_regions():
+        if region.startswith('eu'):
+            eu_regs.append(region)
+
+    return eu_regs
+
+
 def badger_regions():
     ''' Returns regions used by hbbft in theri experiments'''
 
@@ -249,3 +258,32 @@ def describe_instances(region_name):
     ec2 = boto3.resource('ec2', region_name)
     for instance in ec2.instances.all():
         print(f'ami_launch_index={instance.ami_launch_index} state={instance.state}')
+
+
+def n_hosts_per_regions(n_hosts, regions=badger_regions(), restricted=['sa-east-1', 'ap-southeast-2']):
+    assert n_hosts <= 20*(len(regions)-len(restricted))+5*len(restricted), 'n_hosts exceeds instances available on AWS'
+
+    nhpr = {}
+    n_left = n_hosts
+    unrestricted = [r for r in regions if r not in restricted]
+    if restricted and n_hosts/len(regions)>5:
+        for r in restricted:
+            nhpr[r] = 5
+            n_left -= 5
+        for r in unrestricted:
+            nh = (n_hosts-5*len(restricted)) // (len(unrestricted))
+            nhpr[r] = nh
+            n_left -= nh
+
+        for i in range(n_left):
+            nhpr[unrestricted[i]] += 1
+
+    else:
+        for r in regions:
+            nhpr[r] = n_hosts // len(regions)
+            n_left -= n_hosts // len(regions)
+
+        for i in range(n_left):
+            nhpr[regions[i]] += 1
+
+    return nhpr
