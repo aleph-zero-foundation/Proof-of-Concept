@@ -102,6 +102,7 @@ class LogAnalyzer:
                 self.syncs[sync_id]['start_date'] = event['date']
             else:
                 self.syncs[sync_id]['conn_est_time'] = diff_in_seconds(self.syncs[sync_id]['start_date'], event['date'])
+                self.syncs[sync_id]['start_date'] = event['date']
 
         if ev_type == 'receive_units_start':
             sync_id = event['sync_id']
@@ -329,7 +330,26 @@ class LogAnalyzer:
 
 
     def prepare_report_per_process(self, report_file = 'report-proc'):
-        #syncs_total = [0]*self.n_processes
+        '''
+        Create the file with a a summary od synchronization statistics to all the remaining processes.
+        :param string report_file: the path to the file where the report should be written
+        WARNING: before calling this function call LogAnalyzer.analyze() first
+
+        Meaning of the specific columns:
+
+        - sync_fail: the total number of failed syncs (incoming and outcoming included)
+
+        - sync_succ: the total number of succesful syncs (incoming and outcoming included)
+
+        - avg_time: average time (per sync) spent on "talking" to a specific process
+
+        - n_conn: the number of outcoming connection attempts to a specific process
+
+        - conn_est_t: the average time spent on establishing connections to a specific process
+
+        - n_conn_fail: the number of attempted (outcoming) connections that failed to establish connection
+        '''
+
         syncs_failed = [0] * self.n_processes
         syncs_succeded = [0] * self.n_processes
         tot_time = [0.0] * self.n_processes
@@ -389,11 +409,52 @@ class LogAnalyzer:
 
     def prepare_basic_report(self, report_file = r'rep/report'):
         '''
-        Read the log and create the file with a succinct summary of the data in the report_file.
+        Create the file with a succinct summary of the data in the report_file.
         It also creates some plots of the analyzed data.
         :param string report_file: the path to the file where the report should be written
-        WARNING: call this function only once per instance of LogAnalyzer.
-                 It does not wipe the internal state when called for the second time.
+        WARNING: before calling this function call LogAnalyzer.analyze() first
+
+        Meaning of the specific rows:
+        - n_units_decision: the number of units that are added to the linear order per timing unit
+
+        - time_decision: the time (in sec) between creating a new level and deciding on a timing unit on this level
+
+        - decision_height: the difference in levels between the timing unit and the unit which decided it (i.e. had Delta=1)
+        - n_txs_ordered: the number of unique transactions added in a batch between two timing units
+                         NOTE: there might be duplicate txs counted here, between different batches
+
+        - new_level_times: the time needed to create a new level
+
+        - create_ord_del: the time between creating a unit and placing it in the linear order
+
+        - add_ord_del: the same as create_ord_del, but now the unit is by another process and
+                       the timer is started once the unit is received in a sync
+
+        - units_sent_sync: the number of units sent to the other process in one sync
+
+        - units_recv_sync: the number of units received from the other process in one sync
+
+        - time_per_sync: the total duration of the synchronization: start when conn. established,
+                         stop when all data exchanged succesfully
+
+        - time_per_unit_ex: the average time_per_sync averaged by the number of units exchanged
+
+        - bytes_per_unit_ex: as time_per_unit_ex but the number of bytes transmitted
+                            NOTE: only the 2nd round of communication counted (i.e. exchanging heights not counted)
+
+        - est_conn_time: time to establish connection to another process
+
+        - sync_fail: ONE NUMBER: total number of failed synchronizations
+
+        - create_freq: the difference in time between two consecutive create_unit
+
+        - sync_freq: the difference in time between two consecutive synchronization attempts
+
+        - n_recv_syncs: the number of simultaneous incoming connections (sampled when a new process is trying to connect)
+
+        - memory_MiB: total memory used by the process
+
+        - add_unit_time_s: average time spend on adding one unit to the poset
         '''
 
 
@@ -502,12 +563,11 @@ def format_line(field_list, data = None):
         else:
             value = data[field]
 
-        if isinstance(value, str):
-            entry = value
-        elif isinstance(value, float):
-            entry = f"{float(value):.4f}"
+        if isinstance(value, float):
+            entry = f"{value:.4f}"
         else:
             entry = str(value)
+
         just_len = 25 if field == 'name' else 12
         entry = entry.ljust(just_len)
         line += entry
