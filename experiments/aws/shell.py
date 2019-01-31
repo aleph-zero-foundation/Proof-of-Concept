@@ -46,7 +46,7 @@ def latency_in_region(region_name):
     return latency
 
 
-def launch_new_instances_in_region(n_hosts=1, region_name='default', instance_type='t2.micrl'):
+def launch_new_instances_in_region(n_hosts=1, region_name='default', instance_type='t2.micro'):
     '''Launches n_hosts in a given region.'''
 
     if region_name == 'default':
@@ -286,16 +286,13 @@ def exec_for_regions(func, regions='badger regions', parallel=True):
     return results
 
 
-def launch_new_instances(nhpr, regions='badger regions', instance_type='t2.micro'):
+def launch_new_instances(nhpr, instance_type='t2.micro'):
     '''
     Launches n_hosts_per_region in ever region from given regions.
     :param dict nhpr: dict region_name --> n_hosts_per_region
     '''
 
-    if regions == 'all':
-        regions = available_regions()
-    if regions == 'badger regions':
-        regions = badger_regions()
+    regions = nhpr.keys()
 
     failed = []
     print('launching instances')
@@ -400,7 +397,7 @@ def run_experiment(n_processes, regions, restricted, experiment, instance_type):
     # note: there are only 5 t2.micro machines in 'sa-east-1', 'ap-southeast-2' each
     print('launching machines')
     nhpr = n_hosts_per_regions(n_processes, regions, restricted)
-    launch_new_instances(nhpr, regions, instance_type)
+    launch_new_instances(nhpr, instance_type)
 
     print('waiting for transition from pending to running')
     wait('running', regions)
@@ -489,8 +486,8 @@ def get_logs(regions=badger_regions()):
 tr = run_task_in_region
 t = run_task
 
-cr = run_cmd_in_region
-c = run_cmd
+cmr = run_cmd_in_region
+cm = run_cmd
 
 e = run_experiment
 
@@ -499,7 +496,7 @@ ti = terminate_instances
 A = [104, badger_regions(), [], 'simple-ec2-test', 't2.medium']
 res = ['sa-east-1', 'ap-southeast-2']
 
-rs = lambda n: re(n, badger_regions(), res, 'simple-ec2-test', 't2.micro')
+rs = lambda n: e(n, badger_regions(), res, 'simple-ec2-test', 't2.micro')
 
 #======================================================================================
 #                                         main

@@ -286,4 +286,8 @@ def n_hosts_per_regions(n_hosts, regions=badger_regions(), restricted=['sa-east-
         for i in range(n_left):
             nhpr[regions[i]] += 1
 
+    for r in regions:
+        if not nhpr[r]:
+            nhpr.pop(r)
+
     return nhpr

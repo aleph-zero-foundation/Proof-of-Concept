@@ -310,6 +310,7 @@ class Process:
         logger = logging.getLogger(consts.LOGGER_NAME)
         logger.info(f'sync_stop {self.process_id} | keep_syncing is {self.keep_syncing}')
 
+        await asyncio.gather(*self.syncing_tasks)
         logger = logging.getLogger(LOGGER_NAME)
         logger.info(f'sync_stop {self.process_id} | keep_syncing is {self.keep_syncing}')
 

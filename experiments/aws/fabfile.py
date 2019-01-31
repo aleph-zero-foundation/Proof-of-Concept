@@ -107,7 +107,8 @@ def zip_repo(conn):
     # remove arxives
     conn.local("find ../../../proof-of-concept -name '*.zip' -delete")
 
-    conn.local('zip -rq poc.zip ../../../proof-of-concept')
+    with conn.cd('../../..'):
+        conn.local('zip -rq poc.zip proof-of-concept -x "*/.*"')
 
 
 @task
@@ -117,7 +118,7 @@ def send_testing_repo(conn):
     # rename main repo
     conn.run('mv proof-of-concept proof-of-concept.old')
     # send it upstream
-    conn.put('poc.zip', '.')
+    conn.put('../../../poc.zip', '.')
     # unpack
     conn.run('unzip -q poc.zip')
     # install new version
@@ -138,7 +139,7 @@ def resync_local_repo(conn):
 
     conn.run('rm -rf proof-of-concept')
     # send it upstream
-    conn.put('poc.zip', '.')
+    conn.put('../../../poc.zip', '.')
     # unpack
     conn.run('unzip -q poc.zip')
     # install
@@ -164,7 +165,7 @@ def simple_ec2_test(conn):
     conn.put('../simple_ec2_test.py', 'proof-of-concept/experiments/')
     with conn.cd('proof-of-concept/experiments'):
         # export env var needed for pbc, activate venv, cross fingers, and run the experiment
-        cmd = 'python simple_ec2_test.py -i hosts -k signing_keys -l 2 -b 10000 -u -100'
+        cmd = 'python simple_ec2_test.py -i hosts -k signing_keys -l 10 -b 65536 -u -1000'
         conn.run('export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/local/lib &&'
                  'source /home/ubuntu/p37/bin/activate &&'
                  f'dtach -n `mktemp -u /tmp/dtach.XXXX` {cmd}')
