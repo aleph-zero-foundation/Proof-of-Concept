@@ -42,24 +42,6 @@ def growth_restricted(poset, W, parent_processes):
                 below_W.add(V.creator_id)
     return below_W.union(parent_processes)
 
-def above_tip_restricted(poset, W, parent_processes):
-    '''
-    If we are chosing the first parent using link_above_self_predecessor we don't want any units that are not above our top unit.
-    :param poset poset: the poset in which the unit lives
-    :param unit W: the top unit of our process
-    :param list parent_processes: processes already chosen as parents for the new unit
-    :returns: the set of ids satisfying the conditionss above
-    '''
-    if parent_processes != []:
-        # we already chose the first parent so we don't restrict anything
-        return set()
-    not_above_W = set()
-    for Vs in poset.max_units_per_process:
-        for V in Vs:
-            if not poset.below(W, V):
-                not_above_W.add(V.creator_id)
-    return not_above_W
-
 def parents_allowed_with_restrictions(poset, creator_id, restrictions, parent_processes):
     '''
     Compute ids of processes which are allowed to be parents for the unit being created
@@ -80,13 +62,10 @@ def parents_allowed_with_restrictions(poset, creator_id, restrictions, parent_pr
 
     return [pid for pid in single_tip_processes if not (pid in restricted_set)]
 
-def create_unit(poset, creator_id, txs, strategy = "link_self_predecessor", num_parents = 2, restrictions=[recent_parents_restricted, growth_restricted], force_parents = None):
+def create_unit(poset, creator_id, txs, num_parents = 2, restrictions=[recent_parents_restricted, growth_restricted], force_parents = None):
     '''
     Creates a new unit and stores txs in it. Correctness of the txs is checked by a thread listening for new transactions.
     :param list txs: list of correct transactions
-    :param string strategy: strategy for parent selection, one of:
-    - "link_self_predecessor"
-    - "link_above_self_predecessor"
     :param int num_parents: maximum number of distinct parents (lower bound is always 2)
     :param list restrictions: functions producing sets of forbidden parent ids
     :param list force_parents: (ONLY FOR DEBUGGING/TESTING) parents (units) for the created unit
@@ -96,12 +75,12 @@ def create_unit(poset, creator_id, txs, strategy = "link_self_predecessor", num_
     # NOTE: perhaps we (as an honest process) should always try (if possible)
     # NOTE: to create a unit that gives evidence of another process forking
     logger = logging.getLogger(consts.LOGGER_NAME)
-    U = Unit(creator_id, [], txs)
     logger.info(f"create: {creator_id} attempting to create a unit.")
     if len(poset.max_units_per_process[creator_id]) == 0:
         # this is going to be our dealing unit
         if force_parents is not None:
             assert force_parents == [], "A dealing unit should be created first."
+        U = Unit(creator_id, [], txs)
         if poset.use_tcoin:
             poset.add_tcoin_to_dealing_unit(U)
         logger.info(f"create: {creator_id} created its dealing unit.")
@@ -114,18 +93,10 @@ def create_unit(poset, creator_id, txs, strategy = "link_self_predecessor", num_
         assert len(force_parents) <= num_parents and len(force_parents) > 1, "Incorrect number of parents chosen."
 
     if force_parents is None:
-        if strategy == "link_self_predecessor":
-            parent_processes = [creator_id]
-        elif strategy == "link_above_self_predecessor":
-            parent_processes = []
-            restrictions.append(above_tip_restricted)
-        else:
-            raise NotImplementedError("Strategy %s not implemented" % strategy)
-
+        parent_processes = [creator_id]
 
         while len(parent_processes) < num_parents:
             legit_parents = parents_allowed_with_restrictions(poset, creator_id, restrictions, parent_processes)
-            print("current parents: {} legit parents: {}".format(parent_processes, legit_parents))
 
             if len(legit_parents) == 0:
                 if len(parent_processes) > 1:
@@ -136,13 +107,13 @@ def create_unit(poset, creator_id, txs, strategy = "link_self_predecessor", num_
 
             parent_processes.append(random.choice(legit_parents))
 
-        U.parents = [poset.max_units_per_process[pid][0] for pid in parent_processes]
+        U = Unit(creator_id, [poset.max_units_per_process[pid][0] for pid in parent_processes], txs)
     else:
         # force_parents is set
         assert all(V.hash() in poset.units for V in force_parents)
         # compliance might still fail here -- but it will be detected later
         # force_parents should be used for debugging and testing purposes only
-        U.parents = force_parents
+        U = Unit(creator_id, force_parents, txs)
 
     # TODO: calling prepare unit here is a bit confusing, maybe we can move it somewhere
     if poset.use_tcoin:

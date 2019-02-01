@@ -32,7 +32,6 @@ def test_threshold_coin_toss():
             n_processes,
             n_units,
             n_forkers = 0,
-            strategy = 'link_self_predecessor',
             post_prepare = toss_for_prime,
             use_tcoin = True,
             seed = 0)

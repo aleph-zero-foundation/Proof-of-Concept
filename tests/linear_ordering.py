@@ -8,6 +8,7 @@ from aleph.process import Process
 from aleph.crypto.keys import SigningKey, VerifyKey
 from aleph.utils.dag_utils import generate_random_forking, poset_from_dag, generate_random_compliant_unit
 from aleph.utils import DAG, dag_utils
+from aleph.actions import create_unit
 
 
 def translate_parents_and_copy(U, hashes_to_units):
@@ -57,7 +58,7 @@ for unit_no in range(n_units):
     while True:
         creator_id = random.choice(range(n_processes))
         process = processes[creator_id]
-        new_unit = process.poset.create_unit(creator_id, [], strategy = "link_self_predecessor", num_parents = 2)
+        new_unit = create_unit(process.poset, creator_id, [], num_parents = 2)
         if new_unit is None:
             continue
 

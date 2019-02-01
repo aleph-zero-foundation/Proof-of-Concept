@@ -80,6 +80,6 @@ def check_all_pairs_below(arg):
 
     for nodeU, U in unit_dict.items():
         for nodeV, V in unit_dict.items():
-            assert poset.below(U,V) == arg.is_reachable(nodeU, nodeV)
-            assert poset.above(U,V) == arg.is_reachable(nodeV, nodeU)
+            assert poset.below(U,V) == arg.is_reachable(nodeU, nodeV), "Problem with {} and {}".format(nodeU, nodeV)
+            assert poset.above(U,V) == arg.is_reachable(nodeV, nodeU), "Problem with {} and {}".format(nodeU, nodeV)
 

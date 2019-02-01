@@ -17,8 +17,8 @@ def report_coin_toss(U, poset, dag, results, additional_args):
             results.append(poset.toss_coin(U_c, U))
     return levels, U_c
 
-def check_distribution(n_jobs, n_processes, n_units, n_forkers, strategy):
-    print('n_jobs', n_jobs, '\nn_processes', n_processes, '\nn_units', n_units, '\nn_forkers', n_forkers, '\nstrategy', strategy)
+def check_distribution(n_jobs, n_processes, n_units, n_forkers):
+    print('n_jobs', n_jobs, '\nn_processes', n_processes, '\nn_units', n_units, '\nn_forkers', n_forkers)
     print('dispatching workers')
     start = time()
     results = Parallel(n_jobs=n_jobs)(
@@ -26,7 +26,6 @@ def check_distribution(n_jobs, n_processes, n_units, n_forkers, strategy):
             n_processes,
             n_units,
             n_forkers,
-            strategy,
             post_prepare = report_coin_toss,
             use_tcoin = True,
             seed = round(time())+i
@@ -42,4 +41,4 @@ def check_distribution(n_jobs, n_processes, n_units, n_forkers, strategy):
 
 
 if __name__ == '__main__':
-    check_distribution(8, 16, 4000, 0, 'link_self_predecessor')
+    check_distribution(8, 16, 4000, 0)

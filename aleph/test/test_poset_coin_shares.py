@@ -12,20 +12,18 @@ def print_level_at_prime(U, poset, dag, results, additional_args):
 
 def run(repetitions, min_proc, max_proc, units_per_process):
     random.seed(123456789)
-    for strategy in ["link_self_predecessor", "link_above_self_predecessor"]:
-        for rep in range(repetitions):
-            n_processes = random.randint(min_proc, max_proc)
-            n_units = random.randint(0, units_per_process)
-            n_forkers = random.randint(0,n_processes//3)
-            print('test setting', rep, n_processes, n_units, n_forkers)
-            print('level, size')
-            simulate_with_checks(
-                    n_processes,
-                    n_units,
-                    n_forkers,
-                    strategy,
-                    post_prepare = print_level_at_prime
-                )
+    for rep in range(repetitions):
+        n_processes = random.randint(min_proc, max_proc)
+        n_units = random.randint(0, units_per_process)
+        n_forkers = random.randint(0,n_processes//3)
+        print('test setting', rep, n_processes, n_units, n_forkers)
+        print('level, size')
+        simulate_with_checks(
+                n_processes,
+                n_units,
+                n_forkers,
+                post_prepare = print_level_at_prime
+            )
 
 
 def test_level():

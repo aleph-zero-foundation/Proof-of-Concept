@@ -126,12 +126,15 @@ class DAG:
 
 
     def self_predecessor(self, pid, parent_nodes):
+        parent_nodes = list(parent_nodes)
         below_within_process = [node_below for node_below in self.nodes_below(parent_nodes) if self.pid(node_below) == pid]
 
         if len(below_within_process) == 0:
             return None
         list_maximal = self.compute_maximal_from_subset(below_within_process)
         if len(list_maximal) != 1:
+            return None
+        if parent_nodes[0] != list_maximal[0]:
             return None
         return list_maximal[0]
 

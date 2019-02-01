@@ -9,7 +9,6 @@ def check_compliance_vs_pattern(dag, topological_list, pattern):
 
     for node, answer in zip(topological_list, pattern):
         U = Unit(creator_id = dag.pid(node), parents = [unit_dict[parent] for parent in dag.parents(node)], txs = [])
-        poset.set_self_predecessor_and_height(U)
         unit_dict[node] = U
         poset.prepare_unit(U)
         assert poset.check_compliance(U) == answer
