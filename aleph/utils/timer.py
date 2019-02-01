@@ -27,7 +27,7 @@ class timer:
 
     results = {}
 
-    def __init__(self, group, name, disable_gc=False):
+    def __init__(self, group, name, disable_gc=True):
         self.group = group
         self.name = name
         self.disable_gc = disable_gc
