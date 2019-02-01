@@ -6,6 +6,7 @@ from aleph.crypto.signatures.threshold_signatures import generate_keys
 from aleph.crypto.threshold_coin import ThresholdCoin
 from aleph.utils import dag_utils
 from aleph.utils.dag import DAG
+from aleph.actions import create_unit
 import random
 
 def generate_and_check_dag(checks, n_processes, n_units, forking = None, repetitions = 1, seed = 123456789):
@@ -32,7 +33,7 @@ def generate_unit(dag, posets, creator_id, strategy, unit_to_name, forking, only
     n_processes = len(posets)
     if forking:
         return dag_utils.generate_random_compliant_unit(dag, n_processes, creator_id, forking = True, only_maximal_parents=only_maximal_parents)
-    U = posets[creator_id].create_unit(creator_id, [], strategy = strategy, num_parents = 2)
+    U = create_unit(posets[creator_id], creator_id, [], strategy = strategy, num_parents = 2)
     if U is None:
         return None
     dag_parents = [unit_to_name[creator_id][V] for V in U.parents]

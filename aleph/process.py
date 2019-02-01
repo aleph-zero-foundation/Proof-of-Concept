@@ -11,6 +11,7 @@ import time
 from aleph.data_structures import Poset, UserDB
 from aleph.crypto import CommonRandomPermutation
 from aleph.network import listener, sync, tx_listener
+from aleph.actions import create_unit
 from aleph.utils import timer
 import aleph.const as consts
 
@@ -248,7 +249,7 @@ class Process:
 
             txs = self.prepared_txs
             with timer(self.process_id, 'create_unit'):
-                new_unit = self.poset.create_unit(self.process_id, txs, strategy = "link_self_predecessor", num_parents = 2)
+                new_unit = create_unit(self.poset, self.process_id, txs, strategy = "link_self_predecessor", num_parents = 2)
             timer.write_summary(where=self.logger, groups=[self.process_id])
             timer.reset(self.process_id)
 

@@ -282,7 +282,3 @@ def unit_to_name(names_to_units, U):
         if V is U:
             return name
     assert False, "Unit not found in the dictionary."
-
-
-
-test_delta_level_4_no_decision()

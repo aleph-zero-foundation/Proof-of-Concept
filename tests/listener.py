@@ -2,6 +2,7 @@ from aleph.network import listener, sync
 from aleph.data_structures import Poset
 from aleph.crypto.keys import SigningKey, VerifyKey
 from aleph.utils.dag_utils import generate_random_forking, poset_from_dag
+from aleph.actions import create_unit
 
 import asyncio
 import concurrent
@@ -39,10 +40,10 @@ async def main():
         # await listener(poset, host_ip, host_port)
         tasks.append(asyncio.create_task(listener(poset, process_id, addresses, public_keys, executors[process_id])))
 
-    U = posets[0].create_unit(0, txs=[], strategy="link_self_predecessor", num_parents=2)
+    U = create_unit(posets[0], 0, txs=[], strategy="link_self_predecessor", num_parents=2)
     posets[0].prepare_unit(U)
     posets[0].add_unit(U)
-    U = posets[1].create_unit(1, txs=[], strategy="link_self_predecessor", num_parents=2)
+    U = create_unit(posets[1], 1, txs=[], strategy="link_self_predecessor", num_parents=2)
     posets[1].prepare_unit(U)
     posets[1].add_unit(U)
     # wait for servers to start
