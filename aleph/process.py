@@ -268,7 +268,8 @@ class Process:
         p.start()
 
         serverStarted = asyncio.Event()
-        executor = concurrent.futures.ProcessPoolExecutor(max_workers=3)
+        #executor = concurrent.futures.ProcessPoolExecutor(max_workers=3)
+        executor = None
         creator_task = asyncio.create_task(self.create_add(txs_queue, serverStarted))
         listener_task = asyncio.create_task(listener(self, self.process_id, self.address_list, self.public_key_list, executor, serverStarted))
         syncing_task = asyncio.create_task(self.keep_syncing(executor, serverStarted))

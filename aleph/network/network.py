@@ -76,7 +76,7 @@ async def listener(process, process_id, addresses, public_key_list, executor, se
 
         units_received = await _receive_units(sync_id, process_id, ex_id, reader, 'listener', logger)
 
-        succesful = await _verify_signatures(sync_id, process_id, units_received, public_key_list, executor, 'listener', logger)
+        succesful = _verify_signatures(sync_id, process_id, units_received, public_key_list, executor, 'listener', logger)
         if not succesful:
             # TODO: this should not really happen in the prototype but still, we should also close sockets here
             # Ideally this should be slightly rewritten with exceptions
@@ -133,7 +133,7 @@ async def sync(process, initiator_id, target_id, target_addr, public_key_list, e
 
     units_received = await _receive_units(sync_id, initiator_id, target_id, reader, 'sync', logger)
 
-    succesful = await _verify_signatures(sync_id, initiator_id, units_received, public_key_list, executor, 'sync', logger)
+    succesful = _verify_signatures(sync_id, initiator_id, units_received, public_key_list, executor, 'sync', logger)
     if not succesful:
         logger.info(f'sync_invalid_sign {initiator_id} {sync_id} | Got a unit from {target_id} with invalid signature; aborting')
         return
@@ -215,24 +215,35 @@ async def _send_units(sync_id, process_id, ex_id, int_heights, ex_heights, proce
     logger.info(f'send_units_done_{mode} {process_id} {sync_id} | Units sent {ex_id}')
 
 
-async def _verify_signatures(sync_id, process_id, units_received, public_key_list, executor, mode, logger):
+def _verify_signatures(sync_id, process_id, units_received, public_key_list, executor, mode, logger):
     logger.info(f'{mode} {process_id} {sync_id} | Verifying signatures')
 
-    loop = asyncio.get_running_loop()
-    # TODO check if it possible to create one tast that waits for verifying all units
-    # create tasks for checking signatures of all units
-    pending = [loop.run_in_executor(executor, verify_signature, unit, public_key_list) for unit in units_received]
-
-    # check iteratively if all sigantures are valid
-    while pending:
-        done, pending = await asyncio.wait(pending, return_when=asyncio.FIRST_COMPLETED)
-        for coro in done:
-            if not coro.result():
-                return False
+    for unit in units_received:
+        if not verify_signature(unit, public_key_list)
+            return False
 
     logger.info(f'verify_sign_{mode} {process_id} {sync_id} | Signatures verified')
-
     return True
+
+
+#async def _verify_signatures(sync_id, process_id, units_received, public_key_list, executor, mode, logger):
+#    logger.info(f'{mode} {process_id} {sync_id} | Verifying signatures')
+#
+#    loop = asyncio.get_running_loop()
+#    # TODO check if it possible to create one tast that waits for verifying all units
+#    # create tasks for checking signatures of all units
+#    pending = [loop.run_in_executor(executor, verify_signature, unit, public_key_list) for unit in units_received]
+#
+#    # check iteratively if all sigantures are valid
+#    while pending:
+#        done, pending = await asyncio.wait(pending, return_when=asyncio.FIRST_COMPLETED)
+#        for coro in done:
+#            if not coro.result():
+#                return False
+#
+#    logger.info(f'verify_sign_{mode} {process_id} {sync_id} | Signatures verified')
+#
+#    return True
 
 
 def _add_units(sync_id, process_id, ex_id, units_received, process, mode, logger):
