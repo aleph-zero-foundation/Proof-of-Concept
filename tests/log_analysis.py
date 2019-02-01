@@ -19,11 +19,13 @@ if len(sys.argv) == 4 and sys.argv[1] == 'ALL':
 	log_dir = sys.argv[2]
 	rep_dir = sys.argv[3]
 
-	for dir_name in [log_dir, rep_dir]:
-		if not os.path.isdir(dir_name):
-			print(f"No such directory {dir_name}.")
-			sys.exit(0)
+	if not os.path.isdir(log_dir):
+		print(f"No such directory {log_dir}.")
+		sys.exit(0)
 
+	if not os.path.isdir(rep_dir):
+		print(f"No such directory {rep_dir}. Creating.")
+		os.mkdir(rep_dir)
 
 	list_logs = os.listdir(log_dir)
 	n_logs = len(list_logs)
@@ -35,13 +37,15 @@ if len(sys.argv) == 4 and sys.argv[1] == 'ALL':
 			print('Failed because the log does not even contain the Process start message.')
 			continue
 		process_id = analyzer.process_id
-		basic_report_file_name = os.path.join(rep_dir,f"basic-report-{process_id:d}")
-		analyzer.prepare_basic_report(basic_report_file_name)
-		sync_report_file_name = os.path.join(rep_dir,f"sync-report-{process_id:d}")
-		analyzer.prepare_report_per_process(sync_report_file_name)
+		print(f"{ind}: Process' {process_id} log analyzed.")
+		#basic_report_file_name = os.path.join(rep_dir,f"basic-report-{process_id:d}")
+		analyzer.prepare_basic_report(rep_dir)
+		#sync_report_file_name = os.path.join(rep_dir,f"sync-report-{process_id:d}")
+		analyzer.prepare_report_per_process(rep_dir)
 
-		print(f"{ind}: Process' {process_id} log analyzed. ")
-		print(f"Reports saved to {basic_report_file_name}.txt and {sync_report_file_name}.txt")
+
+		#print(f"Reports saved to {basic_report_file_name}.txt and {sync_report_file_name}.txt")
+		print('')
 
 if len(sys.argv) in [2,3]:
 	path = sys.argv[1]
@@ -55,10 +59,11 @@ if len(sys.argv) in [2,3]:
 		print('Failed because the log does not even contain the Process start message.')
 		sys.exit(0)
 	process_id = analyzer.process_id
-	basic_report_file_name = f'report-{process_id:d}'
-	analyzer.prepare_basic_report(basic_report_file_name)
-	print(f'Created {basic_report_file_name}.txt')
-	sync_report_file_name = f'proc-report-{process_id:d}'
-	analyzer.prepare_report_per_process(sync_report_file_name)
-	print(f'Created {sync_report_file_name}.txt')
+	#	basic_report_file_name = f'report-{process_id:d}'
+	analyzer.prepare_basic_report('.')
+	#print(f'Created {basic_report_file_name}.txt')
+	#sync_report_file_name = f'proc-report-{process_id:d}'
+	analyzer.prepare_report_per_process('.')
+	#print(f'Created {sync_report_file_name}.txt')
+	print('')
 	#print(process_id)

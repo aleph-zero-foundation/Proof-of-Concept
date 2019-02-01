@@ -1,5 +1,6 @@
 import matplotlib.pyplot as plt
 import numpy as np
+import os
 
 from aleph.log_analyzer.log_parser import LogParser
 
@@ -273,6 +274,7 @@ class LogAnalyzer:
             ax.scatter(x_series, y_series, s=1)
             ax.set(xlabel='#units', ylabel='sync time (sec)', title='Units exchanged vs sync time')
             fig.savefig(plot_file, dpi=500)
+            plt.close()
 
         return units_sent_per_sync, units_received_per_sync, time_per_sync, \
                 time_per_unit_exchanged, bytes_per_unit_exchanged, \
@@ -303,6 +305,7 @@ class LogAnalyzer:
             fig.savefig(plot_file)
         if show_plot:
             plt.show()
+        plt.close()
         return [point[1] for point in data]
 
 
@@ -331,14 +334,17 @@ class LogAnalyzer:
             ax.plot(n_units_series , run_time_series)
             ax.set(xlabel='#units', ylabel='adding to poset time (sec)', title='Units in poset vs processing time of 1 unit.')
             fig.savefig(plot_file)
+            plt.close()
 
         return run_time_series
 
 
-    def prepare_report_per_process(self, report_file = 'report-proc'):
+    def prepare_report_per_process(self, dest_dir = 'reports', file_name_prefix = 'report-sync-'):
         '''
         Create the file with a a summary od synchronization statistics to all the remaining processes.
-        :param string report_file: the path to the file where the report should be written
+        :param string dest_dir: the path to the directory where the report file should be written
+        :param string file_name_prefix: the prefix of the filename where the report should be written,
+                                        process_id and the extension '.txt' is appended at the end
         WARNING: before calling this function call LogAnalyzer.analyze() first
 
         Meaning of the specific columns:
@@ -408,12 +414,16 @@ class LogAnalyzer:
 
             lines.append(format_line(fields, data))
 
-        with open(report_file+'.txt', "w") as rep_file:
+        report_file = os.path.join(dest_dir, file_name_prefix+str(self.process_id)+'.txt')
+
+        with open(report_file, "w") as rep_file:
             for line in lines:
                 rep_file.write(line+'\n')
 
+            print(f'Report file written to {report_file}.')
 
-    def prepare_basic_report(self, report_file = r'rep/report'):
+
+    def prepare_basic_report(self, dest_dir = 'reports', file_name_prefix = 'report-basic-'):
         '''
         Create the file with a succinct summary of the data in the report_file.
         It also creates some plots of the analyzed data.
@@ -499,8 +509,9 @@ class LogAnalyzer:
         _append_stat_line(data, 'add_ord_del')
 
         # info about syncs
+        sync_plot_file = os.path.join(dest_dir, 'plot-sync-' + str(self.process_id) + '.png')
         sent_per_sync, recv_per_sync, time_per_sync, time_per_unit_ex, \
-            bytes_per_unit_ex, est_conn_time, syncs_not_succ = self.get_sync_info('sync_data.png')
+            bytes_per_unit_ex, est_conn_time, syncs_not_succ = self.get_sync_info(sync_plot_file)
         _append_stat_line(sent_per_sync, 'units_sent_sync')
         _append_stat_line(recv_per_sync, 'units_recv_sync')
         _append_stat_line(time_per_sync, 'time_per_sync')
@@ -519,19 +530,25 @@ class LogAnalyzer:
         _append_stat_line(data, 'n_recv_syncs')
 
         # memory
-        data = self.get_memory_usage_vs_poset_size('memory.png')
+        mem_plot_file = os.path.join(dest_dir, 'plot-mem-' + str(self.process_id) + '.png')
+        data = self.get_memory_usage_vs_poset_size(mem_plot_file)
         _append_stat_line(data, 'memory_MiB')
 
         # running time of add_unit
-        data = self.get_run_time_stats('run_time.png')
+        run_time_plot_file = os.path.join(dest_dir, 'plot-runtime-' + str(self.process_id) + '.png')
+        data = self.get_run_time_stats(run_time_plot_file)
         _append_stat_line(data, 'add_unit_time_s')
 
 
         #self.get_sync_info_per_process()
 
-        with open(report_file+'.txt', "w") as rep_file:
+        report_file = os.path.join(dest_dir, file_name_prefix+str(self.process_id)+'.txt')
+
+        with open(report_file, "w") as rep_file:
             for line in lines:
                 rep_file.write(line+'\n')
+
+            print(f'Report file written to {report_file}.')
 
 
 
