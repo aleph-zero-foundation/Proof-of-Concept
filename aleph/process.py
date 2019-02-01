@@ -86,6 +86,7 @@ class Process:
 
         self.keep_syncing = True
 
+
     def sign_unit(self, U):
         '''
         Signs the unit.
@@ -256,6 +257,8 @@ class Process:
 
 
             if new_unit is not None:
+                if txs and self.process_id == 0:
+                    print(f'adding {len(txs)} txs')
                 created_count += 1
                 self.poset.prepare_unit(new_unit)
                 assert self.poset.check_compliance(new_unit), "A unit created by our process is not passing the compliance test!"
@@ -314,6 +317,7 @@ class Process:
         logger = logging.getLogger(LOGGER_NAME)
         logger.info(f'sync_stop {self.process_id} | keep_syncing is {self.keep_syncing}')
 
+
     async def run(self):
         # start another process listening for incoming txs
         self.logger.info(f'start_process {self.process_id} | Starting a new process in committee of size {self.n_processes}')
@@ -332,3 +336,4 @@ class Process:
         listener_task.cancel()
 
         p.kill()
+        self.logger.info(f'process_done {self.process_id} | Exiting program')

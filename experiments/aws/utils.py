@@ -185,7 +185,10 @@ def init_key_pair(region_name, key_name='aleph'):
                     key.delete()
                 else:
                     print('local and upstream key match')
+                    # check permissions
+                    call(f'chmod 400 {key_path}'.split())
                     # everything is alright
+
                     return
 
         # for some reason there is no key up there, let send it

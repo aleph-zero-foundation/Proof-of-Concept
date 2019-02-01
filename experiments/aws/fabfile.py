@@ -165,7 +165,7 @@ def simple_ec2_test(conn):
     conn.put('../simple_ec2_test.py', 'proof-of-concept/experiments/')
     with conn.cd('proof-of-concept/experiments'):
         # export env var needed for pbc, activate venv, cross fingers, and run the experiment
-        cmd = 'python simple_ec2_test.py -i hosts -k signing_keys -l 10 -b 65536 -u -1000'
+        cmd = 'python simple_ec2_test.py -i hosts -k signing_keys -l 10 -b 65536 -u 1000'
         conn.run('export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/local/lib &&'
                  'source /home/ubuntu/p37/bin/activate &&'
                  f'dtach -n `mktemp -u /tmp/dtach.XXXX` {cmd}')

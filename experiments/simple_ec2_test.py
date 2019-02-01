@@ -54,38 +54,32 @@ def tx_source_gen(process_id, n_processes, batch_size, txpu):
     :param int txpu: number of txs to be included in one unit.
     '''
 
-    # ensure that universe is the same for all processes
-    random.seed(1729)
-    tx_universe_size = n_processes * batch_size
-    tx_universe = []
-    with open('light_nodes_public_keys', 'r') as f:
-        ln_public_keys = [line[:-1] for line in f]
-
-    for _ in range(tx_universe_size):
-        source = random.choice(ln_public_keys)
-        target = random.choice(ln_public_keys)
-        amount = random.randint(1, 32767)
-        tx_universe.append([source, target, amount])
-
-    # ensure that batches are different
-    random.seed(process_id)
-    tx_batch = random.sample(tx_universe, batch_size)
-    tx_batch = [Tx(tx[0], tx[1], tx[2]) for tx in tx_batch]
-
     def _tx_source(tx_receiver_address, tx_queue):
         '''
         Generates transactions in bundles of size txpu till batch_size is reached
         :param None tx_receiver_address: needed only for comatibility of args list with network.tx_listener
         :param queue tx_queue: queue for newly generated txs
         '''
+        # ensure that batches are different
+        random.seed(process_id)
+        with open('light_nodes_public_keys', 'r') as f:
+            ln_public_keys = [line[:-1] for line in f]
+
         proposed = 0
         while proposed<batch_size:
             if proposed+txpu <= batch_size:
-                txs = tx_batch[proposed:proposed+txpu]
-                proposed += txpu
+                offset = txpu
             else:
-                txs = tx_batch[proposed:]
-                proposed = batch_size
+                offset = batch_size - proposed
+
+            txs = []
+            for _ in range(offset):
+                source = random.choice(ln_public_keys)
+                target = random.choice(ln_public_keys)
+                amount = random.randint(1, 32767)
+                txs.append(Tx(source, target, amount))
+
+            proposed += offset
 
             tx_queue.put(txs, block=True)
 
@@ -116,7 +110,7 @@ async def main():
 
     n_processes = len(hosts_ip)
     userDB = None
-    use_tcoin = False
+    use_tcoin = True
     stop_conditions = dict(zip(['n_create', 'n_sync', 'n_level'], [options.n_create, options.n_sync, options.n_level]))
 
     recv_address = None

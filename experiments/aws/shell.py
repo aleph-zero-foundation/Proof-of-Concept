@@ -14,9 +14,6 @@ from utils import image_id_in_region, default_region_name, init_key_pair, securi
 from config import N_JOBS
 
 
-
-
-
 #======================================================================================
 #                              routines for some region
 #======================================================================================
@@ -105,8 +102,6 @@ def all_instances_in_region(region_name='default'):
 
     if region_name == 'default':
         region_name = default_region_name()
-
-    print('finding instances in', region_name)
 
     ec2 = boto3.resource('ec2', region_name)
     instances = []
@@ -350,7 +345,7 @@ def run_task(task='test', regions='badger regions', parallel=False, output=False
     return exec_for_regions(partial(run_task_in_region, task, parallel=parallel, output=output), regions, parallel)
 
 
-def run_cmd(cmd='ls', regions='badger regions', output=False):
+def run_cmd(cmd='ls', regions='badger regions', output=False, parallel=True):
     '''
     Runs a shell command cmd on all instances in all given regions.
     :param string cmd: a shell command that is run on instances
@@ -359,7 +354,7 @@ def run_cmd(cmd='ls', regions='badger regions', output=False):
     :param bool output: indicates whether output of task is needed
     '''
 
-    return exec_for_regions(partial(run_cmd_in_region, cmd), regions)
+    return exec_for_regions(partial(run_cmd_in_region, cmd, output=output), regions, parallel)
 
 
 def wait(target_state, regions='badger regions'):
@@ -371,6 +366,7 @@ def wait(target_state, regions='badger regions'):
 def wait_install(regions='badger regions'):
     '''Waits till installation finishes in all given regions.'''
 
+    sleep(60)
     wait_for_regions = regions.copy()
     while wait_for_regions:
         sleep(10)
@@ -479,6 +475,19 @@ def get_logs(regions=badger_regions()):
         pid = hosts_ip.index(fp.split('-aleph.log')[0].replace('-','.'))
         os.rename(f'../results/{fp}', f'../results/{pid}.aleph.log')
 
+
+def memory_usage(regions=badger_regions()):
+    cmd = 'grep memory proof-of-concept/experiments/aleph.log | tail -1'
+    output = run_cmd(cmd, regions, True)
+    results = [float(line.split()[7]) for line in output]
+    return min(results), np.mean(results), max(results)
+
+
+def reached_max_level(regions):
+    cmd = 'grep max_level proof-of-concept/experiments/aleph.log'
+    output = run_cmd(cmd, regions, True)
+
+
 #======================================================================================
 #                                        shortcuts
 #======================================================================================
@@ -496,7 +505,8 @@ ti = terminate_instances
 A = [104, badger_regions(), [], 'simple-ec2-test', 't2.medium']
 res = ['sa-east-1', 'ap-southeast-2']
 
-rs = lambda n: e(n, badger_regions(), res, 'simple-ec2-test', 't2.micro')
+rs = lambda n=8: e(n, badger_regions(), res, 'simple-ec2-test', 't2.micro')
+ms = lambda regions=badger_regions(): memory_usage(regions)
 
 #======================================================================================
 #                                         main
