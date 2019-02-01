@@ -117,7 +117,7 @@ def _serialize_coin_shares(coin_shares):
         return serialized_shares
     else:
         # These coin shares come from a non-dealing unit -- they just represent regular coin shares
-        return [PAIRING_GROUP.serialize(cs) for cs in coin_shares]
+        return [PAIRING_GROUP.serialize(cs, compression = False) for cs in coin_shares]
 
 def _deserialize_coin_shares(serialized_shares):
     if isinstance(serialized_shares, dict):
