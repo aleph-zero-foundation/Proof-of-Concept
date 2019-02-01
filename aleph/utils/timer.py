@@ -50,7 +50,7 @@ class timer:
 
 
     @classmethod
-    def write_summary(cls, where=None, names=None):
+    def write_summary(cls, where=None, names=None, reset=False):
         if where is None:
             write = print
         elif isinstance(where, Logger):
@@ -63,6 +63,8 @@ class timer:
         for name in names:
             for i, time in enumerate(cls.results[name]):
                 write('Timer  {} ({:3})  took  {:8.5f}  seconds'.format(name, i+1, time))
+            if reset:
+                del cls.results[name]
 
 
     @classmethod
