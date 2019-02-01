@@ -343,14 +343,14 @@ def dag_from_poset(poset):
 
 
 
-def dag_from_file(file_name):
-    with open(file_name) as poset_file:
-        lines = poset_file.readlines()
+def dag_from_stream(poset_stream):
+    lines = poset_stream.readlines()
 
     n_processes = int(lines[0])
     dag = DAG(n_processes)
 
     for line in lines[1:]:
+        line = line.decode('ascii')
         tokens = line.split()
         unit_name = tokens[0]
         creator_id = int(tokens[1])
@@ -362,6 +362,11 @@ def dag_from_file(file_name):
 
         dag.add(unit_name, creator_id, parents)
 
+    return dag
+
+def dag_from_file(file_name):
+    with open(file_name, mode="rb") as poset_file:
+        dag = dag_from_stream(poset_file)
     return dag
 
 

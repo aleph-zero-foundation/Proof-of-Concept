@@ -992,11 +992,16 @@ class Poset:
         :param unit U: first unit to be tested
         :param unit V: second unit to be tested
         '''
+        if not self.below(U, V):
+            return False
         processes_in_support = 0
         for process_id in range(self.n_processes):
-            #if process_id == U.creator_id or process_id == V.creator_id:
-            #    processes_in_support += 1
-            #    continue
+            # Note that this if is not just an optimization.
+            # We check the high below relation to determine the level of a unit when it's being added,
+            # but we update the ceil field after adding it.
+            if process_id == U.creator_id or process_id == V.creator_id:
+                processes_in_support += 1
+                continue
 
             in_support = False
             # Because process_id could be potentially forking, we need to check
