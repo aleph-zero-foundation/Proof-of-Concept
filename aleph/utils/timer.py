@@ -27,7 +27,8 @@ class timer:
 
     results = {}
 
-    def __init__(self, name, disable_gc=False):
+    def __init__(self, group, name, disable_gc=False):
+        self.group = group
         self.name = name
         self.disable_gc = disable_gc
 
@@ -44,13 +45,16 @@ class timer:
         end = get_time()
         if self.disable_gc and self.old_gc:
             gc.enable()
-        if self.name not in self.results:
-            self.results[self.name] = []
-        self.results[self.name].append(end - self.start)
+        if self.group not in self.results:
+            self.results[self.group] = {}
+        g = self.results[self.group]
+        if self.name not in g:
+            g[self.name] = 0.0
+        g[self.name] += end - self.start
 
 
     @classmethod
-    def write_summary(cls, where=None, names=None, reset=False):
+    def write_summary(cls, where=None, groups=None):
         if where is None:
             write = print
         elif isinstance(where, Logger):
@@ -58,19 +62,18 @@ class timer:
         elif hasattr(where, 'write'):
             write = where.write
 
-        names = names or list(sorted(cls.results.keys()))
+        groups = groups or list(sorted(cls.results.keys()))
 
-        for name in names:
-            for i, time in enumerate(cls.results[name]):
-                write('Timer  {} ({:3})  took  {:8.5f}  seconds'.format(name, i+1, time))
-            if reset:
-                del cls.results[name]
+        for group in groups:
+            if group in cls.results:
+                for name, time in cls.results[group].items():
+                    write(f'timer {group[0]} {group[1]} |  {name:20}  took  {time:10.6f}')
 
 
     @classmethod
-    def reset(cls, name=None):
-        if name is None:
+    def reset(cls, group=None):
+        if group is None:
             cls.results = {}
-        elif name in cls.results:
-            del cls.results[name]
+        elif group in cls.results:
+            del cls.results[group]
 
