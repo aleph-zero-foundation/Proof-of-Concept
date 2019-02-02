@@ -30,6 +30,9 @@ if len(sys.argv) == 4 and sys.argv[1] == 'ALL':
 	list_logs = os.listdir(log_dir)
 	n_logs = len(list_logs)
 	for log_name, ind in zip(list_logs, range(n_logs)):
+		# do not parse other.log etc.
+		if log_name.find("aleph") == -1:
+			continue
 		path = os.path.join(log_dir, log_name)
 		print(f'Analyzing {path}...')
 		analyzer = LogAnalyzer(path)
