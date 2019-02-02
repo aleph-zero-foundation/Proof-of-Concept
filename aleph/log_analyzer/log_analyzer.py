@@ -277,6 +277,32 @@ class LogAnalyzer:
         return True
 
 
+    def get_unit_latency(self):
+        '''
+        Returns the average time from creating a unit till having it linearly ordered.
+        '''
+
+        delay_list = self.get_delays_create_order()
+        if delay_list == []:
+            return float('inf')
+        else:
+            return compute_basic_stats(delay_list)['avg']
+
+
+    def get_txps_till_first_timing_unit(self):
+        '''
+        Returns the number of transactions per second averaged from start till deciding on the timing unit at lvl 1.
+        '''
+        if 1 in self.levels and 'timing_decided_date' in self.levels[1]:
+            # making sure the first level has been decided
+            time_till_first_level_timing = diff_in_seconds(self.levels[0]['date'], self.levels[1]['timing_decided_date'])
+            return self.levels[1]['n_txs_ordered']/time_till_first_level_timing
+        else:
+            return 0.0
+
+
+
+
 
     def analyze(self):
         '''
@@ -617,7 +643,6 @@ class LogAnalyzer:
 
 
         # timing_decision
-        #print("level 1 decided: ", self.levels[1]['timing_decided_date'])
         levels, n_units_per_level, levels_plus_decided, level_delays, n_txs_per_level = self.get_timing_decision_stats()
         _append_stat_line(n_units_per_level, 'n_units_decision')
         _append_stat_line(level_delays, 'time_decision')
