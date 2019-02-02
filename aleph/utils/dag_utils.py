@@ -55,6 +55,26 @@ def check_growth(dag, node_self_predecessor, node_parents):
             return False
     return True
 
+def check_expand_primes(dag, node_self_predecessor, node_parents):
+    level = dag.levels[node_self_predecessor]
+    prime_units = dag.prime_units_by_level[level]
+    predecessor_visible_prime_units = set()
+    for prime_unit in prime_units:
+        if dag.is_reachable(prime_unit, node_self_predecessor):
+            predecessor_visible_prime_units.add(prime_unit)
+    # we already see enough, cannot require more while using 'high above' for levels
+    if 3*len(predecessor_visible_prime_units) >= 2*dag.n_processes:
+        return check_growth(dag, node_self_predecessor, node_parents) and check_parent_diversity(dag, dag.pids[node_self_predecessor], node_parents, (dag.n_processes + 2)//3)
+    visible_prime_units = set()
+    for parent in node_parents:
+        new_visible_prime_units = set()
+        for prime_unit in prime_units:
+            if dag.is_reachable(prime_unit, parent):
+                new_visible_prime_units.add(prime_unit)
+        if new_visible_prime_units <= visible_prime_units:
+            return False
+        visible_prime_units.update(new_visible_prime_units)
+    return True
 
 
 def check_introduce_new_fork(dag, pid, self_predecessor):
@@ -149,7 +169,16 @@ def generate_random_forking(n_processes, n_units, n_forkers, file_name = None):
         if not self_predecessor:
             continue
         new_unit_height = node_heights[self_predecessor] + 1
-        new_unit_no = count_nodes_by_process_height(dag, node_heights, process_id, new_unit_height)
+        new_unit_neighbours = nodes_by_process_height(dag, node_heights, process_id, new_unit_height)
+        new_unit_no = len(new_unit_neighbours)
+        if new_unit_no > 0:
+            #make sure this is a real fork, not just an old one under a different name
+            spork = False
+            for n in new_unit_neighbours:
+                if dag.nodes[n] == new_unit_parents:
+                    spork = True
+            if spork:
+                continue
         unit_name = generate_unit_name(new_unit_height, process_id, new_unit_no)
         dag.add(unit_name, process_id, new_unit_parents)
         node_heights[unit_name] = new_unit_height
@@ -160,7 +189,7 @@ def generate_random_forking(n_processes, n_units, n_forkers, file_name = None):
     return dag
 
 
-def generate_random_compliant_unit(dag, n_processes, process_id = None, forking = False, only_maximal_parents = False):
+def generate_random_compliant_unit(dag, n_processes, process_id = None, forking = False, only_maximal_parents = False, checks='expand_primes'):
     '''
     Generates a random compliant unit created by a given process_id (or random process).
     '''
@@ -185,11 +214,16 @@ def generate_random_compliant_unit(dag, n_processes, process_id = None, forking 
         if not forking and check_introduce_new_fork(dag, process_id, self_predecessor):
             continue
 
-        if not check_growth(dag, self_predecessor, new_unit_parents):
-            continue
+        if checks == 'expand_primes':
+            if not check_expand_primes(dag, self_predecessor, new_unit_parents):
+                continue
 
-        if not check_parent_diversity(dag, process_id, new_unit_parents, (n_processes + 2)//3):
-            continue
+        if checks == 'growth_diversity':
+            if not check_growth(dag, self_predecessor, new_unit_parents):
+                continue
+
+            if not check_parent_diversity(dag, process_id, new_unit_parents, (n_processes + 2)//3):
+                continue
 
         if not check_forker_muting(dag, new_unit_parents):
             continue
@@ -197,7 +231,6 @@ def generate_random_compliant_unit(dag, n_processes, process_id = None, forking 
         if not check_distinct_parent_processes(dag, new_unit_parents):
             continue
 
-        random.shuffle(new_unit_parents)
         return generate_unused_name(dag, process_id), new_unit_parents
 
     return None
@@ -237,6 +270,7 @@ def generate_random_violation(n_processes, n_correct_units, n_forkers, ensure, v
         property_table['parent_diversity'] = check_parent_diversity(dag, process_id, new_unit_parents, (n_processes + 2)//3)
         property_table['forker_muting'] = check_forker_muting(dag, new_unit_parents)
         property_table['distinct_parents'] = check_distinct_parent_processes(dag, new_unit_parents)
+        property_table['expand_primes'] = check_expand_primes(dag, self_predecessor, new_unit_parents)
 
         if len(dag) >= n_processes + n_correct_units and constraints_satisfied(violate, property_table):
             terminate_poset = True
@@ -247,7 +281,16 @@ def generate_random_violation(n_processes, n_correct_units, n_forkers, ensure, v
             continue
 
         new_unit_height = node_heights[self_predecessor] + 1
-        new_unit_no = count_nodes_by_process_height(dag, node_heights, process_id, new_unit_height)
+        new_unit_neighbours = nodes_by_process_height(dag, node_heights, process_id, new_unit_height)
+        new_unit_no = len(new_unit_neighbours)
+        if new_unit_no > 0:
+            #make sure this is a real fork, not just an old one under a different name
+            spork = False
+            for n in new_unit_neighbours:
+                if dag.nodes[n] == new_unit_parents:
+                    spork = True
+            if spork:
+                continue
         unit_name = generate_unit_name(new_unit_height, process_id, new_unit_no)
         dag.add(unit_name, process_id, new_unit_parents)
         node_heights[unit_name] = new_unit_height
@@ -281,8 +324,8 @@ def generate_unused_name(dag, process_id):
 
 
 
-def count_nodes_by_process_height(dag, node_heights, process_id, height):
-    return len([node for node in node_heights if (dag.pid(node) == process_id and height == node_heights[node])])
+def nodes_by_process_height(dag, node_heights, process_id, height):
+    return [node for node in node_heights if (dag.pid(node) == process_id and height == node_heights[node])]
 
 
 def constraints_satisfied(constraints, truth):

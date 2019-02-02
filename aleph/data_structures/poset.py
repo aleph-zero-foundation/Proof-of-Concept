@@ -25,7 +25,7 @@ class Poset:
         :param list compliance_rules: dictionary string -> bool
         '''
         self.n_processes = n_processes
-        self.default_compliance_rules = {'forker_muting': True, 'parent_diversity': True, 'growth': True, 'threshold_coin': use_tcoin}
+        self.default_compliance_rules = {'forker_muting': True, 'parent_diversity': False, 'growth': False, 'expand_primes': True, 'threshold_coin': use_tcoin}
         self.compliance_rules = compliance_rules
         self.use_tcoin = use_tcoin
         # process_id is used only to support tcoin (i.e. in case self.use_tcoin = True), to know which shares to add and which tcoin to pick from dealing units
@@ -310,6 +310,13 @@ class Poset:
             return []
         return [V for Vs in self.prime_units_by_level[level] for V in Vs]
 
+    def get_prime_units_at_level_below_unit(self, level, U):
+        '''
+        Returns the set of all prime units at a given level that are below the unit U.
+        :param int level: the requested level of units
+        :param unit U: the unit below which we want the prime units
+        '''
+        return [V for V in self.get_all_prime_units_by_level(level) if self.below(V, U)]
 
     def get_prime_units_by_level_per_process(self, level):
         '''
@@ -413,9 +420,10 @@ class Poset:
             1. Parents of U are correct (exist in the poset, etc.)
             2. U does not provide evidence of its creator forking
             3. Satisfies forker-muting policy.
-            4. Satisfies parent diversity rule.
-            5. Check "growth" rule.
-            6. The coinshares are OK, i.e., U contains exactly the coinshares it is supposed to contain.
+            4. Satisfies parent diversity rule. (optionally)
+            5. Check "growth" rule. (optionally)
+            6. Satisfies the expand primes rule.
+            7. The coinshares are OK, i.e., U contains exactly the coinshares it is supposed to contain.
         :param unit U: unit whose compliance is being tested
         '''
         # TODO: it is highly desirable that there are no duplicate transactions in U (i.e. literally copies)
@@ -450,7 +458,12 @@ class Poset:
             if not self.check_growth(U):
                 return False
 
-        # 6. Coinshares are OK.
+        # 6. Sastisfies the expand primes rule
+        if self.should_check_rule('expand_primes'):
+            if not self.check_expand_primes(U):
+                return False
+
+        # 7. Coinshares are OK.
         if self.should_check_rule('threshold_coin'):
             if self.is_prime(U) and not self.check_coin_shares(U):
                 return False
@@ -498,6 +511,38 @@ class Poset:
         else:
             return False
 
+    def check_expand_primes(self, U):
+        '''
+        Checks if the unit U respects the "expand primes" rule.
+        Let L be the level of U's predecessor and P the set of
+        prime units of level L below the predecessor.
+        Every parent of U that is not its predecessor must have
+        more prime units of level L below it than all the previous
+        parents combined.
+        :param unit U: unit that is tested against the expand primes rule
+        :returns: Boolean value, True if U respects the rule, False otherwise.
+        '''
+        # Special case of dealing units
+        if len(U.parents) == 0:
+            return True
+
+        level = U.self_predecessor.level
+
+        prime_below_parents = set(self.get_prime_units_at_level_below_unit(level, U.self_predecessor))
+        # we already saw enough prime units, cannot require more while using 'high above' for levels
+        if 3*len(prime_below_parents) >= 2*self.n_processes:
+            return self.check_parent_diversity(U) and self.check_growth(U)
+
+        for V in U.parents[1:]:
+            prime_below_V = set(self.get_prime_units_at_level_below_unit(level, V))
+            # If V has only a subset of previously seen prime units below it we have a violation
+            if prime_below_V <= prime_below_parents:
+                return False
+            # Add the new prime units to seen units
+            prime_below_parents.update(prime_below_V)
+
+        return True
+
     def check_growth(self, U):
         '''
         Checks if the unit U, created by process j, respects the "growth" rule.
@@ -507,8 +552,6 @@ class Poset:
         '''
         if len(U.parents) == 0:
             return True
-
-        assert (U.self_predecessor is not None), "Cannot check growth for dealing units!"
 
         for V in U.parents:
             if (V is not U.self_predecessor) and self.below(V, U.self_predecessor):

@@ -11,7 +11,7 @@ def check_compliance_vs_pattern(dag, topological_list, pattern):
         U = Unit(creator_id = dag.pid(node), parents = [unit_dict[parent] for parent in dag.parents(node)], txs = [])
         unit_dict[node] = U
         poset.prepare_unit(U)
-        assert poset.check_compliance(U) == answer
+        assert poset.check_compliance(U) == answer, f"Node {node} was problematic."
         poset.add_unit(U)
 
 
@@ -19,7 +19,7 @@ def check_compliance_vs_pattern(dag, topological_list, pattern):
 def test_small_random_compliance():
     random.seed(123456789)
     repetitions = 800
-    properties = ['growth', 'forker_muting', 'parent_diversity']
+    properties = ['forker_muting', 'expand_primes']
     for violated_property in properties:
         for rep in range(repetitions):
             n_processes = random.randint(4, 5)
@@ -42,7 +42,7 @@ def test_small_random_compliance():
 def test_large_random_compliance():
     random.seed(123456789)
     repetitions = 20
-    properties = ['growth', 'forker_muting', 'parent_diversity']
+    properties = ['forker_muting', 'expand_primes']
     for violated_property in properties:
         for rep in range(repetitions):
             n_processes = random.randint(30, 80)

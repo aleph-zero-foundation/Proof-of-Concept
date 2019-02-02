@@ -155,6 +155,12 @@ def generate_delta_level_4_no_decision(det_coin_value = 0):
     def check_parent_diversity(self, U):
         return True
 
+    # don't use the expand_primes rule, this example is not compatible with it
+    # TODO(maybe): fix the example to work with expanding primes
+    process.poset.compliance_rules = process.poset.default_compliance_rules
+    process.poset.compliance_rules['expand_primes'] = False
+    process.poset.compliance_rules['parent_diversity'] = True
+    process.poset.compliance_rules['growth'] = True
 
     dag = DAG(n_processes)
 

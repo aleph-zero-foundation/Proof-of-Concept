@@ -42,6 +42,29 @@ def growth_restricted(poset, W, parent_processes):
                 below_W.add(V.creator_id)
     return below_W.union(parent_processes)
 
+def expand_primes_restricted(poset, W, parent_processes):
+    '''
+    Compute ids of processes whose highest unit is only above prime units of level W.level that W is also above
+    :param poset poset: the poset in which the unit lives
+    :param unit W: the unit that defines the set of prime units to inspect
+    :param list parent_processes: processes already chosen as parents for the new unit
+    :returns: the set of ids satisfying the conditionss above
+    '''
+    not_extending_primes = set()
+    level = W.level
+    prime_below_parents = set()
+    # we already saw enough prime units, cannot require more while using 'high above' for levels
+    if 3*len(poset.get_prime_units_at_level_below_unit(level, W)) >= 2*poset.n_processes:
+        return recent_parents_restricted(poset, W, parent_processes).union(growth_restricted(poset, W, parent_processes))
+    for process_id in parent_processes:
+        prime_below_parents.update(poset.get_prime_units_at_level_below_unit(level, poset.max_units_per_process[process_id][0]))
+    for Vs in poset.max_units_per_process:
+        for V in Vs:
+            prime_below_V = set(poset.get_prime_units_at_level_below_unit(level, V))
+            if prime_below_V <= prime_below_parents:
+                not_extending_primes.add(V.creator_id)
+    return not_extending_primes
+
 def parents_allowed_with_restrictions(poset, creator_id, restrictions, parent_processes):
     '''
     Compute ids of processes which are allowed to be parents for the unit being created
@@ -62,7 +85,7 @@ def parents_allowed_with_restrictions(poset, creator_id, restrictions, parent_pr
 
     return [pid for pid in single_tip_processes if not (pid in restricted_set)]
 
-def create_unit(poset, creator_id, txs, num_parents = 2, restrictions=[recent_parents_restricted, growth_restricted], force_parents = None):
+def create_unit(poset, creator_id, txs, num_parents = 2, restrictions=[expand_primes_restricted], force_parents = None):
     '''
     Creates a new unit and stores txs in it. Correctness of the txs is checked by a thread listening for new transactions.
     :param list txs: list of correct transactions
