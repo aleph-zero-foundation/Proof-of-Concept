@@ -1329,11 +1329,12 @@ class Poset:
 
     def dehash_parents(self, U):
         '''
-        Substitute units for hashes in U's parent list. To be called on units received from the network.
+        Substitute units for hashes in U's parent list and set the height field. To be called on units received from the network.
         :param unit U: the unit with hashes instead of parents
         '''
         assert all(p in self.units for p in U.parents), 'Attempting to fix parents but parents not present in poset'
         U.parents = [self.units[p] for p in U.parents]
+        U.height = U.parents[0].height+1 if len(U.parents) > 0 else 0
 
 
 #===============================================================================================================================

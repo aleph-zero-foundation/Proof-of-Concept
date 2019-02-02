@@ -62,11 +62,11 @@ class Unit(object):
 
     def __getstate__(self):
         serialized_coin_shares = _serialize_coin_shares(self.coin_shares)
-        return (self.creator_id, self.parents_hashes(), self.txs, self.signature, self.height, serialized_coin_shares)
+        return (self.creator_id, self.parents_hashes(), self.txs, self.signature, serialized_coin_shares)
 
 
     def __setstate__(self, state):
-        self.creator_id, self.parents, self.txs, self.signature, self.height, serialized_coin_shares = state
+        self.creator_id, self.parents, self.txs, self.signature, serialized_coin_shares = state
         self.coin_shares = _deserialize_coin_shares(serialized_coin_shares)
         self.level = None
         self.hash_value = None
