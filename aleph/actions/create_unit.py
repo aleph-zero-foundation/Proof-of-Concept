@@ -21,6 +21,7 @@ def recent_parents_restricted(poset, W, parent_processes):
         if len(W.parents) == 0:
             break
         parents = [V.creator_id for V in W.parents if V.creator_id != W.creator_id]
+        # NOTE: the use of python sets here is far from optimal, if we want this to be faster bitarrays are an option
         if len(recent_parents.union(parents)) >= threshold:
             break
         recent_parents = recent_parents.union(parents)
@@ -44,7 +45,10 @@ def growth_restricted(poset, W, parent_processes):
 
 def expand_primes_restricted(poset, W, parent_processes):
     '''
-    Compute ids of processes whose highest unit is only above prime units of level W.level that W is also above
+    Compute ids of processes whose highest unit is only above prime units of level W.level that W,
+    or one of the already chosen parents, is also above.
+    If W is above at least 2/3 of prime units at level W.level
+    then falls back to recent parents + growth restrictions.
     :param poset poset: the poset in which the unit lives
     :param unit W: the unit that defines the set of prime units to inspect
     :param list parent_processes: processes already chosen as parents for the new unit
@@ -61,6 +65,7 @@ def expand_primes_restricted(poset, W, parent_processes):
     for Vs in poset.max_units_per_process:
         for V in Vs:
             prime_below_V = set(poset.get_prime_units_at_level_below_unit(level, V))
+            # NOTE: the use of python sets here is far from optimal, if we want this to be faster bitarrays are an option
             if prime_below_V <= prime_below_parents:
                 not_extending_primes.add(V.creator_id)
     return not_extending_primes

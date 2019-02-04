@@ -1,6 +1,7 @@
 from aleph.data_structures import Unit, Poset
 from aleph.utils import dag, dag_utils
 import random
+import pytest
 
 
 def check_muting_vs_pattern(dag, topological_list, pattern):
@@ -33,6 +34,7 @@ def test_small_random_muting():
 
 
 
+@pytest.mark.skip(reason='This takes way too long, reinstate after generating and saving examples.')
 def test_large_random_muting():
     random.seed(123456789)
     repetitions = 20
