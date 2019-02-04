@@ -9,6 +9,7 @@ from joblib import Parallel, delayed
 import boto3
 import numpy as np
 
+from aleph.config import CREATE_FREQ
 from aleph.crypto.keys import SigningKey, VerifyKey
 from utils import image_id_in_region, default_region_name, init_key_pair, security_group_id_by_region, available_regions, badger_regions, generate_signing_keys, n_hosts_per_regions, eu_regions
 from config import N_JOBS
@@ -158,7 +159,7 @@ def run_task_in_region(task='test', region_name='default', parallel=False, outpu
     if region_name == 'default':
         region_name = default_region_name()
 
-    print('running task in', region_name)
+    print(f'running task {task} in', region_name)
 
     ip_list = instances_ip_in_region(region_name)
     if parallel:
@@ -176,7 +177,7 @@ def run_task_in_region(task='test', region_name='default', parallel=False, outpu
         print('paramiko troubles')
 
 
-def run_cmd_in_region(cmd='ls', region_name='default', output=False):
+def run_cmd_in_region(cmd='tail -f proof-of-concept/experiments/aleph.log', region_name='default', output=False):
     '''
     Runs a shell command cmd on all instances in a given region.
     :param string cmd: a shell command that is run on instances
@@ -188,7 +189,7 @@ def run_cmd_in_region(cmd='ls', region_name='default', output=False):
         region_name = default_region_name()
 
 
-    print('running command in', region_name)
+    print(f'running command {cmd} in', region_name)
 
     ip_list = instances_ip_in_region(region_name)
     results = []
@@ -333,7 +334,7 @@ def instances_state(regions='badger regions'):
     return exec_for_regions(instances_state_in_region, regions)
 
 
-def run_task(task='test', regions='badger regions', parallel=False, output=False):
+def run_task(task='test', regions='badger regions', parallel=True, output=False):
     '''
     Runs a task from fabfile.py on all instances in all given regions.
     :param string task: name of a task defined in fabfile.py
@@ -440,7 +441,7 @@ def run_experiment(n_processes, regions, restricted, experiment, instance_type):
     run_task(experiment, regions, parallel)
 
 
-def get_logs(regions=badger_regions()):
+def get_logs(n_processes, txpu, tcoin, regions=badger_regions()):
     '''Retrieves all logs from instances.'''
 
     run_task('get-logs', regions, parallel=True)
@@ -470,10 +471,14 @@ def get_logs(regions=badger_regions()):
         for sk in signing_keys:
             f.write(sk.to_hex().decode()+'\n')
 
-    print('rename results')
+    print('rename logs')
     for fp in os.listdir('../results'):
-        pid = hosts_ip.index(fp.split('-aleph.log')[0].replace('-','.'))
-        os.rename(f'../results/{fp}', f'../results/{pid}.aleph.log')
+        name = fp[-9:-4] # other | aleph
+        pid = hosts_ip.index(fp.split(f'-{name}.log')[0].replace('-','.'))
+        os.rename(f'../results/{fp}', f'../results/{pid}.{name}.log')
+
+    print('rename dir')
+    os.rename('../results', f'../results_{txpu}_{int(CREATE_FREQ)}_{n_processes}_{tcoin}')
 
 
 def memory_usage(regions=badger_regions()):
