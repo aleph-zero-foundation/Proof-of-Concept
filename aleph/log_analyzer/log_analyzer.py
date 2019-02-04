@@ -1,7 +1,9 @@
 import matplotlib.pyplot as plt
 import numpy as np
+import os
+from datetime import datetime
+import parse
 
-from aleph.log_analyzer.log_parser import LogParser
 
 
 
@@ -28,128 +30,294 @@ class LogAnalyzer:
         self.memory_info = []
         self.start_date = None
         self.add_run_times = []
+        self.process_id = None
 
-    def set_start_date(self, date):
-        '''
-        Set the "genesis" date (when the process is run), if it has not been set yet.
-        '''
-        if self.start_date is None:
-            self.start_date = date
-            self.levels[0] = {'date': date}
 
-    def handle_event(self, event):
-        '''
-        Takes one event as input and udates the internal state of the analyzer appropriately.
-        :param dict event: event describing one line in the log.
-        '''
-        ev_type = event['type']
 
-        if ev_type == 'start_process':
-            self.n_processes = event['n_processes']
-            self.process_id = event['process_id']
-            self.set_start_date(event['date'])
+        # initialize a bunch of parsing patterns
+        # doing parse.compile() beforehand once is to speed-up the parsing
+        self.msg_pattern = parse.compile("[{date}] [{msg_level}] [{name}] {msg} [{file_line}]")
+        self.split_on_bar = parse.compile("{left}|{right}")
 
-        if ev_type == 'create_add':
-            assert event['units'] not in self.units, "Unit hash collision?"
-            self.set_start_date(event['date'])
-            U = event['units']
-            self.units[U] = {'created': event['date']}
-            self.create_attempt_dates.append(event['date'])
+        self.pattern_create = parse.compile("Created a new unit <{unit}>")
+        self.pattern_memory = parse.compile("{usage:f} MiB")
+        self.pattern_level = parse.compile("Level {level:d} reached")
+        self.pattern_add_line = parse.compile("At lvl {timing_level:d} added {n_units:d} units and {n_txs:d} txs to the linear order {unit_list}")
+        self.pattern_decide_timing = parse.compile("Timing unit for lvl {level:d} decided at lvl + {plus_level:d}")
+        self.pattern_sync_establish = parse.compile("Established connection to {process_id:d}")
+        self.pattern_listener_succ = parse.compile("Syncing with {process_id:d} succesful")
+        self.pattern_receive_units_done = parse.compile("Received {n_bytes:d} bytes and {n_units:d} units")
+        self.pattern_send_units_sent = parse.compile("Sent {n_units:d} units and {n_bytes:d} bytes to {ex_id:d}")
+        self.pattern_try_sync = parse.compile("Establishing connection to {target:d}")
+        self.pattern_listener_sync_no = parse.compile("Number of syncs is {n_recv_syncs:d}")
+        self.pattern_add_run_time = parse.compile("Added {n_units:d} in {tot_time:f} sec")
+        self.pattern_start_process = parse.compile("Starting a new process in committee of size {n_processes:d}")
+        self.pattern_receive_units_start = parse.compile("Receiving units from {target:d}")
+        self.pattern_add_done = parse.compile("units from {target:d} were added succesfully {unit_list}")
 
-        if ev_type == 'add_linear_order':
-            level = event['level']
-            self.levels[level]['n_units_decided'] = event['n_units']
-            self.levels[level]['n_txs_ordered'] = event['n_txs']
-            for U in event['units']:
-                assert U in self.units, f"Unit {U} being added to linear order, but its appearance not noted."
-                self.units[U]['ordered'] = event['date']
 
-        if ev_type == 'add_done':
-            for U in event['units']:
-                if U not in self.units:
-                    self.units[U] = {'received': [event['date']]}
-                else:
-                    U_dict = self.units[U]
-                    assert 'created' not in U_dict, f"Unit created by {self.read_process_id} later also received from another process."
-                    U_dict['received'].append(event['date'])
+        # create the mapping between event types and the functions used for parsing this types of events
 
-        # if ev_type == 'add_foreign':
-        #     U = event['units']
-        #     if U not in self.units:
-        #         self.units[U] = {'received': [event['date']]}
-        #     else:
-        #         U_dict = self.units[U]
-        #         assert 'created' not in U_dict, f"Unit created by {self.read_process_id} later also received from another process."
-        #         U_dict['received'].append(event['date'])
+        self.parse_mapping = {
+            'create_add' : self.parse_create,
+            'memory_usage' : self.parse_mem_usg,
+            'add_linear_order' : self.parse_add_lin_order,
+            'new_level' : self.parse_new_level,
+            'decide_timing' : self.parse_decide_timing,
+            'sync_establish' : self.parse_establish,
+            'listener_establish' : self.parse_establish,
+            'sync_done' : self.parse_listener_succ,
+            'listener_succ' : self.parse_listener_succ,
+            'receive_units_done_listener' : self.parse_receive_units_done,
+            'receive_units_done_sync' : self.parse_receive_units_done,
+            'send_units_sent_listener' : self.parse_send_units_sent,
+            'send_units_sent_sync' : self.parse_send_units_sent,
+            'sync_establish_try' : self.parse_try_sync,
+            'listener_sync_no' : self.parse_listener_sync_no,
+            'add_run_time' : self.parse_add_run_time,
+            'start_process' : self.parse_start_process,
+            'receive_units_start_listener': self.parse_receive_units_start,
+            'receive_untis_start_sync' : self.parse_receive_units_start,
+            'add_received_done_listener' : self.parse_add_received_done,
+            'add_received_done_sync' : self.parse_add_received_done,
+            }
 
-        if ev_type == 'new_level':
-            level = event['level']
-            assert level not in self.levels, f"The same level {level} reached for the second time."
-            self.levels[level] = {'date': event['date']}
+    # Functions for parsing specific types of log messages. Typically one function per log lessage type.
+    # Although some functions support more of them at the same time
+    # Each of these functions takes the same set of parameters, being:
+    # -- ev_params: parameters of the log event, typically process_id or/and sync_id
+    # -- msg_body: the remaining part of the log message that carries information specific to this event type
+    # -- event: this is the partial result of parsing of the current line, it has a date field etc.
 
-        if ev_type == 'memory_usage':
-            entry = {'date': event['date'], 'memory': event['memory'], 'poset_size': len(self.units)}
-            self.memory_info.append(entry)
 
-        if ev_type == 'decide_timing':
-            self.levels[event['level']]['timing_decided_level'] = event['timing_decided_level']
-            self.levels[event['level']]['timing_decided_date'] = event['date']
 
-        if ev_type == 'sync_establish':
-            sync_id = event['sync_id']
-            if sync_id not in self.syncs:
-                self.syncs[sync_id] = {}
-                self.syncs[sync_id]['start_date'] = event['date']
+    # ----------- START PARSING FUNCTIONS ---------------
+
+    def parse_create(self,  ev_params, msg_body, event):
+        parsed = self.pattern_create.parse(msg_body)
+        U = parsed['unit']
+        assert U not in self.units, "Unit hash collision?"
+        if self.levels == {} :
+            self.levels[0] = {'date' : event['date']}
+        self.units[U] = {'created': event['date']}
+        self.create_attempt_dates.append(event['date'])
+
+    def parse_mem_usg(self, ev_params, msg_body, event):
+        parsed = self.pattern_memory.parse(msg_body)
+        entry = {'date': event['date'], 'memory': parsed['usage'], 'poset_size': len(self.units)}
+        self.memory_info.append(entry)
+
+    def parse_new_level(self, ev_params, msg_body, event):
+        parsed = self.pattern_level.parse(msg_body)
+
+        level = parsed['level']
+        assert level not in self.levels, f"The same level {level} reached for the second time."
+        self.levels[level] = {'date': event['date']}
+
+    def parse_start_process(self, ev_params, msg_body, event):
+        parsed = self.pattern_start_process.parse(msg_body)
+
+        self.n_processes = parsed['n_processes']
+        self.process_id = event['process_id']
+        self.start_date = event['date']
+
+    def parse_add_received_done(self, ev_params, msg_body, event):
+        # need to add '  ' at the end of msg_body so that empty unit list gets parsed correctly
+        # this is because empty string is not a correct match while whitespace is fine
+        parsed = self.pattern_add_done.parse(msg_body+'  ')
+        units = parse_unit_list(parsed['unit_list'])
+        sync_id = int(ev_params[1])
+
+        for U in units:
+            if U not in self.units:
+                self.units[U] = {'received': [event['date']]}
             else:
-                self.syncs[sync_id]['conn_est_time'] = diff_in_seconds(self.syncs[sync_id]['start_date'], event['date'])
+                U_dict = self.units[U]
+                assert 'created' not in U_dict, f"Unit created by {self.read_process_id} later also received from another process."
+                U_dict['received'].append(event['date'])
 
-        if ev_type == 'receive_units_start':
-            sync_id = event['sync_id']
-            self.syncs[sync_id]['target'] = event['target']
+    def parse_receive_units_start(self, ev_params, msg_body, event):
+        parsed = self.pattern_receive_units_start.parse(msg_body)
+        sync_id = int(ev_params[1])
+        self.syncs[sync_id]['target'] = parsed['target']
 
-        if ev_type == 'send_units':
-            sync_id = event['sync_id']
-            self.syncs[sync_id]['units_sent'] = event['n_units']
-            self.syncs[sync_id]['bytes_sent'] = event['n_bytes']
+    def parse_add_run_time(self, ev_params, msg_body, event):
+        parsed = self.pattern_add_run_time.parse(msg_body)
+        avg_time = parsed['tot_time']/parsed['n_units']
+        units_in_poset = len(self.units)
+        # good to have the number of units as well to create a nice plot
+        self.add_run_times.append((units_in_poset, avg_time))
 
-        if ev_type == 'receive_units':
-            sync_id = event['sync_id']
-            self.syncs[sync_id]['units_received'] = event['n_units']
-            self.syncs[sync_id]['bytes_received'] = event['n_bytes']
+    def parse_listener_succ(self, ev_params, msg_body, event):
+        parsed = self.pattern_listener_succ.parse(msg_body)
+        sync_id = int(ev_params[1])
+        self.syncs[sync_id]['stop_date'] = event['date']
 
-        if ev_type == 'sync_success':
-            sync_id = event['sync_id']
-            self.syncs[sync_id]['stop_date'] = event['date']
+    def parse_try_sync(self, ev_params, msg_body, event):
+        parsed = self.pattern_try_sync.parse(msg_body)
+        sync_id = int(ev_params[1])
+        target = parsed['target']
 
-        if ev_type == 'try_sync':
-            # this is an outgoing sync
-            sync_id = event['sync_id']
-            assert sync_id not in self.syncs
+        assert sync_id not in self.syncs
+        self.syncs[sync_id] = {}
+        self.syncs[sync_id]['tried'] = True
+        self.syncs[sync_id]['start_date'] = event['date']
+        self.syncs[sync_id]['target'] = target
+
+        self.sync_attempt_dates.append(event['date'])
+
+    def parse_listener_sync_no(self, ev_params, msg_body, event):
+        parsed = self.pattern_listener_sync_no.parse(msg_body)
+        self.current_recv_sync_no.append(parsed['n_recv_syncs'])
+
+    def parse_establish(self, ev_params, msg_body, event):
+        sync_id = int(ev_params[1])
+
+        if sync_id not in self.syncs:
             self.syncs[sync_id] = {}
-            self.syncs[sync_id]['tried'] = True
             self.syncs[sync_id]['start_date'] = event['date']
-            self.syncs[sync_id]['target'] = event['target']
+        else:
+            self.syncs[sync_id]['conn_est_time'] = diff_in_seconds(self.syncs[sync_id]['start_date'], event['date'])
+            self.syncs[sync_id]['start_date'] = event['date']
 
-            self.sync_attempt_dates.append(event['date'])
+    def parse_add_lin_order(self, ev_params, msg_body, event):
+        parsed = self.pattern_add_line.parse(msg_body)
+        units = parse_unit_list(parsed['unit_list'])
+        level = parsed['timing_level']
+        assert parsed['n_units'] == len(units)
 
-        if ev_type == 'listener_sync_no':
-            self.current_recv_sync_no.append(event['n_recv_syncs'])
+        self.levels[level]['n_units_decided'] = parsed['n_units']
+        self.levels[level]['n_txs_ordered'] = parsed['n_txs']
 
-        if ev_type == 'add_run_time':
-            avg_time = event['tot_time']/event['n_units']
-            units_in_poset = len(self.units)
-            # good to have the number of units as well to create a nice plot
-            self.add_run_times.append((units_in_poset, avg_time))
+        for U in units:
+            assert U in self.units, f"Unit {U} being added to linear order, but its appearance not noted."
+            self.units[U]['ordered'] = event['date']
+
+    def parse_decide_timing(self, ev_params, msg_body, event):
+        parsed = self.pattern_decide_timing.parse(msg_body)
+        level = parsed['level']
+        timing_decided_level = parsed['level'] + parsed['plus_level']
+
+        self.levels[level]['timing_decided_level'] = timing_decided_level
+        self.levels[level]['timing_decided_date'] = event['date']
+
+    def parse_receive_units_done(self, ev_params, msg_body, event):
+        parsed = self.pattern_receive_units_done.parse(msg_body)
+
+        sync_id = int(ev_params[1])
+        self.syncs[sync_id]['units_received'] = parsed['n_units']
+        self.syncs[sync_id]['bytes_received'] = parsed['n_bytes']
+
+
+
+    def parse_send_units_sent(self, ev_params, msg_body, event):
+        parsed = self.pattern_send_units_sent.parse(msg_body)
+
+        sync_id = int(ev_params[1])
+        self.syncs[sync_id]['units_sent'] = parsed['n_units']
+        self.syncs[sync_id]['bytes_sent'] = parsed['n_bytes']
+
+    # ----------- END PARSING FUNCTIONS ---------------
+
+
+
+    def parse_and_handle_log_line(self, line):
+        '''
+        Given a line from the log, parse it and update the internal state of the analyzer.
+        :param string line: one line from the log
+        :returns: True or False depending on whether parsing was succesful
+        '''
+        # use a parse pattern to extract the date, the logger name etc. from the line
+        parsed_line =  self.msg_pattern.parse(line)
+        if parsed_line is None:
+            print('Line not parsed:')
+            print(line)
+            return False
+
+        if parsed_line['msg_level'] == 'ERROR':
+            print("Encountered ERROR line in the log:  ", line)
+            return False
+        #assert parsed_line is not None
+        # create the event to be the dict of parsed data from the line
+        # some of the fields might be then overwritten or removed and, of course, added
+        event = parsed_line.named
+
+        msg = event['msg']
+        # the bar '|' splits the message into "msg_type + basic parameters" and "msg_body"
+        split_msg = self.split_on_bar.parse(msg)
+        if split_msg is None:
+            # this happens when some log message is not formatted using "|"
+            # it means we should skip it
+            return False
+
+        event_descr, msg_body = split_msg['left'].strip(), split_msg['right'].strip()
+        ev_tokens = get_tokens(event_descr)
+
+        # this is the "event type"
+        ev_type = ev_tokens[0]
+
+
+        if ev_type in self.parse_mapping:
+            # this means that we support parsing this message
+            if len(ev_tokens) > 1:
+                event['process_id'] = int(ev_tokens[1])
+
+            if self.process_id is not None and event['process_id'] != self.process_id:
+                return False
+
+            # parse date
+            event['date'] = datetime.strptime(event['date'], "%Y-%m-%d %H:%M:%S,%f")
+
+            # use the mapping created in __init__ to parse the msg using the appropriate function
+            self.parse_mapping[ev_type](ev_tokens[1:], msg_body, event)
+        else:
+            # this event type is not supported yet... but we don't even need to support all of them
+            return False
+
+        return True
+
+
+    def get_unit_latency(self):
+        '''
+        Returns the average time from creating a unit till having it linearly ordered.
+        '''
+
+        delay_list = self.get_delays_create_order()
+        if delay_list == []:
+            return float('inf')
+        else:
+            return compute_basic_stats(delay_list)['avg']
+
+
+    def get_txps_till_first_timing_unit(self):
+        '''
+        Returns the number of transactions per second averaged from start till deciding on the timing unit at lvl 1.
+        '''
+        if 1 in self.levels and 'timing_decided_date' in self.levels[1]:
+            # making sure the first level has been decided
+            time_till_first_level_timing = diff_in_seconds(self.levels[0]['date'], self.levels[1]['timing_decided_date'])
+            return self.levels[1]['n_txs_ordered']/time_till_first_level_timing
+        else:
+            return 0.0
+
+
 
 
 
     def analyze(self):
         '''
-        Reads events from the log using the LogParser class and pulls them through handle_event.
+        Reads lines from the log, parses them and updates the analyzer's state.
         '''
-        log_parser = LogParser(self.file_path, self.read_process_id)
-        for event in log_parser.get_events():
-            self.handle_event(event)
+        with open(self.file_path, "r") as log_file:
+            for line in log_file:
+                self.parse_and_handle_log_line(line.strip())
+
+        if self.process_id is None:
+            # this means that the log does not even have a "start" message
+            # most likely it is empty
+            return False
+
+        return True
 
 
     def get_delays_create_order(self):
@@ -266,16 +434,11 @@ class LogAnalyzer:
             ax.scatter(x_series, y_series, s=1)
             ax.set(xlabel='#units', ylabel='sync time (sec)', title='Units exchanged vs sync time')
             fig.savefig(plot_file, dpi=500)
+            plt.close()
 
         return units_sent_per_sync, units_received_per_sync, time_per_sync, \
                 time_per_unit_exchanged, bytes_per_unit_exchanged, \
                 establish_connection_times, syncs_not_succeeded
-
-
-
-
-
-
 
 
 
@@ -296,6 +459,7 @@ class LogAnalyzer:
             fig.savefig(plot_file)
         if show_plot:
             plt.show()
+        plt.close()
         return [point[1] for point in data]
 
 
@@ -324,12 +488,34 @@ class LogAnalyzer:
             ax.plot(n_units_series , run_time_series)
             ax.set(xlabel='#units', ylabel='adding to poset time (sec)', title='Units in poset vs processing time of 1 unit.')
             fig.savefig(plot_file)
+            plt.close()
 
         return run_time_series
 
 
-    def prepare_report_per_process(self, report_file = 'report-proc'):
-        #syncs_total = [0]*self.n_processes
+    def prepare_report_per_process(self, dest_dir = 'reports', file_name_prefix = 'report-sync-'):
+        '''
+        Create the file with a a summary od synchronization statistics to all the remaining processes.
+        :param string dest_dir: the path to the directory where the report file should be written
+        :param string file_name_prefix: the prefix of the filename where the report should be written,
+                                        process_id and the extension '.txt' is appended at the end
+        WARNING: before calling this function call LogAnalyzer.analyze() first
+
+        Meaning of the specific columns:
+
+        - sync_fail: the total number of failed syncs (incoming and outcoming included)
+
+        - sync_succ: the total number of succesful syncs (incoming and outcoming included)
+
+        - avg_time: average time (per sync) spent on "talking" to a specific process
+
+        - n_conn: the number of outcoming connection attempts to a specific process
+
+        - conn_est_t: the average time spent on establishing connections to a specific process
+
+        - n_conn_fail: the number of attempted (outcoming) connections that failed to establish connection
+        '''
+
         syncs_failed = [0] * self.n_processes
         syncs_succeded = [0] * self.n_processes
         tot_time = [0.0] * self.n_processes
@@ -382,18 +568,63 @@ class LogAnalyzer:
 
             lines.append(format_line(fields, data))
 
-        with open(report_file+'.txt', "w") as rep_file:
+        report_file = os.path.join(dest_dir, file_name_prefix+str(self.process_id)+'.txt')
+
+        with open(report_file, "w") as rep_file:
             for line in lines:
                 rep_file.write(line+'\n')
 
+            print(f'Report file written to {report_file}.')
 
-    def prepare_basic_report(self, report_file = r'rep/report'):
+
+    def prepare_basic_report(self, dest_dir = 'reports', file_name_prefix = 'report-basic-'):
         '''
-        Read the log and create the file with a succinct summary of the data in the report_file.
+        Create the file with a succinct summary of the data in the report_file.
         It also creates some plots of the analyzed data.
         :param string report_file: the path to the file where the report should be written
-        WARNING: call this function only once per instance of LogAnalyzer.
-                 It does not wipe the internal state when called for the second time.
+        WARNING: before calling this function call LogAnalyzer.analyze() first
+
+        Meaning of the specific rows:
+        - n_units_decision: the number of units that are added to the linear order per timing unit
+
+        - time_decision: the time (in sec) between creating a new level and deciding on a timing unit on this level
+
+        - decision_height: the difference in levels between the timing unit and the unit which decided it (i.e. had Delta=1)
+        - n_txs_ordered: the number of unique transactions added in a batch between two timing units
+                         NOTE: there might be duplicate txs counted here, between different batches
+
+        - new_level_times: the time needed to create a new level
+
+        - create_ord_del: the time between creating a unit and placing it in the linear order
+
+        - add_ord_del: the same as create_ord_del, but now the unit is by another process and
+                       the timer is started once the unit is received in a sync
+
+        - units_sent_sync: the number of units sent to the other process in one sync
+
+        - units_recv_sync: the number of units received from the other process in one sync
+
+        - time_per_sync: the total duration of the synchronization: start when conn. established,
+                         stop when all data exchanged succesfully
+
+        - time_per_unit_ex: the average time_per_sync averaged by the number of units exchanged
+
+        - bytes_per_unit_ex: as time_per_unit_ex but the number of bytes transmitted
+                            NOTE: only the 2nd round of communication counted (i.e. exchanging heights not counted)
+
+        - est_conn_time: time to establish connection to another process
+
+        - sync_fail: ONE NUMBER: total number of failed synchronizations
+
+        - create_freq: the difference in time between two consecutive create_unit
+
+        - sync_freq: the difference in time between two consecutive synchronization attempts
+
+        - n_recv_syncs: the number of simultaneous incoming connections (sampled when a new process is trying to connect)
+
+        - memory_MiB: total memory used by the process
+
+        - add_unit_time_s: average time spend on adding one unit to the poset
         '''
 
 
@@ -412,7 +643,6 @@ class LogAnalyzer:
 
 
         # timing_decision
-        #print("level 1 decided: ", self.levels[1]['timing_decided_date'])
         levels, n_units_per_level, levels_plus_decided, level_delays, n_txs_per_level = self.get_timing_decision_stats()
         _append_stat_line(n_units_per_level, 'n_units_decision')
         _append_stat_line(level_delays, 'time_decision')
@@ -432,8 +662,9 @@ class LogAnalyzer:
         _append_stat_line(data, 'add_ord_del')
 
         # info about syncs
+        sync_plot_file = os.path.join(dest_dir, 'plot-sync-' + str(self.process_id) + '.png')
         sent_per_sync, recv_per_sync, time_per_sync, time_per_unit_ex, \
-            bytes_per_unit_ex, est_conn_time, syncs_not_succ = self.get_sync_info('sync_data.png')
+            bytes_per_unit_ex, est_conn_time, syncs_not_succ = self.get_sync_info(sync_plot_file)
         _append_stat_line(sent_per_sync, 'units_sent_sync')
         _append_stat_line(recv_per_sync, 'units_recv_sync')
         _append_stat_line(time_per_sync, 'time_per_sync')
@@ -452,19 +683,25 @@ class LogAnalyzer:
         _append_stat_line(data, 'n_recv_syncs')
 
         # memory
-        data = self.get_memory_usage_vs_poset_size('memory.png')
+        mem_plot_file = os.path.join(dest_dir, 'plot-mem-' + str(self.process_id) + '.png')
+        data = self.get_memory_usage_vs_poset_size(mem_plot_file)
         _append_stat_line(data, 'memory_MiB')
 
         # running time of add_unit
-        data = self.get_run_time_stats('run_time.png')
+        run_time_plot_file = os.path.join(dest_dir, 'plot-runtime-' + str(self.process_id) + '.png')
+        data = self.get_run_time_stats(run_time_plot_file)
         _append_stat_line(data, 'add_unit_time_s')
 
 
         #self.get_sync_info_per_process()
 
-        with open(report_file+'.txt', "w") as rep_file:
+        report_file = os.path.join(dest_dir, file_name_prefix+str(self.process_id)+'.txt')
+
+        with open(report_file, "w") as rep_file:
             for line in lines:
                 rep_file.write(line+'\n')
+
+            print(f'Report file written to {report_file}.')
 
 
 
@@ -502,15 +739,23 @@ def format_line(field_list, data = None):
         else:
             value = data[field]
 
-        if isinstance(value, str):
-            entry = value
-        elif isinstance(value, float):
-            entry = f"{float(value):.4f}"
+        if isinstance(value, float):
+            entry = f"{value:.4f}"
         else:
             entry = str(value)
+
         just_len = 25 if field == 'name' else 12
         entry = entry.ljust(just_len)
         line += entry
     return line
+
+
+# ------------------ Helper Functions for parser ------------------
+
+def get_tokens(space_separated_string):
+    return [s.strip() for s in space_separated_string.split()]
+
+def parse_unit_list(space_separated_units):
+    return [s[1:-1] for s in space_separated_units.split()]
 
 

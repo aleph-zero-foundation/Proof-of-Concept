@@ -2,6 +2,36 @@ from aleph.log_analyzer import LogAnalyzer
 import os
 import sys
 
+def prepare_common_stats(process_stats, rep_dir):
+	'''
+	Write basic stats common to all processes to a file.
+	'''
+	# NOTE: the txps in this stat is actually much lower than in reality, because here it is measured as
+	#		the total number of txs validated till the first timing unit was found, divided by the time
+	#		to reach the first timing unit.
+	#		If one wanted to calculate it more precisely then it should be something like
+	#		(the number of txs included in one level) / (the time to build one level)
+
+	n_stats = len(process_stats)
+	rep_path = os.path.join(rep_dir, "common-stats.txt")
+	with open(rep_path, "w") as rep_file:
+
+		fields = ['latency', 'txps']
+		header = ''.join( s.ljust(20) for s in ['name', 'median', 'min (proc_id)', 'max (proc_id)'])
+		print(header)
+		rep_file.write(header + '\n')
+		for field in fields:
+			process_stats.sort(key = lambda x: x[field])
+			line = field.ljust(20)
+			median = process_stats[n_stats//2][field]
+			line += (f'{median:.3f}').ljust(20)
+			min_val, min_proc = process_stats[0][field], process_stats[0]['process_id']
+			line += (f'{min_val:.3f} ({min_proc})').ljust(20)
+			max_val, max_proc = process_stats[-1][field], process_stats[-1]['process_id']
+			line += (f'{max_val:.3f} ({max_proc})').ljust(20)
+			print(line)
+			rep_file.write(line + '\n')
+
 
 
 if len(sys.argv) < 2:
@@ -19,27 +49,39 @@ if len(sys.argv) == 4 and sys.argv[1] == 'ALL':
 	log_dir = sys.argv[2]
 	rep_dir = sys.argv[3]
 
-	for dir_name in [log_dir, rep_dir]:
-		if not os.path.isdir(dir_name):
-			print(f"No such directory {dir_name}.")
-			sys.exit(0)
+	if not os.path.isdir(log_dir):
+		print(f"No such directory {log_dir}.")
+		sys.exit(0)
 
+	if not os.path.isdir(rep_dir):
+		print(f"No such directory {rep_dir}. Creating.")
+		os.mkdir(rep_dir)
 
 	list_logs = os.listdir(log_dir)
+	# do not parse other.log etc.
+	list_logs = sorted([log_file for log_file in list_logs if log_file.find("aleph") != -1])
 	n_logs = len(list_logs)
+	process_stats = []
 	for log_name, ind in zip(list_logs, range(n_logs)):
+
 		path = os.path.join(log_dir, log_name)
 		print(f'Analyzing {path}...')
 		analyzer = LogAnalyzer(path)
-		analyzer.analyze()
+		if not analyzer.analyze():
+			print('Failed because the log does not even contain the Process start message.')
+			continue
 		process_id = analyzer.process_id
-		basic_report_file_name = os.path.join(rep_dir,f"basic-report-{process_id:d}")
-		analyzer.prepare_basic_report(basic_report_file_name)
-		sync_report_file_name = os.path.join(rep_dir,f"sync-report-{process_id:d}")
-		analyzer.prepare_report_per_process(sync_report_file_name)
+		print(f"{ind}: Process' {process_id} log analyzed.\n")
+		analyzer.prepare_basic_report(rep_dir)
+		analyzer.prepare_report_per_process(rep_dir)
 
-		print(f"{ind}: Process' {process_id} log analyzed. ")
-		print(f"Reports saved to {basic_report_file_name}.txt and {sync_report_file_name}.txt")
+		stats = {'process_id' : process_id}
+		stats['latency'] = analyzer.get_unit_latency()
+		stats['txps'] = analyzer.get_txps_till_first_timing_unit()
+		process_stats.append(stats)
+
+	prepare_common_stats(process_stats, rep_dir)
+
 
 if len(sys.argv) in [2,3]:
 	path = sys.argv[1]
@@ -49,12 +91,9 @@ if len(sys.argv) in [2,3]:
 		process_id = None
 
 	analyzer = LogAnalyzer(path, process_id)
-	analyzer.analyze()
+	if not analyzer.analyze():
+		print('Failed because the log does not even contain the Process start message.')
+		sys.exit(0)
 	process_id = analyzer.process_id
-	basic_report_file_name = f'report-{process_id:d}'
-	analyzer.prepare_basic_report(basic_report_file_name)
-	print(f'Created {basic_report_file_name}.txt')
-	sync_report_file_name = f'proc-report-{process_id:d}'
-	analyzer.prepare_report_per_process(sync_report_file_name)
-	print(f'Created {sync_report_file_name}.txt')
-	#print(process_id)
+	analyzer.prepare_basic_report('.')
+	analyzer.prepare_report_per_process('.')
