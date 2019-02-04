@@ -77,7 +77,7 @@ async def listener(process, process_id, addresses, public_key_list, executor, se
 
         units_received = await _receive_units(sync_id, process_id, ex_id, reader, 'listener', logger)
 
-        with timer((process_id, sync_id), 'verify signatures'):
+        with timer(f'{process_id} {sync_id}', 'verify signatures'):
             succesful = _verify_signatures(sync_id, process_id, units_received, public_key_list, executor, 'listener', logger)
         if not succesful:
             # TODO: this should not really happen in the prototype but still, we should also close sockets here
@@ -86,7 +86,7 @@ async def listener(process, process_id, addresses, public_key_list, executor, se
             n_recv_syncs -= 1
             return
 
-        with timer((process_id, sync_id), 'add_units'):
+        with timer(f'{process_id} {sync_id}', 'add_units'):
             succesful = _add_units(sync_id, process_id, ex_id, units_received, process, 'listener', logger)
         if not succesful:
             logger.error(f'listener_not_compliant {process_id} {sync_id} | got unit from {ex_id} that does not comply to the rules; aborting')
@@ -121,6 +121,7 @@ async def sync(process, initiator_id, target_id, target_addr, public_key_list, e
 
     # new sync id
     sync_id = process.sync_id
+    process_id = process.process_id
     process.sync_id += 1
 
     logger.info(f'sync_establish_try {initiator_id} {sync_id} | Establishing connection to {target_id}')
@@ -137,20 +138,20 @@ async def sync(process, initiator_id, target_id, target_addr, public_key_list, e
 
     units_received = await _receive_units(sync_id, initiator_id, target_id, reader, 'sync', logger)
 
-    with timer((process_id, sync_id), 'verify signatures'):
+    with timer(f'{process_id} {sync_id}', 'verify signatures'):
         succesful = _verify_signatures(sync_id, initiator_id, units_received, public_key_list, executor, 'sync', logger)
     if not succesful:
         logger.info(f'sync_invalid_sign {initiator_id} {sync_id} | Got a unit from {target_id} with invalid signature; aborting')
         return
 
-    with timer((process_id, sync_id), 'add_units'):
+    with timer(f'{process_id} {sync_id}', 'add_units'):
         succesful = _add_units(sync_id, initiator_id, target_id, units_received, process, 'sync', logger)
     if not succesful:
         logger.error(f'sync_not_compliant {initiator_id} {sync_id} | Got unit from {target_id} that does not comply to the rules; aborting')
         return
 
     logger.info(f'sync_done {initiator_id} {sync_id} | Syncing with {target_id} succesful')
-    timer.write_summary(where=logger, groups=[(process_id, sync_id)])
+    timer.write_summary(where=logger, groups=[f'{process_id} {sync_id}'])
 
     # TODO: at some point we need to add exceptions and exception handling and make sure that the two lines below are executed no matter what happens
     writer.close()
@@ -191,10 +192,10 @@ async def _receive_units(sync_id, process_id, ex_id, reader, mode, logger):
     n_bytes = int(data[:-1])
     data = await reader.readexactly(n_bytes)
     logger.info(f'receive_units_bytes_{mode} {process_id} {sync_id} | Received {n_bytes} bytes from {ex_id}')
-    with timer((process_id, sync_id), 'decompress units'):
+    with timer(f'{process_id} {sync_id}', 'decompress units'):
         if SEND_COMPRESSED:
             data = zlib.decompress(data)
-    with timer((process_id, sync_id), 'unpickle units'):
+    with timer(f'{process_id} {sync_id}', 'unpickle units'):
         units_received = pickle.loads(data)
     n_units = len(units_received)
     logger.info(f'receive_units_done_{mode} {process_id} {sync_id} | Received {n_bytes} bytes and {n_units} units')
@@ -210,9 +211,9 @@ async def _send_units(sync_id, process_id, ex_id, int_heights, ex_heights, proce
         units = process.poset.units_by_height_interval(creator_id=i, min_height=ex_heights[i]+1, max_height=int_heights[i])
         units_to_send.extend(units)
     units_to_send = process.poset.order_units_topologically(units_to_send)
-    with timer((process_id, sync_id), 'pickle units'):
+    with timer(f'{process_id} {sync_id}', 'pickle units'):
         data = pickle.dumps(units_to_send)
-    with timer((process_id, sync_id), 'compress units'):
+    with timer(f'{process_id} {sync_id}', 'compress units'):
         if SEND_COMPRESSED:
             data = zlib.compress(data)
     writer.write(str(len(data)).encode())
@@ -235,26 +236,6 @@ def _verify_signatures(sync_id, process_id, units_received, public_key_list, exe
 
     logger.info(f'verify_sign_{mode} {process_id} {sync_id} | Signatures verified')
     return True
-
-
-#async def _verify_signatures(sync_id, process_id, units_received, public_key_list, executor, mode, logger):
-#    logger.info(f'{mode} {process_id} {sync_id} | Verifying signatures')
-#
-#    loop = asyncio.get_running_loop()
-#    # TODO check if it possible to create one tast that waits for verifying all units
-#    # create tasks for checking signatures of all units
-#    pending = [loop.run_in_executor(executor, verify_signature, unit, public_key_list) for unit in units_received]
-#
-#    # check iteratively if all sigantures are valid
-#    while pending:
-#        done, pending = await asyncio.wait(pending, return_when=asyncio.FIRST_COMPLETED)
-#        for coro in done:
-#            if not coro.result():
-#                return False
-#
-#    logger.info(f'verify_sign_{mode} {process_id} {sync_id} | Signatures verified')
-#
-#    return True
 
 
 def _add_units(sync_id, process_id, ex_id, units_received, process, mode, logger):

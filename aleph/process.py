@@ -12,6 +12,7 @@ from aleph.data_structures import Poset, UserDB
 from aleph.crypto import CommonRandomPermutation
 from aleph.network import listener, sync, tx_listener
 from aleph.config import CREATE_FREQ, SYNC_INIT_FREQ, LOGGER_NAME
+from aleph.utils import timer
 
 
 
@@ -129,19 +130,23 @@ class Process:
             for U_timing in new_timing_units:
                 self.logger.info(f'timing_new {self.process_id} | Timing unit at level {U_timing.level} established.')
             for U_timing in new_timing_units:
-                units_to_order = []
-                for V_hash in self.unordered_units:
-                    V = self.poset.unit_by_hash(V_hash)
-                    if self.poset.below(V, U_timing):
-                        units_to_order.append(V)
-                ordered_units = self.poset.break_ties(units_to_order)
-                ordered_units_hashes = [W.hash() for W in ordered_units]
-                self.linear_order += ordered_units_hashes
-                self.unordered_units = self.unordered_units.difference(ordered_units_hashes)
+                with timer(self.process_id, 'linear_order'):
+                    units_to_order = []
+                    for V_hash in self.unordered_units:
+                        V = self.poset.unit_by_hash(V_hash)
+                        if self.poset.below(V, U_timing):
+                            units_to_order.append(V)
+                    ordered_units = self.poset.break_ties(units_to_order)
+                    ordered_units_hashes = [W.hash() for W in ordered_units]
+                    self.linear_order += ordered_units_hashes
+                    self.unordered_units = self.unordered_units.difference(ordered_units_hashes)
 
-                printable_unit_hashes = ''.join([' '+W.short_name() for W in ordered_units])
-                n_txs = self.process_txs_in_unit_list(ordered_units)
+                    printable_unit_hashes = ''.join([' '+W.short_name() for W in ordered_units])
+                    n_txs = self.process_txs_in_unit_list(ordered_units)
+
                 self.logger.info(f'add_linear_order {self.process_id} | At lvl {U_timing.level} added {len(units_to_order)} units and {n_txs} txs to the linear order {printable_unit_hashes}')
+                timer.write_summary(where=self.logger, groups=[self.process_id])
+                timer.reset(self.process_id)
 
 
     def add_unit_to_poset(self, U):
@@ -178,6 +183,7 @@ class Process:
             self.add_unit_runtimes.append(tot_time)
 
         return True
+
 
     def validate_transactions_in_unit(self, U, U_validator):
         '''
@@ -231,7 +237,11 @@ class Process:
                 self.add_unit_runtimes = []
 
             txs = self.prepared_txs
-            new_unit = self.poset.create_unit(self.process_id, txs, strategy = "link_self_predecessor", num_parents = 2)
+            with timer(self.process_id, 'create_unit'):
+                new_unit = self.poset.create_unit(self.process_id, txs, strategy = "link_self_predecessor", num_parents = 2)
+            timer.write_summary(where=self.logger, groups=[self.process_id])
+            timer.reset(self.process_id)
+
             if new_unit is not None:
                 self.poset.prepare_unit(new_unit)
                 assert self.poset.check_compliance(new_unit), "A unit created by our process is not passing the compliance test!"
@@ -268,7 +278,6 @@ class Process:
         p.start()
 
         serverStarted = asyncio.Event()
-        #executor = concurrent.futures.ProcessPoolExecutor(max_workers=3)
         executor = None
         creator_task = asyncio.create_task(self.create_add(txs_queue, serverStarted))
         listener_task = asyncio.create_task(listener(self, self.process_id, self.address_list, self.public_key_list, executor, serverStarted))
