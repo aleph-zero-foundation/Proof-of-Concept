@@ -97,7 +97,7 @@ async def listener(process, process_id, addresses, public_key_list, executor, se
 
 
         logger.info(f'listener_succ {process_id} {sync_id} | Syncing with {ex_id} succesful')
-        timer.write_summary(where=logger, groups=[(process_id, sync_id)])
+        timer.write_summary(where=logger, groups=[f'{process_id} {sync_id}'])
         n_recv_syncs -= 1
         writer.close()
         await writer.wait_closed()

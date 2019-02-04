@@ -74,7 +74,6 @@ class Process:
 
         # initialize logger
         self.logger = logging.getLogger(LOGGER_NAME)
-        self.profile_add_unit = profile_add_unit
 
 
     def sign_unit(self, U):
@@ -154,8 +153,6 @@ class Process:
         :param unit U: the unit to be added
         :returns: boolean value: True if succesfully added, False if unit is not compliant
         '''
-        if self.profile_add_unit:
-            start_time = time.time()
 
         if U.hash() in self.poset.units.keys():
             return True
