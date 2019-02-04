@@ -68,7 +68,7 @@ class timer:
         for group in groups:
             if group in cls.results:
                 for name, time in cls.results[group].items():
-                    write(f'timer {str(group)} |  {name:20}  took  {time:10.6f}')
+                    write(f'timer  {str(group)}  |  {name:20}  took  {time:10.6f}  seconds')
 
 
     @classmethod
