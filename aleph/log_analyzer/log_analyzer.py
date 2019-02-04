@@ -723,6 +723,7 @@ class LogAnalyzer:
         _append_stat_line(times['t_add_units'], 'time_add_units')
         _append_stat_line(times['t_tot_sync'], 'time_cpu_sync')
         _append_stat_line(times['t_order_level'], 'time_order')
+        _append_stat_line(times['t_create'], 'time_create')
 
 
         #self.get_sync_info_per_process()
