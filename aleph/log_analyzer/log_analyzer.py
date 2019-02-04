@@ -24,6 +24,9 @@ class LogAnalyzer:
         self.levels = {}
         self.sync_attempt_dates = []
         self.create_attempt_dates = []
+
+        self.create_times = []
+
         self.current_recv_sync_no = []
         self.read_process_id = process_id
         self.file_path = file_path
@@ -54,6 +57,7 @@ class LogAnalyzer:
         self.pattern_start_process = parse.compile("Starting a new process in committee of size {n_processes:d}")
         self.pattern_receive_units_start = parse.compile("Receiving units from {target:d}")
         self.pattern_add_done = parse.compile("units from {target:d} were added succesfully {unit_list}")
+        self.pattern_timer = parse.compile("{timer_name} took {time_spent:f} s")
 
 
         # create the mapping between event types and the functions used for parsing this types of events
@@ -80,6 +84,7 @@ class LogAnalyzer:
             'receive_untis_start_sync' : self.parse_receive_units_start,
             'add_received_done_listener' : self.parse_add_received_done,
             'add_received_done_sync' : self.parse_add_received_done,
+            'timer' : self.parse_timer,
             }
 
     # Functions for parsing specific types of log messages. Typically one function per log lessage type.
@@ -101,6 +106,22 @@ class LogAnalyzer:
             self.levels[0] = {'date' : event['date']}
         self.units[U] = {'created': event['date']}
         self.create_attempt_dates.append(event['date'])
+
+    def parse_timer(self,  ev_params, msg_body, event):
+        parsed = self.pattern_timer.parse(msg_body)
+        timer_name = parsed['timer_name']
+        time_spent = parsed['time_spent']
+        if len(ev_params) > 1:
+            sync_id = int(ev_params[1])
+            self.syncs[sync_id]['t_' + timer_name] = time_spent
+        else:
+            if timer_name == "create_unit":
+                self.create_times.append(time_spent)
+            else:
+            # this is 'linear_order_L' where L is the level
+                level = parse.parse("linear_order_{level:d}", timer_name)['level']
+                self.levels[level]['t_lin_order'] = time_spent
+
 
     def parse_mem_usg(self, ev_params, msg_body, event):
         parsed = self.pattern_memory.parse(msg_body)
@@ -277,6 +298,23 @@ class LogAnalyzer:
         return True
 
 
+
+    def analyze(self):
+        '''
+        Reads lines from the log, parses them and updates the analyzer's state.
+        '''
+        with open(self.file_path, "r") as log_file:
+            for line in log_file:
+                self.parse_and_handle_log_line(line.strip())
+
+        if self.process_id is None:
+            # this means that the log does not even have a "start" message
+            # most likely it is empty
+            return False
+
+        return True
+
+
     def get_unit_latency(self):
         '''
         Returns the average time from creating a unit till having it linearly ordered.
@@ -301,24 +339,30 @@ class LogAnalyzer:
             return 0.0
 
 
+    def get_cpu_times(self):
+        timer_names = ['t_compress_units', 't_decompress_units', 't_unpickle_units',
+                     't_verify_signatures', 't_add_units', 't_tot_sync', 't_order_level']
+        cpu_time_summary = { name : [] for name in timer_names }
 
+        total_add_unit = 0.0
+        n_add_unit = 0
 
+        for sync_id, sync_dict in self.syncs.items():
+            sync_tot_time = 0.0
+            for name in timer_names:
+                if name in sync_dict:
+                    cpu_time_summary[name].append(sync_dict[name])
+                    sync_tot_time += sync_dict[name]
+            if sync_tot_time > 0.0:
+                cpu_time_summary['t_tot_sync'].append(sync_tot_time)
 
-    def analyze(self):
-        '''
-        Reads lines from the log, parses them and updates the analyzer's state.
-        '''
-        with open(self.file_path, "r") as log_file:
-            for line in log_file:
-                self.parse_and_handle_log_line(line.strip())
+        for level, level_dict in self.levels.items():
+            if 't_lin_order' in level_dict:
+                cpu_time_summary['t_order_level'].append(level_dict['t_lin_order'])
 
-        if self.process_id is None:
-            # this means that the log does not even have a "start" message
-            # most likely it is empty
-            return False
+        cpu_time_summary['t_create'] = self.create_times
 
-        return True
-
+        return cpu_time_summary
 
     def get_delays_create_order(self):
         '''
@@ -475,22 +519,6 @@ class LogAnalyzer:
 
         return create_delays, sync_delays
 
-    def get_run_time_stats(self, plot_file = None):
-        '''
-        Return statistics regarding the time of adding one unit to the poset.
-        '''
-        n_units_series = [p[0] for p in self.add_run_times]
-        run_time_series = [p[1] for p in self.add_run_times]
-
-
-        if plot_file is not None:
-            fig, ax = plt.subplots()
-            ax.plot(n_units_series , run_time_series)
-            ax.set(xlabel='#units', ylabel='adding to poset time (sec)', title='Units in poset vs processing time of 1 unit.')
-            fig.savefig(plot_file)
-            plt.close()
-
-        return run_time_series
 
 
     def prepare_report_per_process(self, dest_dir = 'reports', file_name_prefix = 'report-sync-'):
@@ -687,10 +715,14 @@ class LogAnalyzer:
         data = self.get_memory_usage_vs_poset_size(mem_plot_file)
         _append_stat_line(data, 'memory_MiB')
 
-        # running time of add_unit
-        run_time_plot_file = os.path.join(dest_dir, 'plot-runtime-' + str(self.process_id) + '.png')
-        data = self.get_run_time_stats(run_time_plot_file)
-        _append_stat_line(data, 'add_unit_time_s')
+        times = self.get_cpu_times()
+        _append_stat_line(times['t_compress_units'], 'time_compress')
+        _append_stat_line(times['t_decompress_units'], 'time_decompress')
+        _append_stat_line(times['t_unpickle_units'], 'time_unpickle')
+        _append_stat_line(times['t_verify_signatures'], 'time_verify')
+        _append_stat_line(times['t_add_units'], 'time_add_units')
+        _append_stat_line(times['t_tot_sync'], 'time_cpu_sync')
+        _append_stat_line(times['t_order_level'], 'time_order')
 
 
         #self.get_sync_info_per_process()

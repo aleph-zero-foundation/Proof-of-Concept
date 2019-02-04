@@ -138,7 +138,7 @@ async def sync(process, initiator_id, target_id, target_addr, public_key_list, e
 
     units_received = await _receive_units(sync_id, initiator_id, target_id, reader, 'sync', logger)
 
-    with timer(f'{process_id} {sync_id}', 'verify signatures'):
+    with timer(f'{process_id} {sync_id}', 'verify_signatures'):
         succesful = _verify_signatures(sync_id, initiator_id, units_received, public_key_list, executor, 'sync', logger)
     if not succesful:
         logger.info(f'sync_invalid_sign {initiator_id} {sync_id} | Got a unit from {target_id} with invalid signature; aborting')
@@ -192,10 +192,10 @@ async def _receive_units(sync_id, process_id, ex_id, reader, mode, logger):
     n_bytes = int(data[:-1])
     data = await reader.readexactly(n_bytes)
     logger.info(f'receive_units_bytes_{mode} {process_id} {sync_id} | Received {n_bytes} bytes from {ex_id}')
-    with timer(f'{process_id} {sync_id}', 'decompress units'):
+    with timer(f'{process_id} {sync_id}', 'decompress_units'):
         if SEND_COMPRESSED:
             data = zlib.decompress(data)
-    with timer(f'{process_id} {sync_id}', 'unpickle units'):
+    with timer(f'{process_id} {sync_id}', 'unpickle_units'):
         units_received = pickle.loads(data)
     n_units = len(units_received)
     logger.info(f'receive_units_done_{mode} {process_id} {sync_id} | Received {n_bytes} bytes and {n_units} units')
@@ -211,9 +211,9 @@ async def _send_units(sync_id, process_id, ex_id, int_heights, ex_heights, proce
         units = process.poset.units_by_height_interval(creator_id=i, min_height=ex_heights[i]+1, max_height=int_heights[i])
         units_to_send.extend(units)
     units_to_send = process.poset.order_units_topologically(units_to_send)
-    with timer(f'{process_id} {sync_id}', 'pickle units'):
+    with timer(f'{process_id} {sync_id}', 'pickle_units'):
         data = pickle.dumps(units_to_send)
-    with timer(f'{process_id} {sync_id}', 'compress units'):
+    with timer(f'{process_id} {sync_id}', 'compress_units'):
         if SEND_COMPRESSED:
             data = zlib.compress(data)
     writer.write(str(len(data)).encode())
