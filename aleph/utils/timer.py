@@ -2,27 +2,28 @@ import gc
 from logging import Logger
 from time import perf_counter as get_time
 
+
 class timer:
     """
     A simple timer for small snippets of code, usable as a context manager.
 
     Usage:
 
-        with timer('somename'):
+        with timer('group', 'somename'):
             code1
             code2
             code3
 
-        with timer('somename', disable_gc=True): #disables garbage collector in the whole block
+        with timer('group', 'somename', disable_gc=True): #disables garbage collector in the whole block
             code1
             ...
 
-        timer.write_summary(where, names)
+        timer.write_summary(where, groups)
             #*where* can be a Logger instance, None (stdout - default) or any object with callable write() attribute
-            #*names* - print summary only for chosen names. By default prints all names
+            #*groups* - print summary only for chosen groups. By default prints all groups
 
-        timer.reset(name)
-            #forgets about everything that happened for timer *name*. If *name* is None, forgets everything
+        timer.reset(group)
+            #forgets about everything that was recorded with timers from a given group. If *group* is None, forgets everything
     """
 
     results = {}
@@ -59,7 +60,7 @@ class timer:
             write = print
         elif isinstance(where, Logger):
             write = where.info
-        elif hasattr(where, 'write'):
+        elif hasattr(where, 'write') and callable(where.write):
             write = where.write
 
         groups = groups or list(sorted(cls.results.keys()))
@@ -67,7 +68,7 @@ class timer:
         for group in groups:
             if group in cls.results:
                 for name, time in cls.results[group].items():
-                    write(f'timer {group[0]} {group[1]} |  {name:20}  took  {time:10.6f}')
+                    write(f'timer {str(group)} |  {name:20}  took  {time:10.6f}')
 
 
     @classmethod
