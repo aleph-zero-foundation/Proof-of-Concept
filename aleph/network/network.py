@@ -121,6 +121,7 @@ async def sync(process, initiator_id, target_id, target_addr, public_key_list, e
 
     # new sync id
     sync_id = process.sync_id
+    process_id = process.process_id
     process.sync_id += 1
 
     logger.info(f'sync_establish_try {initiator_id} {sync_id} | Establishing connection to {target_id}')
