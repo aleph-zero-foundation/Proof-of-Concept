@@ -341,7 +341,7 @@ class LogAnalyzer:
 
     def get_cpu_times(self, cpu_plot_file = None, cpu_io_plot_file = None):
         timer_names = ['t_compress_units', 't_decompress_units', 't_unpickle_units',
-                     't_verify_signatures', 't_add_units']
+                     't_pickle_units', 't_verify_signatures', 't_add_units']
         cpu_time_summary = { name : [] for name in timer_names }
         cpu_time_summary['t_tot_sync'] = []
         cpu_time_summary['t_order_level'] = []
@@ -704,6 +704,8 @@ class LogAnalyzer:
 
         - time_decompress: time (per sync) spent on decompressing the msgs sent through sockets
 
+        - time_pickle: time (per sync) spent on pickling the msgs sent through sockets
+
         - time_unpickle: time (per sync) spent on unpickling the msgs sent through sockets
 
         - time_verify: time (per sync) spent on verifying the units received
@@ -790,6 +792,7 @@ class LogAnalyzer:
         times = self.get_cpu_times(sync_bar_plot_file_cpu, sync_bar_plot_file_all)
         _append_stat_line(times['t_compress_units'], 'time_compress')
         _append_stat_line(times['t_decompress_units'], 'time_decompress')
+        _append_stat_line(times['t_pickle_units'], 'time_pickle')
         _append_stat_line(times['t_unpickle_units'], 'time_unpickle')
         _append_stat_line(times['t_verify_signatures'], 'time_verify')
         _append_stat_line(times['t_add_units'], 'time_add_units')
