@@ -86,15 +86,14 @@ class Process:
 
     def process_txs_in_unit_list(self, list_U):
         '''
-        For now this just counts unique transactions in all the units in list_U.
-        :returns: The number of unique transactions
+        For now this just counts the transactions in all the units in list_U.
+        :returns: The number of transactions
         '''
-        all_txs = set()
+        n_txs = 0
         for U in list_U:
-            for tx in U.transactions():
-                all_txs.add(tx)
+            n_txs += len(U.transactions())
 
-        return len(all_txs)
+        return n_txs
 
 
 
