@@ -8,7 +8,7 @@ from optparse import OptionParser
 
 from aleph.crypto.keys import SigningKey, VerifyKey
 from aleph.data_structures import UserDB, Tx
-from aleph.network import tx_listener
+from aleph.network import tx_listener, tx_source_gen
 from aleph.process import Process
 
 import aleph.const as consts
@@ -70,6 +70,10 @@ async def main():
     userDB = None
 
     recv_address = None
+    if params['tx_source'] == 'tx_source_gen':
+        tx_source = tx_source_gen(n_processes, params['tx_limit'], process_id)
+    else:
+        tx_source = tx_listener
 
     process = Process(n_processes,
                       process_id,

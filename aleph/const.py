@@ -10,7 +10,7 @@ N_RECV_SYNC     = 10           # number of allowed parallel syncs
 TXPU            = 2000         # number of transactions per unit
 
 LEVEL_LIMIT     = None         # maximal level after which process shuts donw
-UNITS_LIMIT     = None         # maximal number of units that are constructed
+UNITS_LIMIT     = 30 # maximal number of units that are constructed
 SYNCS_LIMIT     = None         # maximal number of syncs that are performed
 
 HOST_IP         = '127.0.0.1'  # default ip address of a process

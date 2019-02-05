@@ -271,7 +271,8 @@ class Process:
 
             await asyncio.sleep(CREATE_FREQ)
 
-            self.keep_syncing = False
+
+        self.keep_syncing = False
         logger = logging.getLogger(LOGGER_NAME)
         if max_level_reached:
             logger.info(f'create_stop {self.process_id} | process reached max_level {LEVEL_LIMIT}')
@@ -284,13 +285,14 @@ class Process:
 
         sync_count = 0
         while sync_count != SYNCS_LIMIT and self.keep_syncing:
+            sync_count += 1
             sync_candidates = list(range(self.n_processes))
             sync_candidates.remove(self.process_id)
             target_id = self.choose_process_to_sync_with()
             self.syncing_tasks.append(asyncio.create_task(sync(self, self.process_id, target_id, self.ip_addresses[target_id], self.public_key_list, executor)))
 
             await asyncio.sleep(SYNC_INIT_FREQ)
-            self.syncing_tasks = [task for task in self.syncing_tasks if not task.done()]
+            #_, self.syncing_tasks = await asyncio.wait(self.syncing_tasks, return_when=asyncio.FIRST_COMPLETED)
 
         await asyncio.gather(*self.syncing_tasks)
         logger = logging.getLogger(LOGGER_NAME)
