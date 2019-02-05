@@ -5,20 +5,20 @@ from functools import reduce
 import random
 import logging
 
+
 from aleph.crypto.signatures.threshold_signatures import generate_keys, SecretKey, VerificationKey
 from aleph.crypto.threshold_coin import ThresholdCoin
 
 from aleph.data_structures.unit import Unit
+from aleph.const import LOGGER_NAME, USE_TCOIN, ADD_SHARES
 from aleph.crypto import xor
-from aleph.config import *
-
 
 
 class Poset:
     '''This class is the core data structure of the Aleph protocol.'''
 
 
-    def __init__(self, n_processes, crp = None, compliance_rules = None, memo_height = 10, use_tcoin = False, process_id = None):
+    def __init__(self, n_processes, crp = None, use_tcoin=USE_TCOIN, compliance_rules = None, memo_height = 10, process_id = None):
         '''
         :param int n_processes: the committee size
         :param list compliance_rules: dictionary string -> bool
@@ -27,7 +27,7 @@ class Poset:
         self.default_compliance_rules = {'forker_muting': True, 'parent_diversity': True, 'growth': True, 'threshold_coin': use_tcoin}
         self.compliance_rules = compliance_rules
         self.use_tcoin = use_tcoin
-        # process_id is used only to support tcoin (i.e. in case use_tcoin = True), to know which shares to add and which tcoin to pick from dealing units
+        # process_id is used only to support tcoin (i.e. in case self.use_tcoin = True), to know which shares to add and which tcoin to pick from dealing units
         self.process_id = process_id
 
         self.units = {}

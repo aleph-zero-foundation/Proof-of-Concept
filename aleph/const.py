@@ -1,6 +1,6 @@
 N_PARENTS       = 2
 
-ENABLE_TCOIN    = False        # whether to use threshold coin
+USE_TCOIN       = False        # whether to use threshold coin
 ADD_SHARES      = 4            # level at which start to adding coin shares to units
 
 CREATE_FREQ     = 1            # frequency of creating new units
