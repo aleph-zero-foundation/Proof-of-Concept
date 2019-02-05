@@ -77,7 +77,7 @@ async def listener(process, process_id, addresses, public_key_list, executor, se
 
         units_received = await _receive_units(sync_id, process_id, ex_id, reader, 'listener', logger)
 
-        with timer(f'{process_id} {sync_id}', 'verify signatures'):
+        with timer(f'{process_id} {sync_id}', 'verify_signatures'):
             succesful = _verify_signatures(sync_id, process_id, units_received, public_key_list, executor, 'listener', logger)
         if not succesful:
             # TODO: this should not really happen in the prototype but still, we should also close sockets here

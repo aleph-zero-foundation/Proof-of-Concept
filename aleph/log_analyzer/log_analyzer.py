@@ -283,7 +283,7 @@ class LogAnalyzer:
             if len(ev_tokens) > 1:
                 event['process_id'] = int(ev_tokens[1])
 
-            if self.process_id is not None and event['process_id'] != self.process_id:
+            if self.read_process_id is not None and event['process_id'] != self.read_process_id:
                 return False
 
             # parse date
@@ -339,28 +339,73 @@ class LogAnalyzer:
             return 0.0
 
 
-    def get_cpu_times(self):
+    def get_cpu_times(self, cpu_plot_file = None, cpu_io_plot_file = None):
         timer_names = ['t_compress_units', 't_decompress_units', 't_unpickle_units',
-                     't_verify_signatures', 't_add_units', 't_tot_sync', 't_order_level']
+                     't_verify_signatures', 't_add_units']
         cpu_time_summary = { name : [] for name in timer_names }
+        cpu_time_summary['t_tot_sync'] = []
+        cpu_time_summary['t_order_level'] = []
 
         total_add_unit = 0.0
         n_add_unit = 0
 
+        cpu_breakdown_entries = []
+        cpu_io_breakdown = []
+
         for sync_id, sync_dict in self.syncs.items():
-            sync_tot_time = 0.0
+            sync_tot_cpu_time = 0.0
+            entry = []
             for name in timer_names:
                 if name in sync_dict:
                     cpu_time_summary[name].append(sync_dict[name])
-                    sync_tot_time += sync_dict[name]
-            if sync_tot_time > 0.0:
-                cpu_time_summary['t_tot_sync'].append(sync_tot_time)
+                    sync_tot_cpu_time += sync_dict[name]
+                entry.append(sync_dict.get(name, 0.0))
+            if sync_tot_cpu_time > 0.0:
+                cpu_time_summary['t_tot_sync'].append(sync_tot_cpu_time)
+                cpu_breakdown_entries.append(entry)
+            if sync_tot_cpu_time > 0.0 and 'stop_date' in sync_dict:
+                sync_tot_time = diff_in_seconds(sync_dict['start_date'], sync_dict['stop_date'])
+                cpu_io_breakdown.append([sync_tot_cpu_time, sync_tot_time - sync_tot_cpu_time])
 
         for level, level_dict in self.levels.items():
             if 't_lin_order' in level_dict:
                 cpu_time_summary['t_order_level'].append(level_dict['t_lin_order'])
 
         cpu_time_summary['t_create'] = self.create_times
+
+
+        # the plot with how the cpu time is divided between various tasks
+        if cpu_plot_file is not None and cpu_breakdown_entries != []:
+            layers = []
+            n_syncs = len(cpu_breakdown_entries)
+            heights = [0.0] * n_syncs
+            for ind in range(len(timer_names)):
+                y_series = [cpu_breakdown_entries[i][ind] for i in range(n_syncs)]
+                x_series = range(n_syncs)
+                # the width of the bars
+                width = 0.5
+                layer = plt.bar(x_series, y_series, width, bottom=heights)
+                layers.append(layer)
+                heights = [y_series[i] + heights[i] for i in range(n_syncs)]
+            plt.legend([layer[0] for layer in layers], timer_names)
+            plt.savefig(cpu_plot_file, dpi=1000)
+            plt.close()
+
+        # the plot showing how the sync time divides into cpu vs non-cpu
+        if cpu_io_plot_file is not None and cpu_io_breakdown != []:
+            layers = []
+            n_syncs = len(cpu_io_breakdown)
+            heights = [0.0] * n_syncs
+            y_series_cpu = [cpu_io_breakdown[i][0] for i in range(n_syncs)]
+            y_series_rest = [cpu_io_breakdown[i][1] for i in range(n_syncs)]
+            x_series = range(n_syncs)
+            # the width of the bars
+            width = 0.5
+            layer_cpu = plt.bar(x_series, y_series_cpu, width)
+            layer_rest = plt.bar(x_series, y_series_rest, width, bottom=y_series_cpu)
+            plt.legend([layer_cpu[0], layer_rest[0]], ('cpu_time', 'io+rest'))
+            plt.savefig(cpu_io_plot_file, dpi=1000)
+            plt.close()
 
         return cpu_time_summary
 
@@ -596,7 +641,8 @@ class LogAnalyzer:
 
             lines.append(format_line(fields, data))
 
-        report_file = os.path.join(dest_dir, file_name_prefix+str(self.process_id)+'.txt')
+        report_file = os.path.join(dest_dir,'txt-sync', file_name_prefix+str(self.process_id)+'.txt')
+        os.makedirs(os.path.dirname(report_file), exist_ok=True)
 
         with open(report_file, "w") as rep_file:
             for line in lines:
@@ -690,7 +736,9 @@ class LogAnalyzer:
         _append_stat_line(data, 'add_ord_del')
 
         # info about syncs
-        sync_plot_file = os.path.join(dest_dir, 'plot-sync-' + str(self.process_id) + '.png')
+        sync_plot_file = os.path.join(dest_dir,'plot-dot-sync', 'dot-sync-' + str(self.process_id) + '.png')
+        os.makedirs(os.path.dirname(sync_plot_file), exist_ok=True)
+
         sent_per_sync, recv_per_sync, time_per_sync, time_per_unit_ex, \
             bytes_per_unit_ex, est_conn_time, syncs_not_succ = self.get_sync_info(sync_plot_file)
         _append_stat_line(sent_per_sync, 'units_sent_sync')
@@ -711,11 +759,18 @@ class LogAnalyzer:
         _append_stat_line(data, 'n_recv_syncs')
 
         # memory
-        mem_plot_file = os.path.join(dest_dir, 'plot-mem-' + str(self.process_id) + '.png')
+        mem_plot_file = os.path.join(dest_dir, 'plot-mem', 'mem-' + str(self.process_id) + '.png')
+        os.makedirs(os.path.dirname(mem_plot_file), exist_ok=True)
+
         data = self.get_memory_usage_vs_poset_size(mem_plot_file)
         _append_stat_line(data, 'memory_MiB')
 
-        times = self.get_cpu_times()
+
+        # cpu time
+        sync_bar_plot_file_cpu = os.path.join(dest_dir,'plot-sync-bar','cpu-sync-' + str(self.process_id) + '.png')
+        sync_bar_plot_file_all = os.path.join(dest_dir,'plot-sync-bar','all-sync-' + str(self.process_id) + '.png')
+        os.makedirs(os.path.dirname(sync_bar_plot_file_cpu), exist_ok=True)
+        times = self.get_cpu_times(sync_bar_plot_file_cpu, sync_bar_plot_file_all)
         _append_stat_line(times['t_compress_units'], 'time_compress')
         _append_stat_line(times['t_decompress_units'], 'time_decompress')
         _append_stat_line(times['t_unpickle_units'], 'time_unpickle')
@@ -727,8 +782,8 @@ class LogAnalyzer:
 
 
         #self.get_sync_info_per_process()
-
-        report_file = os.path.join(dest_dir, file_name_prefix+str(self.process_id)+'.txt')
+        report_file = os.path.join(dest_dir,'txt-basic', file_name_prefix+str(self.process_id)+'.txt')
+        os.makedirs(os.path.dirname(report_file), exist_ok=True)
 
         with open(report_file, "w") as rep_file:
             for line in lines:
