@@ -21,7 +21,7 @@ class Process:
 
 
     def __init__(self, n_processes, process_id, secret_key, public_key, address_list, public_key_list, tx_receiver_address,
-                userDB=None, validation_method='SNAP', enable_tcoin=False):
+                userDB=None, validation_method='SNAP', enable_tcoin=False, gossip_strategy='unif_random'):
         '''
         :param int n_processes: the committee size
         :param int process_id: the id of the current process
@@ -35,6 +35,7 @@ class Process:
         self.process_id = process_id
         self.validation_method = validation_method
         self.enable_tcoin = enable_tcoin
+        self.gossip_strategy = gossip_strategy
 
         self.secret_key = secret_key
         self.public_key = public_key
@@ -71,6 +72,9 @@ class Process:
 
         # we number all the syncs performed by process with unique ids (both outcoming and incoming)
         self.sync_id = 0
+
+        # remember when did we last (sync_id) synced with a given process
+        self.last_synced_with_process = [-1] * self.n_processes
 
         # initialize logger
         self.logger = logging.getLogger(LOGGER_NAME)
@@ -210,6 +214,27 @@ class Process:
             self.pending_txs[tx.issuer].discard((tx,U))
         return validated_transactions
 
+    def choose_process_to_sync_with(self):
+        if self.gossip_strategy == 'unif_random':
+            sync_candidates = list(range(self.n_processes))
+            sync_candidates.remove(self.process_id)
+        elif self.gossip_strategy == 'non_recent_random':
+            # this threshold is more or less arbitrary
+            threshold = self.n_processes//3
+
+            # pick all processes that we haven't synced with in the last (threshold) syncs
+            sync_candidates = []
+            for process_id in range(self.n_processes):
+                if process_id == self.process_id:
+                    continue
+                last_sync = self.last_synced_with_process[process_id]
+                if last_sync == -1  or  self.sync_id - last_sync >= threshold:
+                    sync_candidates.append(process_id)
+        else:
+            assert False, "Non-supported gossip strategy."
+
+        return random.choice(sync_candidates)
+
 
     async def create_add(self, txs_queue, serverStarted):
         await serverStarted.wait()
@@ -245,9 +270,7 @@ class Process:
         await serverStarted.wait()
         #while True:
         for _ in range(80):
-            sync_candidates = list(range(self.n_processes))
-            sync_candidates.remove(self.process_id)
-            target_id = random.choice(sync_candidates)
+            target_id = self.choose_process_to_sync_with()
             self.syncing_tasks.append(asyncio.create_task(sync(self, self.process_id, target_id, self.address_list[target_id], self.public_key_list, executor)))
 
             await asyncio.sleep(SYNC_INIT_FREQ)

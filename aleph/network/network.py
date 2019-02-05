@@ -70,6 +70,8 @@ async def listener(process, process_id, addresses, public_key_list, executor, se
         logger.info(f'listener_establish {process_id} {sync_id} | Connection established with an unknown process')
 
         ex_id, ex_heights, ex_hashes = await _receive_poset_info(sync_id, process_id, process.poset.n_processes, reader, 'listener', logger)
+        # we have just learned the process_id of the process on the other end, updating last_synced_with_process
+        process.last_synced_with_process[ex_id] = sync_id
 
         int_heights, int_hashes = process.poset.get_max_heights_hashes()
 
@@ -123,6 +125,7 @@ async def sync(process, initiator_id, target_id, target_addr, public_key_list, e
     sync_id = process.sync_id
     process_id = process.process_id
     process.sync_id += 1
+    process.last_synced_with_process[target_id] = sync_id
 
     logger.info(f'sync_establish_try {initiator_id} {sync_id} | Establishing connection to {target_id}')
     reader, writer = await asyncio.open_connection(target_addr[0], target_addr[1])
@@ -213,9 +216,15 @@ async def _send_units(sync_id, process_id, ex_id, int_heights, ex_heights, proce
     units_to_send = process.poset.order_units_topologically(units_to_send)
     with timer(f'{process_id} {sync_id}', 'pickle_units'):
         data = pickle.dumps(units_to_send)
+
     with timer(f'{process_id} {sync_id}', 'compress_units'):
         if SEND_COMPRESSED:
+            initial_len = len(data)
             data = zlib.compress(data)
+            compressed_len = len(data)
+            gained = 1.0 - compressed_len/initial_len
+            logger.info(f'compression_rate {process_id} {sync_id} | Compressed {initial_len} to {compressed_len}, gained {gained:.4f} of size.')
+
     writer.write(str(len(data)).encode())
     logger.info(f'send_units_wait_{mode} {process_id} {sync_id} | Sending {len(units_to_send)} units and {len(data)} bytes to {ex_id}')
     writer.write(b'\n')
