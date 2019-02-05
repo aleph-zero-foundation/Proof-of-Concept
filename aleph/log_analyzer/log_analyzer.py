@@ -699,6 +699,23 @@ class LogAnalyzer:
         - memory_MiB: total memory used by the process
 
         - add_unit_time_s: average time spend on adding one unit to the poset
+
+        - time_compress: time (per sync) spent on compressing the msgs sent through sockets
+
+        - time_decompress: time (per sync) spent on decompressing the msgs sent through sockets
+
+        - time_unpickle: time (per sync) spent on unpickling the msgs sent through sockets
+
+        - time_verify: time (per sync) spent on verifying the units received
+
+        - time_add_units: time (per sync) spent on adding to poset the units received
+
+        - time_cpu_sync: total cpu time (per sync), i.e. (de)compress + (un)pickle + verify + add_units
+
+        - time_order: cpu time spent on ordering units (per timing unit), includes dealing with txs
+
+        - time_create: averate cpu time to create a unit
+
         '''
 
 
