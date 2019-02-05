@@ -216,9 +216,15 @@ async def _send_units(sync_id, process_id, ex_id, int_heights, ex_heights, proce
     units_to_send = process.poset.order_units_topologically(units_to_send)
     with timer(f'{process_id} {sync_id}', 'pickle_units'):
         data = pickle.dumps(units_to_send)
+
     with timer(f'{process_id} {sync_id}', 'compress_units'):
         if SEND_COMPRESSED:
+            initial_len = len(data)
             data = zlib.compress(data)
+            compressed_len = len(data)
+            gained = 1.0 - compressed_len/initial_len
+            logger.info(f'compression_rate {process_id} {sync_id} | Compressed {initial_len} to {compressed_len}, gained {gained:.4f} of size.')
+
     writer.write(str(len(data)).encode())
     logger.info(f'send_units_wait_{mode} {process_id} {sync_id} | Sending {len(units_to_send)} units and {len(data)} bytes to {ex_id}')
     writer.write(b'\n')
