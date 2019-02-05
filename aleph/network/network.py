@@ -306,12 +306,6 @@ def _add_units(sync_id, process_id, ex_id, units_received, process, mode, logger
     return True
 
 
-def verify_signature(process_id, unit, public_key_list, logger):
+def verify_signature(unit, public_key_list):
     '''Verifies signatures of the unit and all txs in it'''
-    valid = public_key_list[unit.creator_id].verify_signature(unit.signature, unit.bytestring())
-    if not valid:
-        logger.info(f'invalid_signature {process_id} | signature of unit {unit.short_name()} is invalid.')
-        logger.info(f'txs_invalid_signature {process_id} | txs = {unit.txs}')
-
-
-    return valid
+    return public_key_list[unit.creator_id].verify_signature(unit.signature, unit.bytestring())

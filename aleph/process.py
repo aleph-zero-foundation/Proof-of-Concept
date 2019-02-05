@@ -321,7 +321,7 @@ class Process:
     async def run(self):
         # start another process listening for incoming txs
         self.logger.info(f'start_process {self.process_id} | Starting a new process in committee of size {self.n_processes}')
-        txs_queue = multiprocessing.Queue()
+        txs_queue = multiprocessing.Queue(1000)
         p = multiprocessing.Process(target=self.tx_source, args=(self.tx_receiver_address, txs_queue))
         p.start()
 

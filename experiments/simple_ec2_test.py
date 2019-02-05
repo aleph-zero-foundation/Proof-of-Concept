@@ -96,6 +96,8 @@ async def main():
     parser.add_option('-l', '--n_level', dest='n_level', type=int, help='Number of level units to create', default=-1)
     parser.add_option('-b', '--batch_size', dest='batch_size', type=int, help='Number of transactions to input to the system')
     parser.add_option('-u', '--txpu', dest='txpu', type=int, help='Number of transactions per unit')
+    parser.add_option('-t', '--tcoin', dest='tcoin', type=int, help='Whether to use threshold coin')
+
 
     options, args = parser.parse_args()
 
