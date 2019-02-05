@@ -70,6 +70,8 @@ async def listener(process, process_id, addresses, public_key_list, executor, se
         logger.info(f'listener_establish {process_id} {sync_id} | Connection established with an unknown process')
 
         ex_id, ex_heights, ex_hashes = await _receive_poset_info(sync_id, process_id, process.poset.n_processes, reader, 'listener', logger)
+        # we have just learned the process_id of the process on the other end, updating last_synced_with_process
+        process.last_synced_with_process[ex_id] = sync_id
 
         int_heights, int_hashes = process.poset.get_max_heights_hashes()
 
@@ -123,6 +125,7 @@ async def sync(process, initiator_id, target_id, target_addr, public_key_list, e
     sync_id = process.sync_id
     process_id = process.process_id
     process.sync_id += 1
+    process.last_synced_with_process[target_id] = sync_id
 
     logger.info(f'sync_establish_try {initiator_id} {sync_id} | Establishing connection to {target_id}')
     reader, writer = await asyncio.open_connection(target_addr[0], target_addr[1])
