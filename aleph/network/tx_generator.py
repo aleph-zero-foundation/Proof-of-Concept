@@ -9,7 +9,8 @@ from aleph.data_structures import Tx
 
 def tx_generator(committee_addresses, signing_keys, txps):
     n_light_nodes = len(signing_keys)
-    last_tx_index = [-1 for _ in range(n_light_nodes)]
+    #index temporarily disabled
+    #last_tx_index = [-1 for _ in range(n_light_nodes)]
     #signing Txs temporarily disabled
     #verify_keys_hex = [VerifyKey.from_SigningKey(sk).to_hex() for sk in signing_keys]
 
@@ -26,8 +27,8 @@ def tx_generator(committee_addresses, signing_keys, txps):
         issuer_id = random.randrange(0, n_light_nodes)
         receiver_id = random.choice([uid for uid in range(n_light_nodes) if uid != issuer_id])
         amount = random.randrange(1, 100)
-        index = last_tx_index[issuer_id] + 1
-        tx = Tx(issuer_id, receiver_id, amount, index)
+        #index = last_tx_index[issuer_id] + 1
+        tx = Tx(issuer_id, receiver_id, amount)
         data = pickle.dumps(tx)
 
         sent = False
@@ -42,5 +43,5 @@ def tx_generator(committee_addresses, signing_keys, txps):
                 except:
                     return # assume all failures mean others stopped
 
-        last_tx_index[issuer_id] += 1
+        #last_tx_index[issuer_id] += 1
         counter += 1

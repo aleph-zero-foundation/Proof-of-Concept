@@ -2,14 +2,16 @@ import asyncio
 import logging
 import pickle
 import zlib
+import random
+import socket
 import socketserver
 
 from time import time
 
-from aleph.data_structures import Unit, Tx
-from aleph.config import N_TXS, CREATE_FREQ, LOGGER_NAME, N_RECV_SYNC, SEND_COMPRESSED
-from aleph.crypto import VerifyKey
+from aleph.data_structures import Tx
 from aleph.utils import timer
+
+import aleph.const as consts
 
 
 def tx_listener(listen_addr, queue):
@@ -27,17 +29,57 @@ def tx_listener(listen_addr, queue):
 
             logger.info(f'tx_server_receive | Received from {self.client_address}')
 
-            if len(tx_buffer) == N_TXS or (time()-prev_put_time > CREATE_FREQ):
+            if len(tx_buffer) == consts.TXPU or (time()-prev_put_time > consts.CREATE_FREQ):
                 prev_put_time = time()
                 logger.info(f'tx_server_enqueue | Putting {len(tx_buffer)} txs on queue')
                 queue.put(tx_buffer)
                 tx_buffer = []
 
-    logger = logging.getLogger(LOGGER_NAME)
+    logger = logging.getLogger(consts.LOGGER_NAME)
     logger.info(f'tx_server_start | Starting on {listen_addr}')
 
     with socketserver.TCPServer(listen_addr, TCPHandler) as server:
         server.serve_forever()
+
+
+def tx_source_gen(n_processes, tx_limit, seed):
+    '''
+    Produces a simple tx generator.
+    :param int tx_limit: number of txs for a process to input into the system.
+    :param int n_processes: number of parties.
+    :param int seed: seed for random generator.
+    '''
+
+    def _tx_source(tx_receiver_address, tx_queue):
+        '''
+        Generates transactions in bundles of size TXPU till tx_limit is reached
+        :param None tx_receiver_address: needed only for comatibility of args list with network.tx_listener
+        :param queue tx_queue: queue for newly generated txs
+        '''
+        # ensure that batches are different
+        random.seed(seed)
+        with open('light_nodes_public_keys', 'r') as f:
+            ln_public_keys = [line[:-1] for line in f]
+
+        proposed = 0
+        while proposed<tx_limit:
+            if proposed + consts.TXPU <= tx_limit:
+                offset = consts.TXPU
+            else:
+                offset = tx_limit - proposed
+
+            txs = []
+            for _ in range(offset):
+                source = random.choice(ln_public_keys)
+                target = random.choice(ln_public_keys)
+                amount = random.randint(1, 30000)
+                txs.append(Tx(source, target, amount))
+
+            proposed += offset
+
+            tx_queue.put(txs, block=True)
+
+    return _tx_source
 
 
 async def listener(process, process_id, addresses, public_key_list, executor, serverStarted):
@@ -47,7 +89,7 @@ async def listener(process, process_id, addresses, public_key_list, executor, se
         # TODO check if units received are in good order
         # TODO if some signature is broken, and all units with good signatures that can be safely added
         nonlocal n_recv_syncs
-        logger = logging.getLogger(LOGGER_NAME)
+        logger = logging.getLogger(consts.LOGGER_NAME)
 
         ips = [ip for ip, _ in addresses]
         peer_addr = writer.get_extra_info('peername')
@@ -62,7 +104,7 @@ async def listener(process, process_id, addresses, public_key_list, executor, se
             return
 
         logger.info(f'listener_sync_no {process_id} {sync_id} | Number of syncs is {n_recv_syncs+1}')
-        if n_recv_syncs > N_RECV_SYNC:
+        if n_recv_syncs > consts.N_RECV_SYNC:
             logger.info(f'listener_too_many_syncs {process_id} {sync_id} | Too many syncs, rejecting {peer_addr}')
             return
 
@@ -105,12 +147,13 @@ async def listener(process, process_id, addresses, public_key_list, executor, se
         await writer.wait_closed()
 
 
-    host_addr = addresses[process_id]
-    server = await asyncio.start_server(listen_handler, host_addr[0], host_addr[1])
+    host_ip = socket.gethostbyname(socket.gethostname())
+    host_port = addresses[process_id][1]
+    server = await asyncio.start_server(listen_handler, host_ip, host_port)
     serverStarted.set()
 
-    logger = logging.getLogger(LOGGER_NAME)
-    logger.info(f'server_start {process_id} | Starting sync server on {host_addr}')
+    logger = logging.getLogger(consts.LOGGER_NAME)
+    logger.info(f'server_start {process_id} | Starting sync server on {host_ip}:{host_port}')
 
     async with server:
         await server.serve_forever()
@@ -119,7 +162,7 @@ async def listener(process, process_id, addresses, public_key_list, executor, se
 async def sync(process, initiator_id, target_id, target_addr, public_key_list, executor):
     # TODO check if units received are in good order
     # TODO if some signature is broken, still add all units with good signatures
-    logger = logging.getLogger(LOGGER_NAME)
+    logger = logging.getLogger(consts.LOGGER_NAME)
 
     # new sync id
     sync_id = process.sync_id
@@ -165,7 +208,7 @@ async def _send_poset_info(sync_id, process_id, ex_id, writer, int_heights, int_
     logger.info(f'send_poset_{mode} {process_id} {sync_id} | sending info about forkers and heights&hashes to {ex_id}')
 
     data = pickle.dumps((process_id, int_heights, int_hashes))
-    if SEND_COMPRESSED:
+    if consts.SEND_COMPRESSED:
         data = zlib.compress(data)
     writer.write(str(len(data)).encode())
     writer.write(b'\n')
@@ -179,7 +222,7 @@ async def _receive_poset_info(sync_id, process_id, n_processes, reader, mode, lo
     data = await reader.readuntil()
     n_bytes = int(data[:-1])
     data = await reader.readexactly(n_bytes)
-    if SEND_COMPRESSED:
+    if consts.SEND_COMPRESSED:
         data = zlib.decompress(data)
     ex_id, ex_heights, ex_hashes = pickle.loads(data)
     assert ex_id != process_id, "It seems we are syncing with ourselves."
@@ -196,7 +239,7 @@ async def _receive_units(sync_id, process_id, ex_id, reader, mode, logger):
     data = await reader.readexactly(n_bytes)
     logger.info(f'receive_units_bytes_{mode} {process_id} {sync_id} | Received {n_bytes} bytes from {ex_id}')
     with timer(f'{process_id} {sync_id}', 'decompress_units'):
-        if SEND_COMPRESSED:
+        if consts.SEND_COMPRESSED:
             data = zlib.decompress(data)
     with timer(f'{process_id} {sync_id}', 'unpickle_units'):
         units_received = pickle.loads(data)
@@ -218,7 +261,7 @@ async def _send_units(sync_id, process_id, ex_id, int_heights, ex_heights, proce
         data = pickle.dumps(units_to_send)
 
     with timer(f'{process_id} {sync_id}', 'compress_units'):
-        if SEND_COMPRESSED:
+        if consts.SEND_COMPRESSED:
             initial_len = len(data)
             data = zlib.compress(data)
             compressed_len = len(data)

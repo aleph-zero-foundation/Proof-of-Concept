@@ -1,7 +1,5 @@
 import logging
 
-from aleph.config import *
-
 
 class UserDB:
     '''
