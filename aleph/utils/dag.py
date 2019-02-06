@@ -113,8 +113,8 @@ class DAG:
     @memo
     def count_support(self, U, V):
         below_V = self.nodes_below(V)
-        above_U = self.reversed().nodes_below(U)
-        return len({self.pid(node) for node in (below_V & above_U)})
+        between_V_and_U = [W for W in below_V if self.is_reachable(U, W)]
+        return len({self.pid(node) for node in between_V_and_U})
 
 
     def is_reachable_through_n_intermediate(self, U, V, n):
