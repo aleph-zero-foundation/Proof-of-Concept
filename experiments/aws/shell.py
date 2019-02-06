@@ -9,8 +9,9 @@ from joblib import Parallel, delayed
 import boto3
 import numpy as np
 
-from aleph.config import CREATE_FREQ
 from aleph.crypto.keys import SigningKey, VerifyKey
+import aleph.const as consts
+
 from utils import image_id_in_region, default_region_name, init_key_pair, security_group_id_by_region, available_regions, badger_regions, generate_signing_keys, n_processes_per_regions, eu_regions
 from config import N_JOBS
 
@@ -381,8 +382,8 @@ def wait_install(regions='badger regions'):
 #                               aggregates
 #======================================================================================
 
-def run_experiment(n_processes, regions, restricted, experiment, instance_type):
-    '''Runs an experiment.'''
+def run_protocol(n_processes, regions, restricted, instance_type):
+    '''Runs the protocol.'''
 
     start = time()
     parallel = n_processes > 1
@@ -406,7 +407,7 @@ def run_experiment(n_processes, regions, restricted, experiment, instance_type):
     print('generating addresses file')
     # prepare address file
     ip_list = instances_ip(regions)
-    with open('addresses', 'w') as f:
+    with open('ip_addresses', 'w') as f:
         f.writelines([ip+'\n' for ip in ip_list])
 
     print('waiting till ports are open on machines')
@@ -438,7 +439,7 @@ def run_experiment(n_processes, regions, restricted, experiment, instance_type):
 
     print(f'establishing the environment took {round(time()-start, 2)}s')
     # run the experiment
-    run_task(experiment, regions, parallel)
+    run_task('run-protocol', regions, parallel)
 
 
 def get_logs(n_processes, txpu, tcoin, regions=badger_regions()):
@@ -447,7 +448,7 @@ def get_logs(n_processes, txpu, tcoin, regions=badger_regions()):
     run_task('get-logs', regions, parallel=True)
 
     print('read addresses')
-    with open('addresses', 'r') as f:
+    with open('ip_addresses', 'r') as f:
         ip_addresses = [line[:-1] for line in f]
 
     print('read signing keys')
@@ -478,7 +479,7 @@ def get_logs(n_processes, txpu, tcoin, regions=badger_regions()):
         os.rename(f'../results/{fp}', f'../results/{pid}.{name}.log')
 
     print('rename dir')
-    os.rename('../results', f'../results_{txpu}_{int(CREATE_FREQ)}_{n_processes}_{tcoin}')
+    os.rename('../results', f'../results_{txpu}_{int(consts.CREATE_FREQ)}_{n_processes}_{tcoin}')
 
 
 def memory_usage(regions=badger_regions()):
@@ -503,14 +504,14 @@ t = run_task
 cmr = run_cmd_in_region
 cm = run_cmd
 
-e = run_experiment
+p = run_protocol
 
 ti = terminate_instances
 
-A = [104, badger_regions(), [], 'simple-ec2-test', 't2.medium']
+A = [104, badger_regions(), [], 't2.medium']
 res = ['sa-east-1', 'ap-southeast-2']
 
-rs = lambda n=8: e(n, badger_regions(), res, 'simple-ec2-test', 't2.micro')
+rs = lambda n=8: p(n, badger_regions(), res, 't2.micro')
 ms = lambda regions=badger_regions(): memory_usage(regions)
 
 #======================================================================================

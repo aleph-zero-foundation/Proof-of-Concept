@@ -59,15 +59,14 @@ def clone_repo(conn):
 def sync_keys(conn):
     '''Syncs signing_keys - public keys for the committee.'''
 
-    conn.put('signing_keys', 'proof-of-concept/experiments')
+    conn.put('signing_keys', 'proof-of-concept/aleph')
 
 
 @task
 def sync_addresses(conn):
     '''Syncs ip addresses of the committee members.'''
 
-    conn.run(f'echo {conn.host} > proof-of-concept/experiments/my_ip')
-    conn.put('addresses', 'proof-of-concept/experiments/')
+    conn.put('ip_addresses', 'proof-of-concept/aleph/')
 
 
 @task
@@ -184,11 +183,12 @@ def simple_ec2_test(conn):
 def run_protocol(conn):
     ''' Runs the protocol.'''
 
+    conn.put('../../aleph/main.py', 'proof-of-concept/aleph/')
+    conn.put('config.ini', 'proof-of-concept/aleph')
+    conn.run(f'echo my_ip={conn.host} >> proof-of-concept/aleph/config.ini')
     with conn.cd('proof-of-concept/aleph'):
-        # cmd = 'python simple_ec2_test.py -i addresses -k signing_keys -l 10 -b 6553 -u 100 -t 0'
-        # cmd = 'python simple_ec2_test.py -i addresses -k signing_keys -l 10 -b 65536 -u 1000'
         # export env var needed for pbc, activate venv, cross fingers, and run the protocol
-        cmd = 'python main.py -i addresses -k signing_keys -l 10 -b 1000000 -u 1000'
+        cmd = 'python main.py config.ini'
         conn.run('export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/local/lib &&'
                  'source /home/ubuntu/p37/bin/activate &&'
                  f'dtach -n `mktemp -u /tmp/dtach.XXXX` {cmd}')
@@ -237,9 +237,9 @@ def sync_files(conn):
 
     # send files: addresses, signing_keys, setup.sh, set_env.sh, light_nodes_public_keys
     conn.run(f'echo {conn.host} > proof-of-concept/experiments/my_ip')
-    conn.put('addresses', 'proof-of-concept/experiments/')
+    conn.put('ip_addresses', 'proof-of-concept/experiments/')
     conn.put('signing_keys', 'proof-of-concept/experiments/')
-    conn.put('light_nodes_public_keys', 'proof-of-concept/experiments/')
+    conn.put('light_nodes_public_keys', 'proof-of-concept/aleph/')
 
 
 @task

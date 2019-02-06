@@ -42,7 +42,10 @@ def update_global_consts(params):
     ''' updates global consts defined in aleph/const.py by values in params '''
     for const_name in consts.__dict__:
         if const_name in params:
-            consts.__dict__[const_name] = params[const_name]
+            if params[const_name].isdigit():
+                consts.__dict__[const_name] = int(params[const_name])
+            else:
+                consts.__dict__[const_name] = params[const_name]
 
 
 async def main():
@@ -53,6 +56,7 @@ async def main():
     ini_path = sys.argv[1]
     params = configparser.ConfigParser()
     params.read(ini_path)
+    params = params['Default']
 
     update_global_consts(params)
 
@@ -63,6 +67,7 @@ async def main():
     public_keys = [VerifyKey.from_SigningKey(sk) for sk in signing_keys]
 
     process_id, public_keys, signing_keys, ip_addresses = sort_and_get_my_pid(public_keys, signing_keys, params['my_ip'], ip_addresses)
+    addresses = [(ip, consts.HOST_PORT) for ip in ip_addresses]
 
     sk, pk = signing_keys[process_id], public_keys[process_id]
 
@@ -71,19 +76,19 @@ async def main():
 
     recv_address = None
     if params['tx_source'] == 'tx_source_gen':
-        tx_source = tx_source_gen(n_processes, params['tx_limit'], process_id)
+        tx_source = tx_source_gen(n_processes, int(params['tx_limit']), process_id)
     else:
         tx_source = tx_listener
 
     process = Process(n_processes,
                       process_id,
                       sk, pk,
-                      ip_addresses,
+                      addresses,
                       public_keys,
                       recv_address,
                       userDB,
                       'LINEAR_ORDERING',
-                      tx_listener)
+                      tx_source)
 
     await process.run()
 
