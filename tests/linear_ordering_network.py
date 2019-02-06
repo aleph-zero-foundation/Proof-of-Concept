@@ -37,8 +37,7 @@ async def main():
     for process_id in range(n_processes):
         sk = signing_keys[process_id]
         pk = public_keys[process_id]
-        new_process = Process(n_processes, process_id, sk, pk, addresses, public_keys, recv_addresses[process_id], userDB, 'LINEAR_ORDERING',
-                                enable_tcoin=use_tcoin, gossip_strategy='non_recent_random')
+        new_process = Process(n_processes, process_id, sk, pk, addresses, public_keys, recv_addresses[process_id], userDB, 'LINEAR_ORDERING', gossip_strategy='non_recent_random')
         processes.append(new_process)
         tasks.append(asyncio.create_task(new_process.run()))
 

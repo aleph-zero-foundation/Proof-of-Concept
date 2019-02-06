@@ -11,7 +11,7 @@ import time
 from aleph.data_structures import Poset, UserDB
 from aleph.crypto import CommonRandomPermutation
 from aleph.network import listener, sync, tx_listener
-from aleph.const import CREATE_FREQ, SYNC_INIT_FREQ, LOGGER_NAME, LEVEL_LIMIT, UNITS_LIMIT, SYNCS_LIMIT, HOST_PORT
+from aleph.const import CREATE_FREQ, SYNC_INIT_FREQ, LOGGER_NAME, LEVEL_LIMIT, UNITS_LIMIT, SYNCS_LIMIT, HOST_PORT, USE_TCOIN
 from aleph.utils import timer
 
 
@@ -20,7 +20,7 @@ class Process:
     '''This class is the main component of the Aleph protocol.'''
 
 
-    def __init__(self, n_processes, process_id, secret_key, public_key, ip_addresses, public_key_list, tx_receiver_address, userDB=None, validation_method='SNAP', tx_source=tx_listener, gossip_strategy='unif_random'):
+    def __init__(self, n_processes, process_id, secret_key, public_key, addresses, public_key_list, tx_receiver_address, userDB=None, validation_method='SNAP', tx_source=tx_listener, gossip_strategy='unif_random'):
         '''
         :param int n_processes: the committee size
         :param int process_id: the id of the current process
@@ -33,22 +33,21 @@ class Process:
         self.n_processes = n_processes
         self.process_id = process_id
         self.validation_method = validation_method
-        self.enable_tcoin = enable_tcoin
         self.gossip_strategy = gossip_strategy
 
         self.secret_key = secret_key
         self.public_key = public_key
 
         self.public_key_list = public_key_list
-        self.ip_addresses = ip_addresses
-        self.ip = ip_addresses[process_id]
-        self.port = HOST_PORT
+        self.addresses = addresses
+        self.ip = addresses[process_id][0]
+        self.port = addresses[process_id][1]
 
         self.tx_receiver_address = tx_receiver_address
         self.prepared_txs = []
 
         self.crp = CommonRandomPermutation([pk.to_hex() for pk in public_key_list])
-        self.poset = Poset(self.n_processes, self.crp, process_id = self.process_id)
+        self.poset = Poset(self.n_processes, self.crp, USE_TCOIN, process_id = self.process_id)
         self.userDB = userDB
         if self.userDB is None:
             self.userDB = UserDB()
@@ -289,7 +288,7 @@ class Process:
             sync_candidates = list(range(self.n_processes))
             sync_candidates.remove(self.process_id)
             target_id = self.choose_process_to_sync_with()
-            self.syncing_tasks.append(asyncio.create_task(sync(self, self.process_id, target_id, self.ip_addresses[target_id], self.public_key_list, executor)))
+            self.syncing_tasks.append(asyncio.create_task(sync(self, self.process_id, target_id, self.addresses[target_id], self.public_key_list, executor)))
 
             await asyncio.sleep(SYNC_INIT_FREQ)
             #_, self.syncing_tasks = await asyncio.wait(self.syncing_tasks, return_when=asyncio.FIRST_COMPLETED)
@@ -309,7 +308,7 @@ class Process:
         serverStarted = asyncio.Event()
         executor = None
         creator_task = asyncio.create_task(self.create_add(txs_queue, serverStarted))
-        listener_task = asyncio.create_task(listener(self, self.process_id, self.ip_addresses, self.public_key_list, executor, serverStarted))
+        listener_task = asyncio.create_task(listener(self, self.process_id, self.addresses, self.public_key_list, executor, serverStarted))
         syncing_task = asyncio.create_task(self.dispatch_syncs(executor, serverStarted))
 
         await asyncio.gather(syncing_task, creator_task)
