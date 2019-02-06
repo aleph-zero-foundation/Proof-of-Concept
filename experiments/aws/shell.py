@@ -483,14 +483,14 @@ def get_logs(n_processes, txpu, tcoin, regions=badger_regions()):
 
 
 def memory_usage(regions=badger_regions()):
-    cmd = 'grep memory proof-of-concept/experiments/aleph.log | tail -1'
+    cmd = 'grep memory proof-of-concept/aleph/aleph.log | tail -1'
     output = run_cmd(cmd, regions, True)
     results = [float(line.split()[7]) for line in output]
-    return min(results), np.mean(results), max(results)
+    return round(min(results), 2), round(np.mean(results), 2), round(max(results), 2)
 
 
 def reached_max_level(regions):
-    cmd = 'grep max_level proof-of-concept/experiments/aleph.log'
+    cmd = 'grep max_level proof-of-concept/aleph/aleph.log'
     output = run_cmd(cmd, regions, True)
 
 

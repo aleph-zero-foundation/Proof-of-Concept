@@ -198,8 +198,8 @@ def get_logs(conn):
     ''' Retrieves aleph.log from the server.'''
 
     ip = conn.host.replace('.', '-')
-    conn.get('proof-of-concept/experiments/aleph.log', f'../results/{ip}-aleph.log')
-    conn.get('proof-of-concept/experiments/other.log', f'../results/{ip}-other.log')
+    conn.get('proof-of-concept/aleph/aleph.log', f'../results/{ip}-aleph.log')
+    conn.get('proof-of-concept/aleph/other.log', f'../results/{ip}-other.log')
 
 
 @task
@@ -236,9 +236,9 @@ def sync_files(conn):
     ''' Syncs files needed for running a process.'''
 
     # send files: addresses, signing_keys, setup.sh, set_env.sh, light_nodes_public_keys
-    conn.run(f'echo {conn.host} > proof-of-concept/experiments/my_ip')
-    conn.put('ip_addresses', 'proof-of-concept/experiments/')
-    conn.put('signing_keys', 'proof-of-concept/experiments/')
+    conn.run(f'echo {conn.host} > proof-of-concept/aleph/my_ip')
+    conn.put('ip_addresses', 'proof-of-concept/aleph/')
+    conn.put('signing_keys', 'proof-of-concept/aleph/')
     conn.put('light_nodes_public_keys', 'proof-of-concept/aleph/')
 
 
