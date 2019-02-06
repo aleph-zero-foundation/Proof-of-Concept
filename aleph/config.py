@@ -1,4 +1,4 @@
-from aleph.const import LOGGER_NAME
+import aleph.const as consts
 
 import charm.toolbox.pairinggroup
 PAIRING_GROUP = charm.toolbox.pairinggroup.PairingGroup('MNT224')
@@ -16,7 +16,7 @@ logging.basicConfig(filename='other.log',
                     level=logging.DEBUG,
                     format=log_format,
                     filemode='w')
-logger = logging.getLogger(LOGGER_NAME)
+logger = logging.getLogger(consts.LOGGER_NAME)
 logger.setLevel(logging.DEBUG)
 fh = logging.FileHandler('aleph.log', mode='w')
 fh.setLevel(logging.DEBUG)

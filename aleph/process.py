@@ -11,8 +11,8 @@ import time
 from aleph.data_structures import Poset, UserDB
 from aleph.crypto import CommonRandomPermutation
 from aleph.network import listener, sync, tx_listener
-from aleph.const import CREATE_FREQ, SYNC_INIT_FREQ, LOGGER_NAME, LEVEL_LIMIT, UNITS_LIMIT, SYNCS_LIMIT, HOST_PORT, USE_TCOIN
 from aleph.utils import timer
+import aleph.const as consts
 
 
 
@@ -47,7 +47,7 @@ class Process:
         self.prepared_txs = []
 
         self.crp = CommonRandomPermutation([pk.to_hex() for pk in public_key_list])
-        self.poset = Poset(self.n_processes, self.crp, USE_TCOIN, process_id = self.process_id)
+        self.poset = Poset(self.n_processes, self.crp, consts.USE_TCOIN, process_id = self.process_id)
         self.userDB = userDB
         if self.userDB is None:
             self.userDB = UserDB()
@@ -78,7 +78,7 @@ class Process:
         self.last_synced_with_process = [-1] * self.n_processes
 
         # initialize logger
-        self.logger = logging.getLogger(LOGGER_NAME)
+        self.logger = logging.getLogger(consts.LOGGER_NAME)
 
 
     def sign_unit(self, U):
@@ -240,7 +240,7 @@ class Process:
     async def create_add(self, txs_queue, serverStarted):
         await serverStarted.wait()
         created_count, max_level_reached = 0, False
-        while created_count != UNITS_LIMIT and not max_level_reached:
+        while created_count != consts.UNITS_LIMIT and not max_level_reached:
 
             # log current memory consumption
             memory_usage_in_mib = (psutil.Process(os.getpid()).memory_info().rss)/(2**20)
@@ -260,7 +260,7 @@ class Process:
                 self.logger.info(f"create_add {self.process_id} | Created a new unit {new_unit.short_name()}")
                 #self.poset.add_unit(new_unit)
                 self.add_unit_to_poset(new_unit)
-                if new_unit.level == LEVEL_LIMIT:
+                if new_unit.level == consts.LEVEL_LIMIT:
                     max_level_reached = True
 
                 if not txs_queue.empty():
@@ -268,33 +268,37 @@ class Process:
                 else:
                     self.prepared_txs = []
 
-            await asyncio.sleep(CREATE_FREQ)
+            await asyncio.sleep(consts.CREATE_FREQ)
 
 
         self.keep_syncing = False
-        logger = logging.getLogger(LOGGER_NAME)
+        logger = logging.getLogger(consts.LOGGER_NAME)
         if max_level_reached:
-            logger.info(f'create_stop {self.process_id} | process reached max_level {LEVEL_LIMIT}')
-        elif created_count == UNITS_LIMIT:
-            logger.info(f'create_stop {self.process_id} | process created {UNITS_LIMIT} units')
+            logger.info(f'create_stop {self.process_id} | process reached max_level {consts.LEVEL_LIMIT}')
+        elif created_count == consts.UNITS_LIMIT:
+            logger.info(f'create_stop {self.process_id} | process created {consts.UNITS_LIMIT} units')
 
 
     async def dispatch_syncs(self, executor, serverStarted):
         await serverStarted.wait()
 
         sync_count = 0
-        while sync_count != SYNCS_LIMIT and self.keep_syncing:
+        while sync_count != consts.SYNCS_LIMIT and self.keep_syncing:
             sync_count += 1
             sync_candidates = list(range(self.n_processes))
             sync_candidates.remove(self.process_id)
             target_id = self.choose_process_to_sync_with()
             self.syncing_tasks.append(asyncio.create_task(sync(self, self.process_id, target_id, self.addresses[target_id], self.public_key_list, executor)))
 
-            await asyncio.sleep(SYNC_INIT_FREQ)
+            await asyncio.sleep(consts.SYNC_INIT_FREQ)
             #_, self.syncing_tasks = await asyncio.wait(self.syncing_tasks, return_when=asyncio.FIRST_COMPLETED)
 
         await asyncio.gather(*self.syncing_tasks)
-        logger = logging.getLogger(LOGGER_NAME)
+
+        # give some time for other processes to finish
+        await asyncio.sleep(10*consts.SYNC_INIT_FREQ)
+
+        logger = logging.getLogger(consts.LOGGER_NAME)
         logger.info(f'sync_stop {self.process_id} | keep_syncing is {self.keep_syncing}')
 
 
