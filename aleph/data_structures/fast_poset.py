@@ -69,24 +69,37 @@ class FastPoset(Poset):
 
         # need to count all processes that produced a unit V of level m such that U'<=U
         # we can limit ourselves to prime units V
-        processes_high_below = 0
+        processes_below = 0
 
         for process_id in range(self.n_processes):
             Vs = self.prime_units_by_level[m][process_id]
             if any(self.below(V, U) for V in Vs):
-                processes_high_below += 1
+                processes_below += 1
 
-            if 3*(processes_high_below + self.n_processes - 1 - process_id) < 2*self.n_processes:
+            # For efficiency:
+            if 3*(processes_below + self.n_processes - 1 - process_id) < 2*self.n_processes:
                 break
 
         # same as (...)>=2/3*(...) but avoids floating point division
-        U.level = m+1 if 3*processes_high_below >= 2*self.n_processes else m
+        U.level = m+1 if 3*processes_below >= 2*self.n_processes else m
         return U.level
 
-    def is_prime(self, U):
-        '''
-        Check if the unit is prime.
-        :param unit U: the unit to be checked for being prime
-        '''
-        # U is prime iff it's a bottom unit or its self_predecessor level is strictly smaller
-        return len(U.parents) == 0 or self.level(U) > self.level(U.self_predecessor)
+    def proves_popularity(self, V, U_c):
+    	'''
+    	Checks whether V proves that U_c is popular on V's level, i.e. whether there exist
+    	       >=2/3 N prime units W on level L(V)-1 such that: (1) W <= V and (2) U_c <= W.
+    	:param unit V: the "prover" unit
+    	:param unit U_c: the unit tested for popularity
+    	:returns: True or False: does V prove that U_c is popular?
+    	'''
+    	level_V = self.level(V)
+    	if level_V == 0:
+    		return False
+
+    	vouchers = 0
+    	for Ws in self.prime_units_by_level[level_V - 1]:
+    		# Ws is typically a list of *one* unit, but in case of forks can be longer, hence the use of "any"
+    		if any(self.below(U_c, W) and self.below(W, V) for W in Ws):
+    			vouchers += 1
+
+    	return 3*vouchers >= 2*self.n_processes
