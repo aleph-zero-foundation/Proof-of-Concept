@@ -1,5 +1,6 @@
 import asyncio
 import multiprocessing
+import socket
 import random
 
 from aleph.network import tx_generator
@@ -18,8 +19,9 @@ async def main():
 
     processes = []
     host_ports = [8900+i for i in range(n_processes)]
-    addresses = [('127.0.0.1', port) for port in host_ports]
-    recv_addresses = [('127.0.0.1', 9100+i) for i in range(n_processes)]
+    local_ip = socket.gethostbyname(socket.gethostname())
+    addresses = [(local_ip, port) for port in host_ports]
+    recv_addresses = [(local_ip, 9100+i) for i in range(n_processes)]
 
     signing_keys = [SigningKey() for _ in range(n_processes)]
     public_keys = [VerifyKey.from_SigningKey(sk) for sk in signing_keys]
