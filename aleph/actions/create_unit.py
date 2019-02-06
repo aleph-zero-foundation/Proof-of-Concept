@@ -20,13 +20,14 @@ def recent_parents_restricted(poset, W, parent_processes):
         # W is our dealing unit -> STOP
         if len(W.parents) == 0:
             break
-        parents = [V.creator_id for V in W.parents if V.creator_id != W.creator_id]
-        # NOTE: the use of python sets here is far from optimal, if we want this to be faster bitarrays are an option
-        if len(recent_parents.union(parents)) >= threshold:
+        parents = [V.creator_id for V in W.parents if V.creator_id != W.creator_id and V.creator_id not in recent_parents]
+        if len(recent_parents) + len(parents) >= threshold:
             break
-        recent_parents = recent_parents.union(parents)
+        recent_parents.update(parents)
         W = W.self_predecessor
-    return recent_parents.union(parent_processes)
+    # already used parents are also restricted
+    recent_parents.update(parent_processes)
+    return recent_parents
 
 def growth_restricted(poset, W, parent_processes):
     '''
@@ -41,7 +42,9 @@ def growth_restricted(poset, W, parent_processes):
         for V in Vs:
             if poset.below(V, W) and V.creator_id != W.creator_id:
                 below_W.add(V.creator_id)
-    return below_W.union(parent_processes)
+    # already used parents are also restricted
+    below_W.update(parent_processes)
+    return below_W
 
 def expand_primes_restricted(poset, W, parent_processes):
     '''
@@ -59,14 +62,18 @@ def expand_primes_restricted(poset, W, parent_processes):
     prime_below_parents = set()
     # we already saw enough prime units, cannot require more while using 'high above' for levels
     if 3*len(poset.get_prime_units_at_level_below_unit(level, W)) >= 2*poset.n_processes:
-        return recent_parents_restricted(poset, W, parent_processes).union(growth_restricted(poset, W, parent_processes))
+        fallback_restricted = recent_parents_restricted(poset, W, parent_processes)
+        fallback_restricted.update(growth_restricted(poset, W, parent_processes))
+        return fallback_restricted
     for process_id in parent_processes:
         prime_below_parents.update(poset.get_prime_units_at_level_below_unit(level, poset.max_units_per_process[process_id][0]))
+    unseen_primes = set()
+    for primes in poset.get_prime_units_by_level_per_process(level):
+        if all(prime not in prime_below_parents for prime in primes):
+            unseen_primes.update(primes)
     for Vs in poset.max_units_per_process:
         for V in Vs:
-            prime_below_V = set(poset.get_prime_units_at_level_below_unit(level, V))
-            # NOTE: the use of python sets here is far from optimal, if we want this to be faster bitarrays are an option
-            if prime_below_V <= prime_below_parents:
+            if not any(poset.below(W, V) for W in unseen_primes):
                 not_extending_primes.add(V.creator_id)
     return not_extending_primes
 
@@ -88,7 +95,7 @@ def parents_allowed_with_restrictions(poset, creator_id, restrictions, parent_pr
     for restriction in restrictions:
         restricted_set.update(restriction(poset, U_max, parent_processes))
 
-    return [pid for pid in single_tip_processes if not (pid in restricted_set)]
+    return list(single_tip_processes - restricted_set)
 
 def create_unit(poset, creator_id, txs, num_parents = 2, restrictions=[expand_primes_restricted], force_parents = None):
     '''
