@@ -11,7 +11,7 @@ import numpy as np
 
 from aleph.config import CREATE_FREQ
 from aleph.crypto.keys import SigningKey, VerifyKey
-from utils import image_id_in_region, default_region_name, init_key_pair, security_group_id_by_region, available_regions, badger_regions, generate_signing_keys, n_hosts_per_regions, eu_regions
+from utils import image_id_in_region, default_region_name, init_key_pair, security_group_id_by_region, available_regions, badger_regions, generate_signing_keys, n_processes_per_regions, eu_regions
 from config import N_JOBS
 
 
@@ -44,8 +44,8 @@ def latency_in_region(region_name):
     return latency
 
 
-def launch_new_instances_in_region(n_hosts=1, region_name='default', instance_type='t2.micro'):
-    '''Launches n_hosts in a given region.'''
+def launch_new_instances_in_region(n_processes=1, region_name='default', instance_type='t2.micro'):
+    '''Launches n_processes in a given region.'''
 
     if region_name == 'default':
         region_name = default_region_name()
@@ -66,7 +66,7 @@ def launch_new_instances_in_region(n_hosts=1, region_name='default', instance_ty
     #print(region_name, 'launch instance')
     ec2 = boto3.resource('ec2', region_name)
     instances = ec2.create_instances(ImageId=image_id,
-                                 MinCount=n_hosts, MaxCount=n_hosts,
+                                 MinCount=n_processes, MaxCount=n_processes,
                                  InstanceType=instance_type,
                                  BlockDeviceMappings=[ {
                                      'DeviceName': '/dev/xvda',
@@ -282,19 +282,19 @@ def exec_for_regions(func, regions='badger regions', parallel=True):
     return results
 
 
-def launch_new_instances(nhpr, instance_type='t2.micro'):
+def launch_new_instances(nppr, instance_type='t2.micro'):
     '''
-    Launches n_hosts_per_region in ever region from given regions.
-    :param dict nhpr: dict region_name --> n_hosts_per_region
+    Launches n_processes_per_region in ever region from given regions.
+    :param dict nppr: dict region_name --> n_processes_per_region
     '''
 
-    regions = nhpr.keys()
+    regions = nppr.keys()
 
     failed = []
     print('launching instances')
     for region_name in regions:
         print(region_name, '', end='')
-        instances = launch_new_instances_in_region(nhpr[region_name], region_name, instance_type)
+        instances = launch_new_instances_in_region(nppr[region_name], region_name, instance_type)
         if not instances:
             failed.append(region_name)
 
@@ -305,7 +305,7 @@ def launch_new_instances(nhpr, instance_type='t2.micro'):
         print('there were problems in launching instances in regions', *failed, 'retrying')
         for region_name in failed.copy():
             print(region_name, '', end='')
-            instances = launch_new_instances_in_region(nhpr[region_name], region_name, instance_type)
+            instances = launch_new_instances_in_region(nppr[region_name], region_name, instance_type)
             if instances:
                 failed.remove(region_name)
 
@@ -393,7 +393,7 @@ def run_experiment(n_processes, regions, restricted, experiment, instance_type):
 
     # note: there are only 5 t2.micro machines in 'sa-east-1', 'ap-southeast-2' each
     print('launching machines')
-    nhpr = n_hosts_per_regions(n_processes, regions, restricted)
+    nhpr = n_processes_per_regions(n_processes, regions, restricted)
     launch_new_instances(nhpr, instance_type)
 
     print('waiting for transition from pending to running')
@@ -403,10 +403,10 @@ def run_experiment(n_processes, regions, restricted, experiment, instance_type):
     # generate signing and keys
     generate_signing_keys(n_processes)
 
-    print('generating hosts files')
-    # prepare hosts file
+    print('generating addresses file')
+    # prepare address file
     ip_list = instances_ip(regions)
-    with open('hosts', 'w') as f:
+    with open('addresses', 'w') as f:
         f.writelines([ip+'\n' for ip in ip_list])
 
     print('waiting till ports are open on machines')
@@ -433,7 +433,7 @@ def run_experiment(n_processes, regions, restricted, experiment, instance_type):
     run_task('send-testing-repo', regions, parallel)
 
     print('syncing files')
-    # send files: hosts, signing_keys, light_nodes_public_keys
+    # send files: addresses, signing_keys, light_nodes_public_keys
     run_task('sync-files', regions, parallel)
 
     print(f'establishing the environment took {round(time()-start, 2)}s')
@@ -446,9 +446,9 @@ def get_logs(n_processes, txpu, tcoin, regions=badger_regions()):
 
     run_task('get-logs', regions, parallel=True)
 
-    print('read hosts')
-    with open('hosts', 'r') as f:
-        hosts_ip = [line[:-1] for line in f]
+    print('read addresses')
+    with open('addresses', 'r') as f:
+        ip_addresses = [line[:-1] for line in f]
 
     print('read signing keys')
     with open('signing_keys', 'r') as f:
@@ -459,11 +459,11 @@ def get_logs(n_processes, txpu, tcoin, regions=badger_regions()):
     arg_sort = [i for i, _ in sorted(enumerate(pk_hexes), key = lambda x: x[1])]
 
     signing_keys = [signing_keys[i] for i in arg_sort]
-    hosts_ip = [hosts_ip[i] for i in arg_sort]
+    ip_addresses= [ip_addresses[i] for i in arg_sort]
 
-    print('write hosts')
-    with open('hosts_sorted', 'w') as f:
-        for ip in hosts_ip:
+    print('write addresses')
+    with open('ip_addresses_sorted', 'w') as f:
+        for ip in ip_addresses:
             f.write(ip+'\n')
 
     print('write signing keys')
@@ -474,7 +474,7 @@ def get_logs(n_processes, txpu, tcoin, regions=badger_regions()):
     print('rename logs')
     for fp in os.listdir('../results'):
         name = fp[-9:-4] # other | aleph
-        pid = hosts_ip.index(fp.split(f'-{name}.log')[0].replace('-','.'))
+        pid = ip_addresses.index(fp.split(f'-{name}.log')[0].replace('-','.'))
         os.rename(f'../results/{fp}', f'../results/{pid}.{name}.log')
 
     print('rename dir')

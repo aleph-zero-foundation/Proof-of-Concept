@@ -263,18 +263,18 @@ def describe_instances(region_name):
         print(f'ami_launch_index={instance.ami_launch_index} state={instance.state}')
 
 
-def n_hosts_per_regions(n_hosts, regions=badger_regions(), restricted=['sa-east-1', 'ap-southeast-2']):
-    assert n_hosts <= 20*(len(regions)-len(restricted))+5*len(restricted), 'n_hosts exceeds instances available on AWS'
+def n_processes_per_regions(n_processes, regions=badger_regions(), restricted=['sa-east-1', 'ap-southeast-2']):
+    assert n_processes <= 20*(len(regions)-len(restricted))+5*len(restricted), 'n_processes exceeds instances available on AWS'
 
     nhpr = {}
-    n_left = n_hosts
+    n_left = n_processes
     unrestricted = [r for r in regions if r not in restricted]
-    if restricted and n_hosts/len(regions)>5:
+    if restricted and n_processes/len(regions)>5:
         for r in restricted:
             nhpr[r] = 5
             n_left -= 5
         for r in unrestricted:
-            nh = (n_hosts-5*len(restricted)) // (len(unrestricted))
+            nh = (n_processes-5*len(restricted)) // (len(unrestricted))
             nhpr[r] = nh
             n_left -= nh
 
@@ -283,8 +283,8 @@ def n_hosts_per_regions(n_hosts, regions=badger_regions(), restricted=['sa-east-
 
     else:
         for r in regions:
-            nhpr[r] = n_hosts // len(regions)
-            n_left -= n_hosts // len(regions)
+            nhpr[r] = n_processes // len(regions)
+            n_left -= n_processes // len(regions)
 
         for i in range(n_left):
             nhpr[regions[i]] += 1
