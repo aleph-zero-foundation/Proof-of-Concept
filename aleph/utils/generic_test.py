@@ -33,7 +33,7 @@ def generate_unit(dag, posets, creator_id, unit_to_name, forking, only_maximal_p
     n_processes = len(posets)
     if forking:
         return dag_utils.generate_random_compliant_unit(dag, n_processes, creator_id, forking = True, only_maximal_parents=only_maximal_parents)
-    U = create_unit(posets[creator_id], creator_id, [], num_parents = 2)
+    U = create_unit(posets[creator_id], creator_id, [])
     if U is None:
         return None
     dag_parents = [unit_to_name[creator_id][V] for V in U.parents]

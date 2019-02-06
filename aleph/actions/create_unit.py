@@ -97,7 +97,7 @@ def parents_allowed_with_restrictions(poset, creator_id, restrictions, parent_pr
 
     return list(single_tip_processes - restricted_set)
 
-def create_unit(poset, creator_id, txs, num_parents = 2, restrictions=[expand_primes_restricted], force_parents = None):
+def create_unit(poset, creator_id, txs, num_parents = consts.N_PARENTS, restrictions=[expand_primes_restricted], force_parents = None):
     '''
     Creates a new unit and stores txs in it. Correctness of the txs is checked by a thread listening for new transactions.
     :param list txs: list of correct transactions

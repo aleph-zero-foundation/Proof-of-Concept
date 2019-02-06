@@ -13,7 +13,7 @@ import aleph.const as consts
 
 
 async def main():
-    n_processes = 4
+    n_processes = 32
     n_forkers = 0
     txps = 50
     n_light_nodes = 100
