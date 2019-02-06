@@ -34,7 +34,7 @@ class DeterministicPermutation:
         return list(self.permutation)
 
 
-def add_new_unit_with_given_parents(process, processes, dag, names_to_units, maximal_names, creator_id, parent_ids_set):
+def add_new_unit_with_given_parents(process, processes, dag, names_to_units, maximal_names, creator_id, parent_ids_set, check_diversity = True):
     '''
     :param list maximal_names: list of names of maximal units per process
     :param list parent_ids_set: list of candidates for second parent
@@ -56,7 +56,7 @@ def add_new_unit_with_given_parents(process, processes, dag, names_to_units, max
                 continue
             parent_ids = [creator_id, second_parent]
             parent_names = [maximal_names[parent_id] for parent_id in parent_ids]
-            if dag_utils.check_parent_diversity(dag, creator_id, parent_names, (n_processes+2)//3):
+            if not check_diversity or dag_utils.check_parent_diversity(dag, creator_id, parent_names, (n_processes+2)//3):
                 success = True
                 break
 
@@ -155,6 +155,12 @@ def generate_delta_level_4_no_decision(det_coin_value = 0):
     def check_parent_diversity(self, U):
         return True
 
+    # don't use the expand_primes rule, this example is not compatible with it
+    # TODO(maybe): fix the example to work with expanding primes
+    process.poset.compliance_rules = process.poset.default_compliance_rules
+    process.poset.compliance_rules['expand_primes'] = False
+    process.poset.compliance_rules['parent_diversity'] = True
+    process.poset.compliance_rules['growth'] = True
 
     dag = DAG(n_processes)
 
@@ -195,8 +201,11 @@ def generate_delta_level_4_no_decision(det_coin_value = 0):
 
     # the 3-4 lines below make sure that the new unit created by process 0 will be high above the unit created by 0 at the previous level
     # while at the same that unit is not high below any other prime unit at level 3
-    add_new_unit_with_given_parents(process, processes, dag, names_to_units, maximal_names, low, [0])
-    add_new_unit_with_given_parents(process, processes, dag, names_to_units, maximal_names, middle, [low])
+    if not add_new_unit_with_given_parents(process, processes, dag, names_to_units, maximal_names, low, [0]):
+        return False
+    # TODO(maybe): fix the example to work with parent diversity
+    if not add_new_unit_with_given_parents(process, processes, dag, names_to_units, maximal_names, middle, [low], check_diversity=False):
+        return False
     if not add_new_unit_with_given_parents(process, processes, dag, names_to_units, maximal_names, 0, [middle]):
         # this might fail due to bad luck, but should succeed with good probability
         return False
@@ -282,7 +291,3 @@ def unit_to_name(names_to_units, U):
         if V is U:
             return name
     assert False, "Unit not found in the dictionary."
-
-
-
-test_delta_level_4_no_decision()

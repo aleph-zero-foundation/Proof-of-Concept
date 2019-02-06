@@ -11,6 +11,7 @@ import time
 from aleph.data_structures import Poset, UserDB
 from aleph.crypto import CommonRandomPermutation
 from aleph.network import listener, sync, tx_listener
+from aleph.actions import create_unit
 from aleph.utils import timer
 import aleph.const as consts
 
@@ -180,7 +181,6 @@ class Process:
 
         return True
 
-
     def validate_transactions_in_unit(self, U, U_validator):
         '''
         Returns a list of transactions in U that can be fast-validated if U's validator unit is U_validator
@@ -248,7 +248,7 @@ class Process:
 
             txs = self.prepared_txs
             with timer(self.process_id, 'create_unit'):
-                new_unit = self.poset.create_unit(self.process_id, txs, strategy = "link_self_predecessor", num_parents = 2)
+                new_unit = create_unit(self.poset, self.process_id, txs, num_parents = 2)
             timer.write_summary(where=self.logger, groups=[self.process_id])
             timer.reset(self.process_id)
 
@@ -258,7 +258,6 @@ class Process:
                 assert self.poset.check_compliance(new_unit), "A unit created by our process is not passing the compliance test!"
                 self.sign_unit(new_unit)
                 self.logger.info(f"create_add {self.process_id} | Created a new unit {new_unit.short_name()}")
-                #self.poset.add_unit(new_unit)
                 self.add_unit_to_poset(new_unit)
                 if new_unit.level == consts.LEVEL_LIMIT:
                     max_level_reached = True

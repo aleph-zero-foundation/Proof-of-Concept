@@ -6,6 +6,7 @@ from aleph.crypto.signatures.threshold_signatures import generate_keys
 from aleph.crypto.threshold_coin import ThresholdCoin
 from aleph.utils import dag_utils
 from aleph.utils.dag import DAG
+from aleph.actions import create_unit
 import random
 
 def generate_and_check_dag(checks, n_processes, n_units, forking = None, repetitions = 1, seed = 123456789):
@@ -28,11 +29,11 @@ def generate_threshold_coins(posets):
             threshold_coin = ThresholdCoin(dealer_id, process_id, n_processes, n_processes//3+1, sks[process_id], vk)
             posets[process_id].add_threshold_coin(threshold_coin)
 
-def generate_unit(dag, posets, creator_id, strategy, unit_to_name, forking, only_maximal_parents):
+def generate_unit(dag, posets, creator_id, unit_to_name, forking, only_maximal_parents):
     n_processes = len(posets)
     if forking:
         return dag_utils.generate_random_compliant_unit(dag, n_processes, creator_id, forking = True, only_maximal_parents=only_maximal_parents)
-    U = posets[creator_id].create_unit(creator_id, [], strategy = strategy, num_parents = 2)
+    U = create_unit(posets[creator_id], creator_id, [], num_parents = 2)
     if U is None:
         return None
     dag_parents = [unit_to_name[creator_id][V] for V in U.parents]
@@ -67,13 +68,12 @@ def distribute_unit(U, name, posets, forkers, name_to_unit, unit_to_name):
 def verify_nonforker_fails(dag, n_processes, creator_id, forkers, only_maximal_parents):
     if creator_id not in forkers:
         res = dag_utils.generate_random_compliant_unit(dag, n_processes, creator_id, forking = False, only_maximal_parents=only_maximal_parents)
-        assert res is None
+        assert res is None, "Impossibly generated {}, with parents {}".format(res[0], res[1])
 
 def simulate_with_checks(
         n_processes,
         n_units,
         n_forkers,
-        strategy,
         verify_fails = verify_nonforker_fails,
         post_prepare = lambda *args: None,
         only_maximal_parents = True,
@@ -95,7 +95,7 @@ def simulate_with_checks(
         assert iter_count < n_units*5000, "Creating %d units seems to be taking too long." % n_units
         creator_id = random.choice(range(n_processes))
 
-        res = generate_unit(dag, posets, creator_id, strategy, unit_to_name, forking = creator_id in forkers, only_maximal_parents = only_maximal_parents)
+        res = generate_unit(dag, posets, creator_id, unit_to_name, forking = creator_id in forkers, only_maximal_parents = only_maximal_parents)
         if res is None:
             verify_fails(dag, n_processes, creator_id, forkers, only_maximal_parents)
             continue
@@ -103,10 +103,6 @@ def simulate_with_checks(
 
         dag.add(name, creator_id, parents)
 
-        # create unit
-        #parent_units = [name_to_unit[creator_id][parent_name] for parent_name in parents]
-
-        #U = Unit(creator_id = creator_id, parents = parent_units, txs = [])
         posets[creator_id].prepare_unit(U)
         additional_args = post_prepare(U, posets[creator_id], dag, results, additional_args)
         assert posets[creator_id].check_compliance(U)

@@ -10,12 +10,12 @@ class Unit(object):
     '''This class is the building block for the poset'''
 
     __slots__ = ['creator_id', 'parents', 'txs', 'signature', 'coin_shares',
-                 'level', 'floor', 'ceil', 'height', 'self_predecessor', 'hash_value']
+                 'level', 'floor', 'ceil', 'height', 'hash_value']
 
     def __init__(self, creator_id, parents, txs, signature=None, coin_shares=None):
         '''
         :param int creator_id: indentification number of a process creating this unit
-        :param list parents: list of parent units; first parent has to be above a unit created by the process creator_id
+        :param list parents: list of parent units; first parent has to be the last unit created by the process creator_id
         :param list txs: list of transactions
         :param bytes signature: signature made by a process creating this unit preventing forging units by Byzantine processes
         :param list coin_shares: list of coin_shares if this is a prime unit, None otherwise
@@ -27,8 +27,12 @@ class Unit(object):
         self.level = None
         self.hash_value = None
         self.txs = zlib.compress(pickle.dumps(txs), level=4)
-        #self.txs = txs
+        self.height = parents[0].height+1 if len(parents) > 0 else 0
 
+
+    @property
+    def self_predecessor(self):
+        return self.parents[0] if len(self.parents) > 0 else None
 
     def transactions(self):
         '''Iterate over transactions (instances of Tx class) belonging to this unit.'''
@@ -100,7 +104,6 @@ class Unit(object):
         str_repr += str(self.parents_hashes())
         str_repr += str(self.txs)
         str_repr += str(self.coin_shares)
-        #str_repr += str(self.height)
         #str_repr += str(self.level)?
         #str_repr += str(self.self_predecessor.hash())?
         return str_repr

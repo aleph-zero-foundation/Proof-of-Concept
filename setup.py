@@ -16,4 +16,5 @@ setup(
         "pytest-xdist",
         ],
     license="",
+    package_data={"aleph.test.data": "simple.dag"},
 )

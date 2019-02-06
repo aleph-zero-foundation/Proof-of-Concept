@@ -21,8 +21,8 @@ def time_coin_toss(U, poset, dag, results, additional_args):
             results.append(end)
     return levels, U_c
 
-def measure_time(n_jobs, n_processes, n_units, n_forkers, strategy):
-    print('n_jobs', n_jobs, '\nn_processes', n_processes, '\nn_units', n_units, '\nn_forkers', n_forkers, '\nstrategy', strategy)
+def measure_time(n_jobs, n_processes, n_units, n_forkers):
+    print('n_jobs', n_jobs, '\nn_processes', n_processes, '\nn_units', n_units, '\nn_forkers', n_forkers)
     print('dispatching workers')
     start = time()
     results = Parallel(n_jobs=n_jobs)(
@@ -30,7 +30,6 @@ def measure_time(n_jobs, n_processes, n_units, n_forkers, strategy):
             n_processes,
             n_units,
             n_forkers,
-            strategy,
             post_prepare = time_coin_toss,
             seed = round(time())+i
         ) for i in range(n_jobs))

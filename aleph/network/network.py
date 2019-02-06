@@ -294,7 +294,7 @@ def _add_units(sync_id, process_id, ex_id, units_received, process, mode, logger
     logger.info(f'add_received_{mode} {process_id} {sync_id} | trying to add {len(units_received)} units from {ex_id} to poset')
     printable_unit_hashes = ''
     for unit in units_received:
-        process.poset.fix_parents(unit)
+        process.poset.dehash_parents(unit)
         printable_unit_hashes += (' ' + unit.short_name())
         #logger.info(f'add_foreign {process_id} {sync_id} | trying to add {unit.short_name()} from {ex_id} to poset')
         if not process.add_unit_to_poset(unit):

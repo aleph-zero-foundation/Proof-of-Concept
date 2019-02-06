@@ -1,6 +1,7 @@
 from aleph.data_structures import Unit, Poset
 from aleph.utils import dag, dag_utils
 import random
+import pytest
 
 
 def check_muting_vs_pattern(dag, topological_list, pattern):
@@ -9,7 +10,6 @@ def check_muting_vs_pattern(dag, topological_list, pattern):
 
     for node, answer in zip(topological_list, pattern):
         U = Unit(creator_id = dag.pid(node), parents = [unit_dict[parent] for parent in dag.parents(node)], txs = [])
-        poset.set_self_predecessor_and_height(U)
         unit_dict[node] = U
         poset.prepare_unit(U)
         assert poset.check_forker_muting(U) == answer
@@ -34,6 +34,7 @@ def test_small_random_muting():
 
 
 
+@pytest.mark.skip(reason='This takes way too long, reinstate after generating and saving examples.')
 def test_large_random_muting():
     random.seed(123456789)
     repetitions = 20

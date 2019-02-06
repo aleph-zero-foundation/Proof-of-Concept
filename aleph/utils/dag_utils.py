@@ -1,5 +1,5 @@
 import random
-from itertools import combinations
+from itertools import product
 from .dag import DAG
 from aleph.data_structures import Poset, Unit
 
@@ -55,6 +55,26 @@ def check_growth(dag, node_self_predecessor, node_parents):
             return False
     return True
 
+def check_expand_primes(dag, node_self_predecessor, node_parents):
+    level = dag.levels[node_self_predecessor]
+    prime_units = dag.prime_units_by_level[level]
+    predecessor_visible_prime_units = set()
+    for prime_unit in prime_units:
+        if dag.is_reachable(prime_unit, node_self_predecessor):
+            predecessor_visible_prime_units.add(prime_unit)
+    # we already see enough, cannot require more while using 'high above' for levels
+    if 3*len(predecessor_visible_prime_units) >= 2*dag.n_processes:
+        return check_growth(dag, node_self_predecessor, node_parents) and check_parent_diversity(dag, dag.pids[node_self_predecessor], node_parents, (dag.n_processes + 2)//3)
+    visible_prime_units = set()
+    for parent in node_parents:
+        new_visible_prime_units = set()
+        for prime_unit in prime_units:
+            if dag.is_reachable(prime_unit, parent):
+                new_visible_prime_units.add(prime_unit)
+        if new_visible_prime_units <= visible_prime_units:
+            return False
+        visible_prime_units.update(new_visible_prime_units)
+    return True
 
 
 def check_introduce_new_fork(dag, pid, self_predecessor):
@@ -74,6 +94,12 @@ def check_new_unit_correctness(dag, new_unit_pid, new_unit_parents, forkers):
 
     if self_predecessor is None:
         return False
+
+    parent_ids = set()
+    for parent in new_unit_parents:
+        if dag.pid(parent) in parent_ids:
+            return False
+        parent_ids.add(dag.pid(parent))
 
     if new_unit_pid not in forkers and check_introduce_new_fork(dag, new_unit_pid, self_predecessor):
         return False
@@ -137,12 +163,22 @@ def generate_random_forking(n_processes, n_units, n_forkers, file_name = None):
 
     while len(dag) < n_processes + n_units:
         process_id = random.choice(range(n_processes))
-        new_unit_parents = random.sample(dag.nodes.keys(), 2)
+        new_unit_first_parent = random.choice([U for U in dag if dag.pid(U) == process_id])
+        new_unit_parents = [new_unit_first_parent] + [random.choice(list(dag.nodes.keys()))]
         self_predecessor = check_new_unit_correctness(dag, process_id, new_unit_parents, forkers)
         if not self_predecessor:
             continue
         new_unit_height = node_heights[self_predecessor] + 1
-        new_unit_no = count_nodes_by_process_height(dag, node_heights, process_id, new_unit_height)
+        new_unit_neighbours = nodes_by_process_height(dag, node_heights, process_id, new_unit_height)
+        new_unit_no = len(new_unit_neighbours)
+        if new_unit_no > 0:
+            #make sure this is a real fork, not just an old one under a different name
+            spork = False
+            for n in new_unit_neighbours:
+                if dag.nodes[n] == new_unit_parents:
+                    spork = True
+            if spork:
+                continue
         unit_name = generate_unit_name(new_unit_height, process_id, new_unit_no)
         dag.add(unit_name, process_id, new_unit_parents)
         node_heights[unit_name] = new_unit_height
@@ -153,7 +189,7 @@ def generate_random_forking(n_processes, n_units, n_forkers, file_name = None):
     return dag
 
 
-def generate_random_compliant_unit(dag, n_processes, process_id = None, forking = False, only_maximal_parents = False):
+def generate_random_compliant_unit(dag, n_processes, process_id = None, forking = False, only_maximal_parents = False, checks='expand_primes'):
     '''
     Generates a random compliant unit created by a given process_id (or random process).
     '''
@@ -163,9 +199,9 @@ def generate_random_compliant_unit(dag, n_processes, process_id = None, forking 
         maximal_nodes = []
         for process_gen_id in range(n_processes):
             maximal_nodes.extend(dag.maximal_units_per_process(process_gen_id))
-        unit_pairs = list(combinations(maximal_nodes, 2))
+        unit_pairs = list(product(maximal_nodes, repeat=2))
     else:
-        unit_pairs = list(combinations(dag.nodes.keys(), 2))
+        unit_pairs = list(product(dag.nodes.keys(), repeat=2))
 
     random.shuffle(unit_pairs)
 
@@ -178,11 +214,16 @@ def generate_random_compliant_unit(dag, n_processes, process_id = None, forking 
         if not forking and check_introduce_new_fork(dag, process_id, self_predecessor):
             continue
 
-        if not check_growth(dag, self_predecessor, new_unit_parents):
-            continue
+        if checks == 'expand_primes':
+            if not check_expand_primes(dag, self_predecessor, new_unit_parents):
+                continue
 
-        if not check_parent_diversity(dag, process_id, new_unit_parents, (n_processes + 2)//3):
-            continue
+        if checks == 'growth_diversity':
+            if not check_growth(dag, self_predecessor, new_unit_parents):
+                continue
+
+            if not check_parent_diversity(dag, process_id, new_unit_parents, (n_processes + 2)//3):
+                continue
 
         if not check_forker_muting(dag, new_unit_parents):
             continue
@@ -190,7 +231,6 @@ def generate_random_compliant_unit(dag, n_processes, process_id = None, forking 
         if not check_distinct_parent_processes(dag, new_unit_parents):
             continue
 
-        random.shuffle(new_unit_parents)
         return generate_unused_name(dag, process_id), new_unit_parents
 
     return None
@@ -217,7 +257,8 @@ def generate_random_violation(n_processes, n_correct_units, n_forkers, ensure, v
         assert len(dag) < 100*(n_processes + n_correct_units), "The random process had troubles to terminate."
 
         process_id = random.choice(range(n_processes))
-        new_unit_parents = random.sample(dag.nodes.keys(), 2)
+        new_unit_first_parent = random.choice([U for U in dag if dag.pid(U) == process_id])
+        new_unit_parents = [new_unit_first_parent] + [random.choice(list(dag.nodes.keys()))]
         self_predecessor = dag.self_predecessor(process_id, new_unit_parents)
         if self_predecessor is None:
             continue
@@ -229,6 +270,7 @@ def generate_random_violation(n_processes, n_correct_units, n_forkers, ensure, v
         property_table['parent_diversity'] = check_parent_diversity(dag, process_id, new_unit_parents, (n_processes + 2)//3)
         property_table['forker_muting'] = check_forker_muting(dag, new_unit_parents)
         property_table['distinct_parents'] = check_distinct_parent_processes(dag, new_unit_parents)
+        property_table['expand_primes'] = check_expand_primes(dag, self_predecessor, new_unit_parents)
 
         if len(dag) >= n_processes + n_correct_units and constraints_satisfied(violate, property_table):
             terminate_poset = True
@@ -239,7 +281,16 @@ def generate_random_violation(n_processes, n_correct_units, n_forkers, ensure, v
             continue
 
         new_unit_height = node_heights[self_predecessor] + 1
-        new_unit_no = count_nodes_by_process_height(dag, node_heights, process_id, new_unit_height)
+        new_unit_neighbours = nodes_by_process_height(dag, node_heights, process_id, new_unit_height)
+        new_unit_no = len(new_unit_neighbours)
+        if new_unit_no > 0:
+            #make sure this is a real fork, not just an old one under a different name
+            spork = False
+            for n in new_unit_neighbours:
+                if dag.nodes[n] == new_unit_parents:
+                    spork = True
+            if spork:
+                continue
         unit_name = generate_unit_name(new_unit_height, process_id, new_unit_no)
         dag.add(unit_name, process_id, new_unit_parents)
         node_heights[unit_name] = new_unit_height
@@ -273,8 +324,8 @@ def generate_unused_name(dag, process_id):
 
 
 
-def count_nodes_by_process_height(dag, node_heights, process_id, height):
-    return len([node for node in node_heights if (dag.pid(node) == process_id and height == node_heights[node])])
+def nodes_by_process_height(dag, node_heights, process_id, height):
+    return [node for node in node_heights if (dag.pid(node) == process_id and height == node_heights[node])]
 
 
 def constraints_satisfied(constraints, truth):
@@ -343,14 +394,14 @@ def dag_from_poset(poset):
 
 
 
-def dag_from_file(file_name):
-    with open(file_name) as poset_file:
-        lines = poset_file.readlines()
+def dag_from_stream(poset_stream):
+    lines = poset_stream.readlines()
 
     n_processes = int(lines[0])
     dag = DAG(n_processes)
 
     for line in lines[1:]:
+        line = line.decode('ascii')
         tokens = line.split()
         unit_name = tokens[0]
         creator_id = int(tokens[1])
@@ -362,6 +413,11 @@ def dag_from_file(file_name):
 
         dag.add(unit_name, creator_id, parents)
 
+    return dag
+
+def dag_from_file(file_name):
+    with open(file_name, mode="rb") as poset_file:
+        dag = dag_from_stream(poset_file)
     return dag
 
 

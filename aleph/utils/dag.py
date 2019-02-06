@@ -33,6 +33,8 @@ class DAG:
         self.n_processes = n_processes
         self.nodes = {}
         self.pids = {}
+        self.levels = {}
+        self.prime_units_by_level = {}
 
 
     def __contains__(self, node): return node in self.nodes
@@ -47,6 +49,23 @@ class DAG:
         assert all(p in self for p in parents), 'Parents of {} are not in DAG'.format(name)
         self.pids[name] = pid
         self.nodes[name] = parents[:]
+        level = max([self.levels[p] for p in parents]) if len(parents) > 0 else 0
+        if level not in self.prime_units_by_level:
+            self.prime_units_by_level[level] = []
+        visible_prime_units = set()
+        for V in self.prime_units_by_level[level]:
+            if self.is_reachable_through_n_intermediate(V, name, (2 * self.n_processes + 2)//3):
+                visible_prime_units.add(self.pids[V])
+        if 3*len(visible_prime_units) >= 2*self.n_processes:
+            level = level + 1
+        if level not in self.prime_units_by_level:
+            self.prime_units_by_level[level] = []
+        self.levels[name] = level
+        predecessor = self.self_predecessor(pid, parents)
+        if predecessor is None or level > self.levels[predecessor]:
+            self.prime_units_by_level[level].append(name)
+
+
 
 
     @memo
@@ -94,8 +113,8 @@ class DAG:
     @memo
     def count_support(self, U, V):
         below_V = self.nodes_below(V)
-        above_U = self.reversed().nodes_below(U)
-        return len({self.pid(node) for node in (below_V & above_U)})
+        between_V_and_U = [W for W in below_V if self.is_reachable(U, W)]
+        return len({self.pid(node) for node in between_V_and_U})
 
 
     def is_reachable_through_n_intermediate(self, U, V, n):
@@ -107,12 +126,15 @@ class DAG:
 
 
     def self_predecessor(self, pid, parent_nodes):
+        parent_nodes = list(parent_nodes)
         below_within_process = [node_below for node_below in self.nodes_below(parent_nodes) if self.pid(node_below) == pid]
 
         if len(below_within_process) == 0:
             return None
         list_maximal = self.compute_maximal_from_subset(below_within_process)
         if len(list_maximal) != 1:
+            return None
+        if parent_nodes[0] != list_maximal[0]:
             return None
         return list_maximal[0]
 

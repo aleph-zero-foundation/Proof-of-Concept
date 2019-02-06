@@ -6,7 +6,7 @@ import random
 
 def test_small_nonforking_below():
     generate_and_check_dag(
-        checks= [check_all_pairs_high_below],
+        checks= [check_all_levels],
         n_processes = 5,
         n_units = 50,
         repetitions = 1,
@@ -14,7 +14,7 @@ def test_small_nonforking_below():
 
 def test_large_nonforking_below():
     generate_and_check_dag(
-        checks= [check_all_pairs_high_below],
+        checks= [check_all_levels],
         n_processes = 30,
         n_units = 100,
         repetitions = 1,
@@ -23,7 +23,7 @@ def test_large_nonforking_below():
 
 def test_small_forking_below():
     generate_and_check_dag(
-        checks= [check_all_pairs_high_below],
+        checks= [check_all_levels],
         n_processes = 5,
         n_units = 50,
         repetitions = 30,
@@ -33,7 +33,7 @@ def test_small_forking_below():
 
 def test_large_forking_below():
     generate_and_check_dag(
-        checks= [check_all_pairs_high_below],
+        checks= [check_all_levels],
         n_processes = 30,
         n_units = 100,
         repetitions = 10,
@@ -42,17 +42,13 @@ def test_large_forking_below():
 
 def test_specific_dag():
     from pkg_resources import resource_stream
-    check_all_pairs_high_below(dag_utils.dag_from_stream(resource_stream("aleph.test.data", "simple.dag")))
+    check_all_levels(dag_utils.dag_from_stream(resource_stream("aleph.test.data", "simple.dag")))
 
-def check_all_pairs_high_below(arg):
+def check_all_levels(arg):
     '''
-    Create a poset from a dag and test U<<V for all pairs of units U,V
-    against a naive BFS-implementation from dag_utils
+    Create a poset from a dag and check if levels agree.
     '''
     poset, unit_dict = dag_utils.poset_from_dag(arg)
 
     for nodeU, U in unit_dict.items():
-        for nodeV, V in unit_dict.items():
-            threshold = (2 * arg.n_processes + 2) // 3
-            assert poset.high_below(U,V) == arg.is_reachable_through_n_intermediate(nodeU, nodeV, threshold)
-            assert poset.high_above(U,V) == arg.is_reachable_through_n_intermediate(nodeV, nodeU, threshold)
+        assert U.level == arg.levels[nodeU], "Node {} has broken level!".format(nodeU)
