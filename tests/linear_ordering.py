@@ -2,7 +2,6 @@ import asyncio
 import multiprocessing
 import random
 
-from aleph.network import tx_generator
 from aleph.data_structures import Unit, Poset, UserDB
 from aleph.process import Process
 from aleph.crypto.keys import SigningKey, VerifyKey

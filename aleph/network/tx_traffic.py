@@ -1,33 +1,35 @@
 import pickle
 import random
 import socket
-import time
+
+from time import sleep, perf_counter as get_time
 
 from aleph.crypto import SigningKey, VerifyKey
 from aleph.data_structures import Tx
 
 
 def tx_generator(committee_addresses, signing_keys, txps):
-    n_light_nodes = len(signing_keys)
-    #index temporarily disabled
-    #last_tx_index = [-1 for _ in range(n_light_nodes)]
-    #signing Txs temporarily disabled
-    #verify_keys_hex = [VerifyKey.from_SigningKey(sk).to_hex() for sk in signing_keys]
+    '''
+    Generate random transactions indefinitely.
+    Issuer and receiver of each transactions are random integers 0 <= i <= len(signing_keys)
 
+    NOTE: this is an old version of TX generator that is still used by some tests.
+    '''
+    n_light_nodes = len(signing_keys)
     counter = 0
-    starts = time.time()
+    starts = get_time()
 
     while True:
         if counter == txps:
             counter = 0
-            if time.time() - starts < 1:
-                time.sleep(1-(time.time()-starts))
-            starts = time.time()
+            delta = get_time() - starts
+            if delta < 1:
+                sleep(1 - delta)
+            starts = get_time()
 
         issuer_id = random.randrange(0, n_light_nodes)
         receiver_id = random.choice([uid for uid in range(n_light_nodes) if uid != issuer_id])
         amount = random.randrange(1, 100)
-        #index = last_tx_index[issuer_id] + 1
         tx = Tx(issuer_id, receiver_id, amount)
         data = pickle.dumps(tx)
 
@@ -41,7 +43,7 @@ def tx_generator(committee_addresses, signing_keys, txps):
                     sock.sendall(data)
                     sent = True
                 except:
-                    return # assume all failures mean others stopped
+                    return # assume any failure means that others have stopped
 
-        #last_tx_index[issuer_id] += 1
         counter += 1
+
