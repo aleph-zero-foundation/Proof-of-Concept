@@ -67,7 +67,7 @@ def sync_addresses(conn):
     '''Syncs ip addresses of the committee members.'''
 
     conn.run(f'echo {conn.host} > proof-of-concept/experiments/my_ip')
-    conn.put('hosts', 'proof-of-concept/experiments/')
+    conn.put('addresses', 'proof-of-concept/experiments/')
 
 
 @task
@@ -171,9 +171,9 @@ def simple_ec2_test(conn):
 
     conn.put('../simple_ec2_test.py', 'proof-of-concept/experiments/')
     with conn.cd('proof-of-concept/experiments'):
-        # cmd = 'python simple_ec2_test.py -i hosts -k signing_keys -l 10 -b 6553 -u 100 -t 0'
-        # cmd = 'python simple_ec2_test.py -i hosts -k signing_keys -l 10 -b 65536 -u 1000'
-        cmd = 'python simple_ec2_test.py -i hosts -k signing_keys -l 10 -b 1000000 -u 1000'
+        # cmd = 'python simple_ec2_test.py -i addresses -k signing_keys -l 10 -b 6553 -u 100 -t 0'
+        # cmd = 'python simple_ec2_test.py -i addresses -k signing_keys -l 10 -b 65536 -u 1000'
+        cmd = 'python simple_ec2_test.py -i addresses -k signing_keys -l 10 -b 1000000 -u 1000'
         # export env var needed for pbc, activate venv, cross fingers, and run the experiment
         conn.run('export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/local/lib &&'
                  'source /home/ubuntu/p37/bin/activate &&'
@@ -185,10 +185,10 @@ def run_protocol(conn):
     ''' Runs the protocol.'''
 
     with conn.cd('proof-of-concept/aleph'):
-        # cmd = 'python simple_ec2_test.py -i hosts -k signing_keys -l 10 -b 6553 -u 100 -t 0'
-        # cmd = 'python simple_ec2_test.py -i hosts -k signing_keys -l 10 -b 65536 -u 1000'
+        # cmd = 'python simple_ec2_test.py -i addresses -k signing_keys -l 10 -b 6553 -u 100 -t 0'
+        # cmd = 'python simple_ec2_test.py -i addresses -k signing_keys -l 10 -b 65536 -u 1000'
         # export env var needed for pbc, activate venv, cross fingers, and run the protocol
-        cmd = 'python simple_ec2_test.py -i hosts -k signing_keys -l 10 -b 1000000 -u 1000'
+        cmd = 'python main.py -i addresses -k signing_keys -l 10 -b 1000000 -u 1000'
         conn.run('export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/local/lib &&'
                  'source /home/ubuntu/p37/bin/activate &&'
                  f'dtach -n `mktemp -u /tmp/dtach.XXXX` {cmd}')
@@ -235,9 +235,9 @@ def run_unit_tests(conn):
 def sync_files(conn):
     ''' Syncs files needed for running a process.'''
 
-    # send files: hosts, signing_keys, setup.sh, set_env.sh, light_nodes_public_keys
+    # send files: addresses, signing_keys, setup.sh, set_env.sh, light_nodes_public_keys
     conn.run(f'echo {conn.host} > proof-of-concept/experiments/my_ip')
-    conn.put('hosts', 'proof-of-concept/experiments/')
+    conn.put('addresses', 'proof-of-concept/experiments/')
     conn.put('signing_keys', 'proof-of-concept/experiments/')
     conn.put('light_nodes_public_keys', 'proof-of-concept/experiments/')
 
