@@ -58,7 +58,7 @@ for unit_no in range(n_units):
     while True:
         creator_id = random.choice(range(n_processes))
         process = processes[creator_id]
-        new_unit = create_unit(process.poset, creator_id, [], num_parents = 2)
+        new_unit = create_unit(process.poset, creator_id, [])
         if new_unit is None:
             continue
 

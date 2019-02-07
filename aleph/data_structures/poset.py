@@ -1271,29 +1271,26 @@ class Poset:
         :param int process_id: the identification number of a process
         :returns: list top_list: a topologically sorted list units_list
         '''
-        # NOTE: this might be potentially slow, as it uses a set of Units
+        # NOTE: this might be potentially slow, as it uses a dictionaries of Units
         # implements a DFS on a custom stack
-        #hash_to_units = {U.hash():U for U in units_list}
-        units_added = set()
-        units_set = set(units_list)
+        state = {U: 0 for U in units_list}
         top_list = []
-        #a unit on a stack is stored along with its color (0 or 1) depending on its state in the DFS algorithm
         unit_stack = []
         for U in units_list:
-            if U not in units_added:
-                unit_stack.append((U,0))
-                units_added.add(U)
+            if state[U] == 0:
+                unit_stack.append(U)
 
             while unit_stack:
-                V, color = unit_stack.pop()
-                if color == 0:
-                    unit_stack.append((V,1))
+                V = unit_stack.pop()
+                if state[V] == 0:
+                    state[V] = 1
+                    unit_stack.append(V)
                     for W in V.parents:
-                        if W in units_set and W not in units_added:
-                            unit_stack.append((W,0))
-                            units_added.add(W)
-                if color == 1:
+                        if W in state and state[W] == 0:
+                            unit_stack.append(W)
+                elif state[V] == 1:
                     top_list.append(V)
+                    state[V] = 2
 
         return top_list
 
@@ -1375,7 +1372,15 @@ class Poset:
         Substitute units for hashes in U's parent list and set the height field. To be called on units received from the network.
         :param unit U: the unit with hashes instead of parents
         '''
-        assert all(p in self.units for p in U.parents), 'Attempting to fix parents but parents not present in poset'
+        #assert all(p in self.units for p in U.parents), 'Attempting to fix parents but parents not present in poset'
+        if not all(p in self.units for p in U.parents):
+            import base64
+            logger = logging.getLogger(consts.LOGGER_NAME)
+            logger.info(f"{U.short_name()}")
+            for pa in U.parents:
+                pa = base64.b32encode(pa).decode()[:16]
+                logger.info(f"{pa}")
+            assert False
         U.parents = [self.units[p] for p in U.parents]
         U.height = U.parents[0].height+1 if len(U.parents) > 0 else 0
 
