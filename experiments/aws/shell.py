@@ -1,4 +1,5 @@
 '''This is a shell for orchestrating experiments on AWS EC 2'''
+import configparser
 import os
 
 from functools import partial
@@ -442,9 +443,11 @@ def run_protocol(n_processes, regions, restricted, instance_type):
     run_task('run-protocol', regions, parallel)
 
 
-def get_logs(n_processes, txpu, tcoin, regions=badger_regions()):
+def get_logs(n_processes, regions=badger_regions()):
     '''Retrieves all logs from instances.'''
 
+    if not os.path.exists('../results'):
+        os.makedirs('../results')
     run_task('get-logs', regions, parallel=True)
 
     print('read addresses')
@@ -478,8 +481,21 @@ def get_logs(n_processes, txpu, tcoin, regions=badger_regions()):
         pid = ip_addresses.index(fp.split(f'-{name}.log')[0].replace('-','.'))
         os.rename(f'../results/{fp}', f'../results/{pid}.{name}.log')
 
+    params = configparser.ConfigParser()
+    params.read('config.ini')
+    params = params['Default']
+    n_parents = int(params['N_PARENTS'])
+    tcoin = int(params['USE_TCOIN'])
+    cfreq = int(params['CREATE_FREQ'])
+    sfreq = int(params['SYNC_INIT_FREQ'])
+    n_recv_sync = int(params['N_RECV_SYNC'])
+    txpu = int(params['TXPU'])
+    fast = int(params['USE_FAST_POSET'])
+
+    result_path = f'../{n_parents}_{tcoin}_{cfreq}_{sfreq}_{n_recv_sync}_{txpu}_{fast}'
+
     print('rename dir')
-    os.rename('../results', f'../results_{txpu}_{int(consts.CREATE_FREQ)}_{n_processes}_{tcoin}')
+    os.rename('../results', result_path)
 
 
 def memory_usage(regions=badger_regions()):
@@ -489,9 +505,17 @@ def memory_usage(regions=badger_regions()):
     return round(min(results), 2), round(np.mean(results), 2), round(max(results), 2)
 
 
-def reached_max_level(regions):
+def reached_max_level(regions=badger_regions()):
     cmd = 'grep max_level proof-of-concept/aleph/aleph.log'
     output = run_cmd(cmd, regions, True)
+    n_protocol_stopped = 0
+    for out in output:
+        if len(out.decode().split('reached')) > 1:
+            n_protocol_stopped += 1
+
+    return n_protocol_stopped
+
+
 
 
 #======================================================================================
