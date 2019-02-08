@@ -1,6 +1,6 @@
 N_PARENTS       = 4
 
-USE_TCOIN       = False        # whether to use threshold coin
+USE_TCOIN       = 0        	   # whether to use threshold coin
 ADD_SHARES      = 4            # level at which start to adding coin shares to units
 
 CREATE_FREQ     = 1            # frequency of creating new units
@@ -18,4 +18,6 @@ HOST_PORT       = 8888         # default port of incoming syncs
 
 LOGGER_NAME     = 'aleph'
 
-SEND_COMPRESSED = True         # use zlib compressing/decompressing when sending data over the network
+SEND_COMPRESSED = 1            # use zlib compressing/decompressing when sending data over the network
+
+USE_FAST_POSET  = 1            # use fast poset in place of poset when using Processes

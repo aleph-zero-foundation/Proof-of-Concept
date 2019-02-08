@@ -6,7 +6,7 @@ import os
 
 import psutil
 
-from aleph.data_structures import Poset, UserDB
+from aleph.data_structures import Poset, FastPoset, UserDB
 from aleph.crypto import CommonRandomPermutation
 from aleph.network import listener, sync, tx_listener
 from aleph.actions import create_unit
@@ -51,7 +51,12 @@ class Process:
         self.prepared_txs = []
 
         self.crp = CommonRandomPermutation([pk.to_hex() for pk in public_key_list])
-        self.poset = Poset(self.n_processes, self.crp, consts.USE_TCOIN, process_id = self.process_id)
+
+        if consts.USE_FAST_POSET:
+            self.poset = FastPoset(self.n_processes, self.process_id, self.crp, use_tcoin = consts.USE_TCOIN)
+        else:
+            self.poset = Poset(self.n_processes, self.process_id, self.crp, use_tcoin = consts.USE_TCOIN)
+
         self.userDB = userDB
         if self.userDB is None:
             self.userDB = UserDB()

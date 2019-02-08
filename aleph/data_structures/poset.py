@@ -18,8 +18,8 @@ import aleph.const as consts
 class Poset:
     '''This class is the core data structure of the Aleph protocol.'''
 
-
-    def __init__(self, n_processes, crp = None, use_tcoin=consts.USE_TCOIN, compliance_rules = None, memo_height = 10, process_id = None):
+    def __init__(self, n_processes, process_id, crp = None, use_tcoin = consts.USE_TCOIN,
+                compliance_rules = None, memo_height = 10):
         '''
         :param int n_processes: the committee size
         :param list compliance_rules: dictionary string -> bool
@@ -92,8 +92,7 @@ class Poset:
             3. update forking_height
             4. if U is prime, add it to prime_units_by_level
             5. set ceil attribute of U and update ceil of predecessors of U
-            6. validate units using U if possible and updates the border between validated and non-validated units
-            7. if required, adds U to memoized_units
+            6. if required, adds U to memoized_units
         :param unit U: unit to be added to the poset
         :returns: It does not return anything explicitly but modifies the newly_validated list: adds the units validated by U
         '''
@@ -138,16 +137,7 @@ class Poset:
         for parent in U.parents:
             self.update_ceil(U, parent)
 
-        # 6. validate units and update the "border" of non_validated units
-        if newly_validated is not None:
-            newly_validated.extend(self.validate_using_new_unit(U))
-
-        # the below might look over-complicated -- this is because of potentials forks of U's creator
-        # ignoring forks this simplifies to: if min_non_validated[U.creator_id] == [] then add U to it
-        if not any(self.below_within_process(V, U) for V in  self.min_non_validated[U.creator_id]):
-            self.min_non_validated[U.creator_id].append(U)
-
-        # 7. Update memoized_units
+        # 6. Update memoized_units
         if U.height % self.memo_height == 0:
             n_units_memoized = len(self.memoized_units[U.creator_id])
             U_no = U.height//self.memo_height

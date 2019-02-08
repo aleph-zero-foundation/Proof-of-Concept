@@ -1,19 +1,25 @@
 '''This module implements a poset with a modified consensus rule (as compared to the whitepaper from Nov 2018).'''
 
+import logging
+
 from aleph.data_structures import Poset
+import aleph.const as consts
 
 
 
 
 class FastPoset(Poset):
-	def __init__(self, n_processes, process_id, crp = None, compliance_rules = None,
-				 use_tcoin = False, consensus_params = None, memo_height = 10):
+    '''
+    An alternative instantiation of Poset -- with different consensus rules.
+    '''
+    def __init__(self, n_processes, process_id, crp = None, use_tcoin = consts.USE_TCOIN,
+                compliance_rules = None, memo_height = 10, consensus_params = None):
         '''
         :param int n_processes: the committee size
         :param list compliance_rules: dictionary string -> bool
         '''
         self.n_processes = n_processes
-        self.default_compliance_rules = {'forker_muting': True, 'parent_diversity': True, 'growth': True, 'threshold_coin': use_tcoin}
+        self.default_compliance_rules = {'forker_muting': True, 'parent_diversity': False, 'growth': False, 'expand_primes': True, 'threshold_coin': use_tcoin}
         self.compliance_rules = compliance_rules
         self.use_tcoin = use_tcoin
         # process_id is used only to support tcoin (i.e. in case use_tcoin = True), to know which shares to add and which tcoin to pick from dealing units
@@ -114,11 +120,11 @@ class FastPoset(Poset):
 
 
     def super_majority(self, list_vals):
-    	'''
-    	Returns the value of supermajority of a list of bits.
-    	:param list list_vals: list of {0, 1}
-    	:returns: 0, 1 or -1, depending on whether there is supermajority (>=2/3 fraction) of 0s, 1s, or none of them
-    	'''
+        '''
+        Returns the value of supermajority of a list of bits.
+        :param list list_vals: list of {0, 1}
+        :returns: 0, 1 or -1, depending on whether there is supermajority (>=2/3 fraction) of 0s, 1s, or none of them
+        '''
         treshold_majority = (2*self.n_processes + 2)//3
         if list_vals.count(1) >= treshold_majority:
             return 1
@@ -145,11 +151,11 @@ class FastPoset(Poset):
 
 
     def compute_vote(self, U, U_c):
-    	# determine the vote of unit U on popularity of U_c
-    	r = U.level - U_c.level - self.consensus_params['t_first_vote']
-    	assert r >= 0, "Vote is asked on too low unit level."
-    	U_c_hash, U_hash = U_c.hash(), U.hash()
-    	memo = self.timing_partial_results[U_c_hash]
+        # determine the vote of unit U on popularity of U_c
+        r = U.level - U_c.level - self.consensus_params['t_first_vote']
+        assert r >= 0, "Vote is asked on too low unit level."
+        U_c_hash, U_hash = U_c.hash(), U.hash()
+        memo = self.timing_partial_results[U_c_hash]
         vote = memo.get(('vote', U_hash), None)
 
         if vote is not None:
@@ -158,17 +164,17 @@ class FastPoset(Poset):
         if r == 0:
         	vote = int(self.proves_popularity(U, U_c))
         else:
-	        votes_level_below = []
-	        for V in self.get_all_prime_units_by_level(U.level-1):
-	        	vote_V = self.compute_vote(V, U_c)
-	        	if vote_V == -1:
-	        		# NOTE: this should never happen at r=1, it will trigger an assert in default_vote if so
-	        		vote_V = self.default_vote(V, U_c)
-	        	votes_level_below.append(vote_V)
-	        vote = self.super_majority(votes_level_below)
+            votes_level_below = []
+            for V in self.get_all_prime_units_by_level(U.level-1):
+            	vote_V = self.compute_vote(V, U_c)
+            	if vote_V == -1:
+            		# NOTE: this should never happen at r=1, it will trigger an assert in default_vote if so
+            		vote_V = self.default_vote(V, U_c)
+            	votes_level_below.append(vote_V)
+            vote = self.super_majority(votes_level_below)
 
-	    memo[('vote', U_hash)] = vote
-	    return vote
+        memo[('vote', U_hash)] = vote
+        return vote
 
     def decide_unit_is_popular(self, U_c):
         '''
@@ -189,10 +195,10 @@ class FastPoset(Poset):
         for level in range(U_c.level + t + 1, self.level_reached + 1):
             for U in self.get_all_prime_units_by_level(level):
                 decision = self.compute_vote(U, U_c)
-           		if decision == self.default_vote(U, U_c):
-           			memo['decision'] = decision
+                if decision == self.default_vote(U, U_c):
+                    memo['decision'] = decision
 
-           			if decision == 1:
+                    if decision == 1:
                         process_id = (-1) if (self.process_id is None) else self.process_id
                         logger.info(f'decide_timing {process_id} | Timing unit for lvl {U_c.level} decided at lvl + {level - U_c.level}')
 
@@ -214,7 +220,7 @@ class FastPoset(Poset):
                 # we have not seen any prime unit of this process at that level
                 # there might still come one, so we need to wait, but no longer than till the level grows >= level + t
                 # in which case a negative decision is guaranteed
-                if self.level_reached >= level + self.consensus_params['t_first_vote']
+                if self.level_reached >= level + self.consensus_params['t_first_vote']:
                     #we can safely skip this process as it will be decided 0 anyway
                     continue
                 else:
