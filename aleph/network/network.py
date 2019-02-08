@@ -1,235 +1,219 @@
 import asyncio
-import logging
 import pickle
 import zlib
 import socket
 
+from .channel import Channel
 from aleph.utils import timer
 import aleph.const as consts
 
 
-async def listener(process, process_id, addresses, public_key_list, executor, serverStarted):
-    n_recv_syncs = 0
+class Network:
 
-    async def listen_handler(reader, writer):
-        # TODO check if units received are in good order
-        # TODO if some signature is broken, and all units with good signatures that can be safely added
-        nonlocal n_recv_syncs
-        logger = logging.getLogger(consts.LOGGER_NAME)
+    def __init__(self, process, addresses, public_key_list, logger):
+        self.process = process
+        self.addresses = addresses
+        self.public_key_list = public_key_list
+        self.logger = logger
 
-        ips = [ip for ip, _ in addresses]
-        peer_addr = writer.get_extra_info('peername')
-        #logger.debug('listener: assuming that addresses are different')
+        self.n_recv_syncs = 0
+        self.address_dict = {addr[0]: i for i, addr in enumerate(addresses)}
+        self.channels = [Channel(i, addr) for i, addr in enumerate(addresses)]
 
-        # new sync id
-        sync_id = process.sync_id
-        process.sync_id += 1
 
-        if peer_addr[0] not in ips:
-            logger.info(f'listener_close {process_id} {sync_id} | Closing conn with {peer_addr[0]}, not in address book')
+    async def start_server(self, server_started):
+
+        async def channel_handler(reader, writer):
+            peer_addr = writer.get_extra_info('peername')[0]
+            self.logger.info(f'channel_handler {self.process.process_id} | Receiving connection from {peer_addr}')
+
+            if peer_addr not in self.address_dict:
+                self.logger.info(f'channel_handler {self.process.process_id} | Closing conn with {peer_addr}, not in address book')
+                return
+
+            peer_id = self.address_dict[peer_addr]
+            channel = self.channels[peer_id]
+
+            if channel.is_open():
+                self.logger.error(f'channel_handler {self.process.process_id} | Channel with {peer_id} already open, received another connection')
+                return
+
+            await channel.open((reader, writer))
+            self.logger.info(f'channel_handler {self.process.process_id} | Opened channel with {peer_id}')
+
+        host_ip = socket.gethostbyname(socket.gethostname())
+        host_port = self.addresses[self.process.process_id][1]
+        server = await asyncio.start_server(channel_handler, host_ip, host_port)
+        server_started.set()
+
+        self.logger.info(f'server_start {self.process.process_id} | Starting sync server on {host_ip}:{host_port}')
+
+        async with server:
+            await server.serve_forever()
+
+
+    async def sync(self, target_id):
+        ids = self._get_ids_as_str()
+        self.logger.info(f'sync_establish {ids} | Beginning sync with {target_id}')
+
+        channel = self.channels[target_id]
+
+        self.process.last_synced_with_process[target_id] = self.process.sync_id
+        self.process.sync_id += 1
+
+        await self._send_poset_info(channel, 'sync', ids)
+        their_poset_info = await self._receive_poset_info(channel, 'sync', ids)
+
+        await self._send_units(their_poset_info, channel, 'sync', ids)
+        units_received = await self._receive_units(channel, 'sync', ids)
+
+        if not self._verify_signatures_and_add_units(units_received, target_id, 'sync', ids):
             return
 
-        logger.info(f'listener_sync_no {process_id} {sync_id} | Number of syncs is {n_recv_syncs+1}')
-        if n_recv_syncs > consts.N_RECV_SYNC:
-            logger.info(f'listener_too_many_syncs {process_id} {sync_id} | Too many syncs, rejecting {peer_addr}')
-            return
-
-        n_recv_syncs += 1
-        logger.info(f'listener_establish {process_id} {sync_id} | Connection established with an unknown process')
-
-        ex_id, ex_heights, ex_hashes = await _receive_poset_info(sync_id, process_id, process.poset.n_processes, reader, 'listener', logger)
-        # we have just learned the process_id of the process on the other end, updating last_synced_with_process
-        process.last_synced_with_process[ex_id] = sync_id
-
-        int_heights, int_hashes = process.poset.get_max_heights_hashes()
-
-        await _send_poset_info(sync_id, process_id, ex_id, writer, int_heights, int_hashes, 'listener', logger)
-
-        units_received = await _receive_units(sync_id, process_id, ex_id, reader, 'listener', logger)
-
-        with timer(f'{process_id} {sync_id}', 'verify_signatures'):
-            succesful = _verify_signatures(sync_id, process_id, units_received, public_key_list, executor, 'listener', logger)
-        if not succesful:
-            # TODO: this should not really happen in the prototype but still, we should also close sockets here
-            # Ideally this should be slightly rewritten with exceptions
-            logger.error(f'listener_invalid_sign {process_id} {sync_id} | got a unit from {ex_id} with invalid signature; aborting')
-            n_recv_syncs -= 1
-            return
-
-        with timer(f'{process_id} {sync_id}', 'add_units'):
-            succesful = _add_units(sync_id, process_id, ex_id, units_received, process, 'listener', logger)
-        if not succesful:
-            logger.error(f'listener_not_compliant {process_id} {sync_id} | got unit from {ex_id} that does not comply to the rules; aborting')
-            n_recv_syncs -= 1
-            return
-
-        await _send_units(sync_id, process_id, ex_id, int_heights, ex_heights, process, writer, 'listener', logger)
+        self.logger.info(f'sync_done {ids} | Syncing with {target_id} succesful')
+        timer.write_summary(where=self.logger, groups=[ids])
 
 
-        logger.info(f'listener_succ {process_id} {sync_id} | Syncing with {ex_id} succesful')
-        timer.write_summary(where=logger, groups=[f'{process_id} {sync_id}'])
-        n_recv_syncs -= 1
-        writer.close()
-        await writer.wait_closed()
+    async def listener(self, peer_id):
+        channel = self.channels[peer_id]
+        while True:
+            their_poset_info = await self._receive_poset_info(channel, 'listener', f'{self.process.process_id} ???')
+            self.n_recv_syncs += 1
+            ids = self._get_ids_as_str()
+
+            self.process.last_synced_with_process[peer_id] = self.process.sync_id
+            self.process.sync_id += 1
+
+            self.logger.info(f'listener_sync_no {ids} | Number of syncs is {self.n_recv_syncs}')
+            if self.n_recv_syncs > consts.N_RECV_SYNC:
+                self.logger.info(f'listener_too_many_syncs {ids} | Too many syncs, rejecting {peer_id}')
+                self.n_recv_syncs -= 1
+                return
+            self.logger.info(f'listener_establish {ids} | Connection established with {peer_id}')
+
+            await self._send_poset_info(channel, 'listener', ids)
+
+            units_received = await self._receive_units(channel, 'listener', ids)
+            if not self._verify_signatures_and_add_units(units_received, peer_id, 'listener', ids):
+                self.n_recv_syncs -= 1
+                return
+
+            await self._send_units(their_poset_info, channel, 'listener', ids)
+
+            logger.info(f'listener_succ {ids} | Syncing with {peer_id} succesful')
+            timer.write_summary(where=self.logger, groups=[ids])
+            self.n_recv_syncs -= 1
 
 
-    host_ip = socket.gethostbyname(socket.gethostname())
-    host_port = addresses[process_id][1]
-    server = await asyncio.start_server(listen_handler, host_ip, host_port)
-    serverStarted.set()
-
-    logger = logging.getLogger(consts.LOGGER_NAME)
-    logger.info(f'server_start {process_id} | Starting sync server on {host_ip}:{host_port}')
-
-    async with server:
-        await server.serve_forever()
+    async def _send_poset_info(self, channel, mode, ids):
+        self.logger.info(f'send_poset_{mode} {ids} | sending info about forkers and heights&hashes to {channel.peer_id}')
+        poset_info = self.process.poset.get_heights()
+        data = pickle.dumps((self.process.process_id, poset_info))
+        if consts.SEND_COMPRESSED:
+            data = zlib.compress(data)
+        channel.send(data)
+        self.logger.info(f'send_poset_{mode} {ids} | sending forkers/heights {poset_info} to {ex_id}')
 
 
-async def sync(process, initiator_id, target_id, target_addr, public_key_list, executor):
-    # TODO check if units received are in good order
-    # TODO if some signature is broken, still add all units with good signatures
-    logger = logging.getLogger(consts.LOGGER_NAME)
-
-    # new sync id
-    sync_id = process.sync_id
-    process_id = process.process_id
-    process.sync_id += 1
-    process.last_synced_with_process[target_id] = sync_id
-
-    logger.info(f'sync_establish_try {initiator_id} {sync_id} | Establishing connection to {target_id}')
-    reader, writer = await asyncio.open_connection(target_addr[0], target_addr[1])
-    logger.info(f'sync_establish {initiator_id} {sync_id} | Established connection to {target_id}')
-
-    int_heights, int_hashes = process.poset.get_max_heights_hashes()
-
-    await _send_poset_info(sync_id, initiator_id, target_id, writer, int_heights, int_hashes, 'sync', logger)
-
-    ex_id, ex_heights, ex_hashes = await _receive_poset_info(sync_id, initiator_id, process.poset.n_processes, reader, 'sync', logger)
-
-    await _send_units(sync_id, initiator_id, target_id, int_heights, ex_heights, process, writer, 'sync', logger)
-
-    units_received = await _receive_units(sync_id, initiator_id, target_id, reader, 'sync', logger)
-
-    with timer(f'{process_id} {sync_id}', 'verify_signatures'):
-        succesful = _verify_signatures(sync_id, initiator_id, units_received, public_key_list, executor, 'sync', logger)
-    if not succesful:
-        logger.info(f'sync_invalid_sign {initiator_id} {sync_id} | Got a unit from {target_id} with invalid signature; aborting')
-        return
-
-    with timer(f'{process_id} {sync_id}', 'add_units'):
-        succesful = _add_units(sync_id, initiator_id, target_id, units_received, process, 'sync', logger)
-    if not succesful:
-        logger.error(f'sync_not_compliant {initiator_id} {sync_id} | Got unit from {target_id} that does not comply to the rules; aborting')
-        return
-
-    logger.info(f'sync_done {initiator_id} {sync_id} | Syncing with {target_id} succesful')
-    timer.write_summary(where=logger, groups=[f'{process_id} {sync_id}'])
-
-    # TODO: at some point we need to add exceptions and exception handling and make sure that the two lines below are executed no matter what happens
-    writer.close()
-    await writer.wait_closed()
-
-
-async def _send_poset_info(sync_id, process_id, ex_id, writer, int_heights, int_hashes, mode, logger):
-    logger.info(f'send_poset_{mode} {process_id} {sync_id} | sending info about forkers and heights&hashes to {ex_id}')
-
-    data = pickle.dumps((process_id, int_heights, int_hashes))
-    if consts.SEND_COMPRESSED:
-        data = zlib.compress(data)
-    writer.write(str(len(data)).encode())
-    writer.write(b'\n')
-    writer.write(data)
-    await writer.drain()
-    logger.info(f'send_poset_{mode} {process_id} {sync_id} | sending forkers/heights {int_heights} to {ex_id}')
-
-
-async def _receive_poset_info(sync_id, process_id, n_processes, reader, mode, logger):
-    logger.info(f'receive_poset_{mode} {process_id} {sync_id} | Receiving info about forkers and heights&hashes from an unknown process')
-    data = await reader.readuntil()
-    n_bytes = int(data[:-1])
-    data = await reader.readexactly(n_bytes)
-    if consts.SEND_COMPRESSED:
-        data = zlib.decompress(data)
-    ex_id, ex_heights, ex_hashes = pickle.loads(data)
-    assert ex_id != process_id, "It seems we are syncing with ourselves."
-    assert ex_id in range(n_processes), "Incorrect process id received."
-    logger.info(f'receive_poset_{mode} {process_id} {sync_id} | Got forkers/heights {ex_heights} from {ex_id}')
-
-    return ex_id, ex_heights, ex_hashes
-
-
-async def _receive_units(sync_id, process_id, ex_id, reader, mode, logger):
-    logger.info(f'receive_units_start_{mode} {process_id} {sync_id} | Receiving units from {ex_id}')
-    data = await reader.readuntil()
-    n_bytes = int(data[:-1])
-    data = await reader.readexactly(n_bytes)
-    logger.info(f'receive_units_bytes_{mode} {process_id} {sync_id} | Received {n_bytes} bytes from {ex_id}')
-    with timer(f'{process_id} {sync_id}', 'decompress_units'):
+    async def _receive_poset_info(self, channel, mode, ids):
+        self.logger.info(f'receive_poset_{mode} {ids} | Receiving info about forkers and heights&hashes from an unknown process')
+        data = await channel.read()
         if consts.SEND_COMPRESSED:
             data = zlib.decompress(data)
-    with timer(f'{process_id} {sync_id}', 'unpickle_units'):
-        units_received = pickle.loads(data)
-    n_units = len(units_received)
-    logger.info(f'receive_units_done_{mode} {process_id} {sync_id} | Received {n_bytes} bytes and {n_units} units')
-    return units_received
+        peer_id, poset_info = pickle.loads(data)
+        assert peer_id != self.process.process_id, "It seems we are syncing with ourselves."
+        assert peer_id < len(self.addressess), "Incorrect process id received."
+        self.logger.info(f'receive_poset_{mode} {ids} | Got forkers/heights {poset_info} from {peer_id}')
+        return poset_info
 
 
-async def _send_units(sync_id, process_id, ex_id, int_heights, ex_heights, process, writer, mode, logger):
-    send_ind = [i for i, (int_height, ex_height) in enumerate(zip(int_heights, ex_heights)) if int_height > ex_height]
+    async def _send_units(self, ex_heights, channel, mode, ids):
+        self.logger.info(f'send_units_start_{mode} {ids} | Sending units to {channel.peer_id}')
 
-    logger.info(f'send_units_start_{mode} {process_id} {sync_id} | Sending units to {ex_id}')
-    units_to_send = []
-    for i in send_ind:
-        units = process.poset.units_by_height_interval(creator_id=i, min_height=ex_heights[i]+1, max_height=int_heights[i])
-        units_to_send.extend(units)
-    units_to_send = process.poset.order_units_topologically(units_to_send)
-    with timer(f'{process_id} {sync_id}', 'pickle_units'):
-        data = pickle.dumps(units_to_send)
+        int_heights = self.process.poset.get_heights()
 
-    with timer(f'{process_id} {sync_id}', 'compress_units'):
+        units_to_send = []
+        for i, (int_height, ex_height) in enumerate(zip(int_heights, ex_heights)):
+            if int_height > ex_height:
+                units = self.process.poset.units_by_height_interval(creator_id=i, min_height=ex_height+1, max_height=int_height)
+                units_to_send.extend(units)
+        units_to_send = self.process.poset.order_units_topologically(units_to_send)
+
+        with timer(ids, 'pickle_units'):
+            data = pickle.dumps(units_to_send)
+
         if consts.SEND_COMPRESSED:
             initial_len = len(data)
-            data = zlib.compress(data)
+            with timer(ids, 'compress_units'):
+                data = zlib.compress(data)
             compressed_len = len(data)
             gained = 1.0 - compressed_len/initial_len
-            logger.info(f'compression_rate {process_id} {sync_id} | Compressed {initial_len} to {compressed_len}, gained {gained:.4f} of size.')
+            self.logger.info(f'compression_rate {ids} | Compressed {initial_len} to {compressed_len}, gained {gained:.4f} of size.')
 
-    writer.write(str(len(data)).encode())
-    logger.info(f'send_units_wait_{mode} {process_id} {sync_id} | Sending {len(units_to_send)} units and {len(data)} bytes to {ex_id}')
-    writer.write(b'\n')
-    writer.write(data)
-    logger.info(f'send_units_sent_{mode} {process_id} {sync_id} | Sent {len(units_to_send)} units and {len(data)} bytes to {ex_id}')
-    #writer.write_eof()
-    await writer.drain()
-
-    logger.info(f'send_units_done_{mode} {process_id} {sync_id} | Units sent {ex_id}')
+        self.logger.info(f'send_units_wait_{mode} {ids} | Sending {len(units_to_send)} units and {len(data)} bytes to {channel.peer_id}')
+        channel.write(data)
+        self.logger.info(f'send_units_sent_{mode} {ids} | Sent {len(units_to_send)} units and {len(data)} bytes to {channel.peer_id}')
+        #previously there was a drain() call here, now it's a part of channel.write() Maybe this log below could be removed?
+        self.logger.info(f'send_units_done_{mode} {ids} | Units sent {channel.peer_id}')
 
 
-def _verify_signatures(sync_id, process_id, units_received, public_key_list, executor, mode, logger):
-    logger.info(f'{mode} {process_id} {sync_id} | Verifying signatures')
+    async def _receive_units(self, channel, mode, ids):
+        self.logger.info(f'receive_units_start_{mode} {ids} | Receiving units from {channel.peer_id}')
+        data = await channel.read()
+        n_bytes = len(data)
+        self.logger.info(f'receive_units_bytes_{mode} {ids} | Received {n_bytes} bytes from {channel.peer_id}')
 
-    for unit in units_received:
-        if not verify_signature(unit, public_key_list):
+        if consts.SEND_COMPRESSED:
+            with timer(ids, 'decompress_units'):
+                data = zlib.decompress(data)
+
+        with timer(ids, 'unpickle_units'):
+            units_received = pickle.loads(data)
+
+        logger.info(f'receive_units_done_{mode} {ids} | Received {n_bytes} bytes and {len(units_received)} units')
+        return units_received
+
+
+    def _verify_signatures(self, units_received, mode, ids):
+        self.logger.info(f'verify_sign_{mode} {ids} | Verifying signatures')
+
+        for unit in units_received:
+            if not self.public_key_list[unit.creator_id].verify_signature(unit.signature, unit.bytestring()):
+                return False
+
+        self.logger.info(f'verify_sign_{mode} {ids} | Signatures verified')
+        return True
+
+
+    def _add_units(self, units_received, peer_id, mode, ids):
+        self.logger.info(f'add_received_{mode} {ids} | trying to add {len(units_received)} units from {peer_id} to poset')
+        printable_unit_hashes = ''
+
+        for unit in units_received:
+            self.process.poset.dehash_parents(unit)
+            printable_unit_hashes += (' ' + unit.short_name())
+            if not self.process.add_unit_to_poset(unit):
+                self.logger.error(f'add_received_fail_{mode} {ids} | unit {unit.short_name()} from {peer_id} was rejected')
+                return False
+
+        self.logger.info(f'add_received_done_{mode} {ids} | units from {peer_id} were added succesfully {printable_unit_hashes} ')
+        return True
+
+
+    def _verify_signatures_and_add_units(self, units_received, peer_id, mode, ids):
+        with timer(ids, 'verify_signatures'):
+            succesful = self._verify_signatures(units_received, mode, ids)
+        if not succesful:
+            self.logger.error(f'{mode}_invalid_sign {ids} | Got a unit from {target_id} with invalid signature; aborting')
             return False
 
-    logger.info(f'verify_sign_{mode} {process_id} {sync_id} | Signatures verified')
-    return True
-
-
-def _add_units(sync_id, process_id, ex_id, units_received, process, mode, logger):
-    logger.info(f'add_received_{mode} {process_id} {sync_id} | trying to add {len(units_received)} units from {ex_id} to poset')
-    printable_unit_hashes = ''
-    for unit in units_received:
-        process.poset.dehash_parents(unit)
-        printable_unit_hashes += (' ' + unit.short_name())
-        #logger.info(f'add_foreign {process_id} {sync_id} | trying to add {unit.short_name()} from {ex_id} to poset')
-        if not process.add_unit_to_poset(unit):
-            logger.error(f'add_received_fail_{mode} {process_id} {sync_id} | unit {unit.short_name()} from {ex_id} was rejected')
+        with timer(ids, 'add_units'):
+            succesful = self._add_units(units_received, peer_id, mode, ids)
+        if not succesful:
+            self.logger.error(f'{mode}_not_compliant {ids} | Got unit from {target_id} that does not comply to the rules; aborting')
             return False
-    logger.info(f'add_received_done_{mode} {process_id} {sync_id} | units from {ex_id} were added succesfully {printable_unit_hashes} ')
-    return True
+        return True
 
+    def _get_ids_as_str(self):
+        return f'{self.process.process_id} {self.process.sync_id}'
 
-def verify_signature(unit, public_key_list):
-    '''Verifies signatures of the unit and all txs in it'''
-    return public_key_list[unit.creator_id].verify_signature(unit.signature, unit.bytestring())

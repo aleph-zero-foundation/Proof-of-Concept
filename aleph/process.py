@@ -10,7 +10,7 @@ import time
 
 from aleph.data_structures import Poset, UserDB
 from aleph.crypto import CommonRandomPermutation
-from aleph.network import listener, sync, tx_listener
+from aleph.network import Network, tx_listener
 from aleph.actions import create_unit
 from aleph.utils import timer
 import aleph.const as consts
@@ -80,6 +80,10 @@ class Process:
 
         # initialize logger
         self.logger = logging.getLogger(consts.LOGGER_NAME)
+
+        #initialize network
+        self.network = Network(self, addresses, public_key_list, self.logger)
+
 
 
     def sign_unit(self, U):
@@ -278,8 +282,8 @@ class Process:
             logger.info(f'create_stop {self.process_id} | process created {consts.UNITS_LIMIT} units')
 
 
-    async def dispatch_syncs(self, executor, serverStarted):
-        await serverStarted.wait()
+    async def dispatch_syncs(self, server_started):
+        await server_started.wait()
 
         sync_count = 0
         while sync_count != consts.SYNCS_LIMIT and self.keep_syncing:
@@ -287,7 +291,7 @@ class Process:
             sync_candidates = list(range(self.n_processes))
             sync_candidates.remove(self.process_id)
             target_id = self.choose_process_to_sync_with()
-            self.syncing_tasks.append(asyncio.create_task(sync(self, self.process_id, target_id, self.addresses[target_id], self.public_key_list, executor)))
+            self.syncing_tasks.append(asyncio.create_task(self.network.sync(target_id)))
 
             await asyncio.sleep(consts.SYNC_INIT_FREQ)
             #_, self.syncing_tasks = await asyncio.wait(self.syncing_tasks, return_when=asyncio.FIRST_COMPLETED)
@@ -301,6 +305,13 @@ class Process:
         logger.info(f'sync_stop {self.process_id} | keep_syncing is {self.keep_syncing}')
 
 
+    async def start_listeners(self, server_started):
+        await server_started.wait()
+
+        listeners = [asyncio.create_task(self.network.listener(pid)) for pid in range(self.n_processes) if pid != self.process_id]
+        await asyncio.gather(*listeners)
+
+
     async def run(self):
         # start another process listening for incoming txs
         self.logger.info(f'start_process {self.process_id} | Starting a new process in committee of size {self.n_processes}')
@@ -308,14 +319,15 @@ class Process:
         p = multiprocessing.Process(target=self.tx_source, args=(self.tx_receiver_address, txs_queue))
         p.start()
 
-        serverStarted = asyncio.Event()
-        executor = None
-        creator_task = asyncio.create_task(self.create_add(txs_queue, serverStarted))
-        listener_task = asyncio.create_task(listener(self, self.process_id, self.addresses, self.public_key_list, executor, serverStarted))
-        syncing_task = asyncio.create_task(self.dispatch_syncs(executor, serverStarted))
+        server_started = asyncio.Event()
+        server_task = asyncio.create_task(self.network.start_server(server_started))
+        listener_task = asyncio.create_task(self.start_listeners(server_started))
+        creator_task = asyncio.create_task(self.create_add(txs_queue, server_started))
+        syncing_task = asyncio.create_task(self.dispatch_syncs(server_started))
 
         await asyncio.gather(syncing_task, creator_task)
         self.logger.info(f'listener_done {self.process_id} | Gathered results; cancelling listener')
+        server_task.cancel()
         listener_task.cancel()
 
         p.kill()
