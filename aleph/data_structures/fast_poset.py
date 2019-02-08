@@ -56,7 +56,7 @@ class FastPoset(Poset):
         self.timing_partial_results = {}
 
 
-        default_consensus_params = {'t_first_vote' : 2, 't_switch_to_pi_delta' : 123456789}
+        default_consensus_params = {'t_first_vote' : 3, 't_switch_to_pi_delta' : 123456789}
         self.consensus_params = default_consensus_params if consensus_params is None else consensus_params
 
 
