@@ -18,7 +18,7 @@ import aleph.const as consts
 class Poset:
     '''This class is the core data structure of the Aleph protocol.'''
 
-    def __init__(self, n_processes, process_id, crp = None, use_tcoin = consts.USE_TCOIN,
+    def __init__(self, n_processes, process_id = None, crp = None, use_tcoin = consts.USE_TCOIN,
                 compliance_rules = None, memo_height = 10):
         '''
         :param int n_processes: the committee size

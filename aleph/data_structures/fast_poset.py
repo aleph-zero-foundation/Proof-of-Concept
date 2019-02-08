@@ -12,7 +12,7 @@ class FastPoset(Poset):
     '''
     An alternative instantiation of Poset -- with different consensus rules.
     '''
-    def __init__(self, n_processes, process_id, crp = None, use_tcoin = consts.USE_TCOIN,
+    def __init__(self, n_processes, process_id = None, crp = None, use_tcoin = consts.USE_TCOIN,
                 compliance_rules = None, memo_height = 10, consensus_params = None):
         '''
         :param int n_processes: the committee size
