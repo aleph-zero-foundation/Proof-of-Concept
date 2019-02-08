@@ -33,7 +33,6 @@ class Poset:
 
         self.units = {}
         self.max_units_per_process = [[] for _ in range(n_processes)]
-        self.min_non_validated = [[] for _ in range(n_processes)]
         self.forking_height = [float('inf')] * n_processes
 
         #common random permutation
@@ -1294,28 +1293,6 @@ class Poset:
 
         return top_list
 
-
-
-    def validate_using_new_unit(self, U):
-        '''
-        Validate as many units as possible using the newly-created unit U.
-        Start from min_non_validated and continue towards the top.
-        :returns: the set of all units first-time validated by U
-        '''
-        validated = []
-        for process_id in range(self.n_processes):
-            to_check = set(self.min_non_validated[process_id])
-            non_validated = []
-            while to_check:
-                V = to_check.pop()
-                # the first check below is for efficiency only
-                if self.high_below(V,U):
-                    validated.append(V)
-                    to_check = to_check.union(self.get_self_children(V))
-                else:
-                    non_validated.append(V)
-            self.min_non_validated[process_id] = non_validated
-        return validated
 
 
     def units_by_height(self, process_id, height):

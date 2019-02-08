@@ -215,7 +215,7 @@ class FastPoset(Poset):
                 # there might still come one, so we need to wait, but no longer than till the level grows >= level + t
                 # in which case a negative decision is guaranteed
                 if self.level_reached >= level + self.consensus_params['t_first_vote']
-                    #we can safely skip this process
+                    #we can safely skip this process as it will be decided 0 anyway
                     continue
                 else:
                     #no decision can be made, need to wait

@@ -17,7 +17,8 @@ import aleph.const as consts
 class Process:
     '''This class is the main component of the Aleph protocol.'''
 
-    def __init__(self, n_processes, process_id, secret_key, public_key, addresses, public_key_list, tx_receiver_address, userDB=None, validation_method='SNAP', tx_source=tx_listener, gossip_strategy='unif_random'):
+    def __init__(self, n_processes, process_id, secret_key, public_key, addresses, public_key_list, tx_receiver_address, userDB=None,
+                validation_method='LINEAR_ORDERING', tx_source=tx_listener, gossip_strategy='unif_random'):
         '''
         :param int n_processes: the committee size
         :param int process_id: the id of the current process
@@ -27,7 +28,7 @@ class Process:
         :param list public_keys: the list of public keys of all committee members
         :param tuple tx_receiver_address: address pair (host, port) on which the process listen for incomming txs
         :param object userDB: initial state of user accounts
-        :param string validation_method: the method of validating transactions/units: either "SNAP" or "LINEAR_ORDERING" or None for no validation
+        :param string validation_method: the method of validating transactions/units: either "LINEAR_ORDERING" or None for no validation
         :param object tx_source: method used for listening for incomming txs
         :param string gossip_strategy: name of gossip strategy to be used by the process
         '''
@@ -58,15 +59,7 @@ class Process:
         self.keep_syncing = True
         self.tx_source = tx_source
 
-        # dictionary {user_public_key -> set of (tx, U)}  where tx is a pending transaction (sent by this user) in unit U
-        self.pending_txs = {}
-
-        # a bitmap specifying for every process whether he has been detected forking
-        self.is_forker = [False for _ in range(self.n_processes)]
-
         self.syncing_tasks = []
-
-        self.validated_transactions = []
 
         # hashes of units that have not yet been linearly ordered
         self.unordered_units = set()
@@ -104,24 +97,6 @@ class Process:
             n_txs += len(U.transactions())
 
         return n_txs
-
-
-    def add_unit_and_snap_validate(self, U):
-        '''
-        Add a (compliant) unit to the poset and attempt fast validation of transactions inside.
-        '''
-        list_of_validated_units = []
-        self.poset.add_unit(U, list_of_validated_units)
-        self.logger.info(f'add_unit_to_poset {self.process_id} -> Validated a set of {len(list_of_validated_units)} units.')
-        for tx in U.transactions():
-            if tx.issuer not in self.pending_txs.keys():
-                self.pending_txs[tx.issuer] = set()
-            self.pending_txs[tx.issuer].add((tx,U))
-        for V in list_of_validated_units:
-            if V.transactions():
-                newly_validated = self.validate_transactions_in_unit(V, U)
-                self.logger.info(f'add_unit_to_poset {self.process_id} -> Validated a set of {len(newly_validated)} transactions.')
-                self.validated_transactions.extend(newly_validated)
 
 
     def add_unit_and_extend_linear_order(self, U):
@@ -169,9 +144,7 @@ class Process:
         if self.poset.check_compliance(U):
             old_level = self.poset.level_reached
 
-            if self.validation_method == 'SNAP':
-                self.add_unit_and_snap_validate(U)
-            elif self.validation_method == 'LINEAR_ORDERING':
+            if self.validation_method == 'LINEAR_ORDERING':
                 self.add_unit_and_extend_linear_order(U)
             else:
                 self.poset.add_unit(U)
@@ -183,40 +156,6 @@ class Process:
             return False
 
         return True
-
-    def validate_transactions_in_unit(self, U, U_validator):
-        '''
-        Returns a list of transactions in U that can be fast-validated if U's validator unit is U_validator
-        :param unit U: unit whose transactions should be validated
-        :param unit U_validator: a unit that validates U (is high above U)
-        :returns: list of all transactions in unit U that can be fast-validated
-        '''
-        validated_transactions = []
-        for tx in U.transactions():
-            user_public_key = tx.issuer
-
-            assert user_public_key in self.pending_txs.keys(), f"No transaction is pending for user {user_public_key}."
-            assert (tx, U) in self.pending_txs[user_public_key], "Transaction not found among pending"
-            if tx.index != self.userDB.last_transaction(tx.issuer) + 1:
-                self.logger.info(f'tx_validation {self.process_id} | transaction failed to validate because its index is {tx.index}, while the previous one was {self.userDB.last_transaction(tx.issuer)}')
-                continue
-            transaction_fork_present = False
-            for (pending_txs, V) in self.pending_txs[user_public_key]:
-                if tx.index == pending_txs.index:
-                    if (tx, U) != (pending_txs, V):
-                        if self.poset.below(V, U_validator):
-                            transaction_fork_present = True
-                            break
-
-            if not transaction_fork_present:
-                if self.userDB.check_transaction_correctness(tx):
-                    self.userDB.apply_transaction(tx)
-                    validated_transactions.append(tx)
-
-
-        for tx in validated_transactions:
-            self.pending_txs[tx.issuer].discard((tx,U))
-        return validated_transactions
 
     def choose_process_to_sync_with(self):
         if self.gossip_strategy == 'unif_random':
