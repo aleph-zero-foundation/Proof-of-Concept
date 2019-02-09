@@ -197,9 +197,9 @@ class Process:
                 new_unit = create_unit(self.poset, self.process_id, txs)
             timer.write_summary(where=self.logger, groups=[self.process_id])
             timer.reset(self.process_id)
+            created_count += 1
 
             if new_unit is not None:
-                created_count += 1
                 self.poset.prepare_unit(new_unit)
                 assert self.poset.check_compliance(new_unit), "A unit created by our process is not passing the compliance test!"
                 self.sign_unit(new_unit)
