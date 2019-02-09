@@ -235,7 +235,6 @@ def generate_delta_level_4_no_decision(det_coin_value = 0):
 
         for process_id in all_ids:
             name_maximal = maximal_names[process_id]
-            #print(names_to_units[name_maximal].level, next_level)
 
 
 

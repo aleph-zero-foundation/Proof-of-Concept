@@ -1,4 +1,4 @@
-N_PARENTS       = 4
+N_PARENTS       = 2
 
 USE_TCOIN       = 0        	   # whether to use threshold coin
 ADD_SHARES      = 4            # level at which start to adding coin shares to units

@@ -53,12 +53,12 @@ def tx_source_gen(process_id, n_processes, batch_size, txpu):
 
 
 async def main():
-    n_processes = 16
+    n_processes = 32
     n_forkers = 0
     txps = 50
     n_light_nodes = 100
     use_tcoin = False
-    consts.UNITS_LIMIT = 100
+    consts.UNITS_LIMIT = 200
 
     processes = []
     host_ports = [8900+i for i in range(n_processes)]

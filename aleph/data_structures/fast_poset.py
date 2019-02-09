@@ -96,24 +96,29 @@ class FastPoset(Poset):
         return U.level
 
     def proves_popularity(self, V, U_c):
-    	'''
-    	Checks whether V proves that U_c is popular on V's level, i.e. whether there exist
-    	       >=2/3 N prime units W on level L(V)-1 such that: (1) W <= V and (2) U_c <= W.
-    	:param unit V: the "prover" unit
-    	:param unit U_c: the unit tested for popularity
-    	:returns: True or False: does V prove that U_c is popular?
-    	'''
-    	level_V = self.level(V)
-    	if level_V == 0:
-    		return False
+        '''
+        Checks whether V proves that U_c is popular on V's level, i.e. whether there exist
+            >=2/3 N prime units W on level L(V)-1 such that: (1) W <= V and (2) U_c <= W.
+        :param unit V: the "prover" unit
+        :param unit U_c: the unit tested for popularity
+        :returns: True or False: does V prove that U_c is popular?
+        '''
+        U_c_hash, V_hash = U_c.hash(), V.hash()
+        memo = self.timing_partial_results[U_c_hash]
+        if ('proof', V_hash) in memo:
+            return memo[('proof', V_hash)]
+        level_V = self.level(V)
+        if level_V == 0:
+            return False
 
-    	vouchers = 0
-    	for Ws in self.prime_units_by_level[level_V - 1]:
-    		# Ws is typically a list of *one* unit, but in case of forks can be longer, hence the use of "any"
-    		if any(self.below(U_c, W) and self.below(W, V) for W in Ws):
-    			vouchers += 1
+        vouchers = 0
+        for Ws in self.prime_units_by_level[level_V - 1]:
+            # Ws is typically a list of *one* unit, but in case of forks can be longer, hence the use of "any"
+            if any(self.below(U_c, W) and self.below(W, V) for W in Ws):
+                vouchers += 1
 
-    	return 3*vouchers >= 2*self.n_processes
+        memo[('proof', V_hash)] = 3*vouchers >= 2*self.n_processes
+        return memo[('proof', V_hash)]
 
     def _simple_coin(self, U, level):
         return (U.hash()[level%3])%2
@@ -191,6 +196,16 @@ class FastPoset(Poset):
             return memo['decision']
 
         t = self.consensus_params['t_first_vote']
+
+        for level in range(U_c.level + 2, U_c.level + t):
+            for U in self.get_all_prime_units_by_level(level):
+                if self.proves_popularity(U, U_c):
+                    memo['decision'] = 1
+                    process_id = (-1) if (self.process_id is None) else self.process_id
+                    logger.info(f'decide_timing {process_id} | Timing unit for lvl {U_c.level} decided at lvl + {level - U_c.level}')
+                    return 1
+
+
 
         for level in range(U_c.level + t + 1, self.level_reached + 1):
             for U in self.get_all_prime_units_by_level(level):
