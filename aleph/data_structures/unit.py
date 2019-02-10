@@ -56,8 +56,8 @@ class Unit(object):
         NOTE: this has collision resistance as long there are roughly <= 10^12 units considered simultaneusly.
         NOTE: this uses only characters in the set A-Z, 2-7 (base32 encoding)
         '''
-        long_hash = base64.b32encode(self.hash()).decode()
-        return '<'+long_hash[:16]+'>'
+        base32_hash = base64.b32encode(self.hash()[:10]).decode()
+        return '<'+base32_hash[:16]+'>'
 
 
     def __getstate__(self):

@@ -84,7 +84,7 @@ class Poset:
         U.level = self.level(U)
 
 
-    def add_unit(self, U, newly_validated = None):
+    def add_unit(self, U):
         '''
         Add a unit compliant with the rules, what was checked by check_compliance.
         This method does the following:
@@ -96,7 +96,6 @@ class Poset:
             5. set ceil attribute of U and update ceil of predecessors of U
             6. if required, adds U to memoized_units
         :param unit U: unit to be added to the poset
-        :returns: It does not return anything explicitly but modifies the newly_validated list: adds the units validated by U
         '''
 
         # 0. add the unit U to the poset

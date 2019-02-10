@@ -61,6 +61,70 @@ class FastPoset(Poset):
         default_consensus_params = {'t_first_vote' : 4, 't_switch_to_pi_delta' : 123456789}
         self.consensus_params = default_consensus_params if consensus_params is None else consensus_params
 
+    def add_unit(self, U):
+        '''
+        Add a unit compliant with the rules, what was checked by check_compliance.
+        This method does the following:
+            0. add the unit U to the poset
+            1. if it is a dealing unit, add it to self.dealing_units
+            2. update the lists of maximal elements in the poset.
+            3. update forking_height
+            4. if U is prime, add it to prime_units_by_level
+            5. set ceil attribute of U and update ceil of predecessors of U
+            6. if required, adds U to memoized_units
+        :param unit U: unit to be added to the poset
+        '''
+
+        # 0. add the unit U to the poset
+        assert U.level is not None, "Level of the unit being added is not computed."
+
+        self.level_reached = max(self.level_reached, U.level)
+        self.units[U.hash()] = U
+
+        # if it is a dealing unit, add it to self.dealing_units
+        if not U.parents and not U in self.dealing_units[U.creator_id]:
+            self.dealing_units[U.creator_id].append(U)
+            # extract the corresponding tcoin black box (this requires knowing the process_id)
+            if self.use_tcoin:
+                assert self.process_id is not None, "Usage of tcoin enable but process_id not set."
+                self.extract_tcoin_from_dealing_unit(U, self.process_id)
+
+
+        # 2. updates the lists of maximal elements in the poset and forkinf height
+        if len(U.parents) == 0:
+            assert self.max_units_per_process[U.creator_id] == [], "A second dealing unit is attempted to be added to the poset"
+            self.max_units_per_process[U.creator_id] = [U]
+            self.max_units.add(U)
+        else:
+            # from max_units remove the ones that are U's parents, and add U as a new maximal unit
+            self.max_units = self.max_units - set(U.parents)
+            self.max_units.add(U)
+
+            if U.self_predecessor in self.max_units_per_process[U.creator_id]:
+                self.max_units_per_process[U.creator_id].remove(U.self_predecessor)
+                self.max_units_per_process[U.creator_id].append(U)
+            else:
+                # 3. update forking_height
+                self.max_units_per_process[U.creator_id].append(U)
+                self.forking_height[U.creator_id] = min(self.forking_height[U.creator_id], U.height)
+
+        # 4. if U is prime, update prime_units_by_level
+        if self.is_prime(U):
+            if U.level not in self.prime_units_by_level:
+                self.prime_units_by_level[U.level] = [[] for _ in range(self.n_processes)]
+            self.prime_units_by_level[U.level][U.creator_id].append(U)
+
+        # 6. Update memoized_units
+        if U.height % self.memo_height == 0:
+            n_units_memoized = len(self.memoized_units[U.creator_id])
+            U_no = U.height//self.memo_height
+            if n_units_memoized >= U_no + 1:
+                #this means that U.creator_id is forking and there is already a unit added on this height
+                pass
+            else:
+                assert n_units_memoized == U_no, f"The number of units memoized is {n_units_memoized} while it should be {U_no}."
+                self.memoized_units[U.creator_id].append(U)
+
 
 
     def level(self, U):
