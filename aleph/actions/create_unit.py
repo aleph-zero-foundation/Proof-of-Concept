@@ -97,13 +97,14 @@ def parents_allowed_with_restrictions(poset, creator_id, restrictions, parent_pr
 
     return list(single_tip_processes - restricted_set)
 
-def create_unit(poset, creator_id, txs, num_parents = consts.N_PARENTS, restrictions=[expand_primes_restricted], force_parents = None):
+def create_unit(poset, creator_id, txs, num_parents = consts.N_PARENTS, restrictions=[expand_primes_restricted], force_parents = None, prefer_maximal = False):
     '''
     Creates a new unit and stores txs in it. Correctness of the txs is checked by a thread listening for new transactions.
     :param list txs: list of correct transactions
     :param int num_parents: maximum number of distinct parents (lower bound is always 2)
     :param list restrictions: functions producing sets of forbidden parent ids
     :param list force_parents: (ONLY FOR DEBUGGING/TESTING) parents (units) for the created unit
+    :param bool prefer_maximal: whether when choosing parents the globally maximal units in the poset are preferred over non-maximal
     :returns: the new-created unit, or None if it is not possible to create a compliant unit
     '''
 
@@ -139,8 +140,15 @@ def create_unit(poset, creator_id, txs, num_parents = consts.N_PARENTS, restrict
                     break
                 else:
                     return None
-
-            parent_processes.append(random.choice(legit_parents))
+            if prefer_maximal:
+                maximal_process_ids = set(V.creator_id for V in poset.max_units)
+                legit_max_parents = [parent for parent in legit_parents if parent in maximal_process_ids]
+                if legit_max_parents != []:
+                    parent_processes.append(random.choice(legit_max_parents))
+                else:
+                    parent_processes.append(random.choice(legit_parents))
+            else:
+                parent_processes.append(random.choice(legit_parents))
 
         U = Unit(creator_id, [poset.max_units_per_process[pid][0] for pid in parent_processes], txs)
     else:

@@ -194,7 +194,7 @@ class Process:
 
             txs = self.prepared_txs
             with timer(self.process_id, 'create_unit'):
-                new_unit = create_unit(self.poset, self.process_id, txs)
+                new_unit = create_unit(self.poset, self.process_id, txs, prefer_maximal = True)
             timer.write_summary(where=self.logger, groups=[self.process_id])
             timer.reset(self.process_id)
             created_count += 1

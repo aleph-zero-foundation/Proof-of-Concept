@@ -27,6 +27,8 @@ class FastPoset(Poset):
 
         self.units = {}
         self.max_units_per_process = [[] for _ in range(n_processes)]
+        # the set of globally maximal units in the poset
+        self.max_units = set()
         self.forking_height = [float('inf')] * n_processes
 
         #common random permutation
