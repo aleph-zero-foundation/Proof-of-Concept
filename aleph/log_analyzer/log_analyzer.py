@@ -45,7 +45,7 @@ class LogAnalyzer:
         self.msg_pattern = parse.compile("[{date}] [{msg_level}] [{name}] {msg} [{file_line}]")
         self.split_on_bar = parse.compile("{left}|{right}")
 
-        self.pattern_create = parse.compile("Created a new unit <{unit}>")
+        self.pattern_create = parse.compile("Created a new unit <{unit}> with {n_parents:d} parents")
         self.pattern_memory = parse.compile("{usage:f} MiB")
         self.pattern_level = parse.compile("Level {level:d} reached")
         self.pattern_add_line = parse.compile("At lvl {timing_level:d} added {n_units:d} units and {n_txs:d} txs to the linear order {unit_list}")
@@ -107,7 +107,7 @@ class LogAnalyzer:
         assert U not in self.units, "Unit hash collision?"
         if self.levels == {} :
             self.levels[0] = {'date' : event['date']}
-        self.units[U] = {'created': event['date']}
+        self.units[U] = {'created': event['date'], 'n_parents': parsed['n_parents']}
         self.create_attempt_dates.append(event['date'])
 
     def parse_timer(self,  ev_params, msg_body, event):
@@ -343,7 +343,7 @@ class LogAnalyzer:
 
 
     def get_cpu_times(self, cpu_plot_file = None, cpu_io_plot_file = None):
-        timer_names = ['t_compress_units', 't_decompress_units', 't_unpickle_units',
+        timer_names = ['t_prepare_units', 't_compress_units', 't_decompress_units', 't_unpickle_units',
                      't_pickle_units', 't_verify_signatures', 't_add_units']
         cpu_time_summary = { name : [] for name in timer_names }
         cpu_time_summary['t_tot_sync'] = []
@@ -566,6 +566,17 @@ class LogAnalyzer:
 
         return create_delays, sync_delays
 
+    def get_n_parents(self):
+        '''
+        Returns statistics regarding the number of parents of units created by the tracked process.
+        '''
+        n_parents_list = []
+        for U, U_dict in self.units.items():
+            if 'n_parents' in U_dict:
+                n_parents_list.append(U_dict['n_parents'])
+
+        return n_parents_list
+
 
 
     def prepare_report_per_process(self, dest_dir = 'reports', file_name_prefix = 'report-sync-'):
@@ -720,6 +731,8 @@ class LogAnalyzer:
 
         - time_create: averate cpu time to create a unit
 
+        - n_parents: number of parents of units created by this process
+
         '''
 
 
@@ -792,6 +805,7 @@ class LogAnalyzer:
         sync_bar_plot_file_all = os.path.join(dest_dir,'plot-sync-bar','all-sync-' + str(self.process_id) + '.png')
         os.makedirs(os.path.dirname(sync_bar_plot_file_cpu), exist_ok=True)
         times = self.get_cpu_times(sync_bar_plot_file_cpu, sync_bar_plot_file_all)
+        _append_stat_line(times['t_prepare_units'], 'time_prepare')
         _append_stat_line(times['t_compress_units'], 'time_compress')
         _append_stat_line(times['t_decompress_units'], 'time_decompress')
         _append_stat_line(times['t_pickle_units'], 'time_pickle')
@@ -801,6 +815,10 @@ class LogAnalyzer:
         _append_stat_line(times['t_tot_sync'], 'time_cpu_sync')
         _append_stat_line(times['t_order_level'], 'time_order')
         _append_stat_line(times['t_create'], 'time_create')
+
+        # n_parents
+        _append_stat_line(self.get_n_parents(), 'n_parents')
+
 
 
         #self.get_sync_info_per_process()

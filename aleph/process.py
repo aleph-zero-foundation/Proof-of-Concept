@@ -194,17 +194,19 @@ class Process:
 
             txs = self.prepared_txs
             with timer(self.process_id, 'create_unit'):
-                new_unit = create_unit(self.poset, self.process_id, txs, prefer_maximal = True)
-            timer.write_summary(where=self.logger, groups=[self.process_id])
-            timer.reset(self.process_id)
+                new_unit = create_unit(self.poset, self.process_id, txs, prefer_maximal = consts.USE_MAX_PARENTS)
             created_count += 1
 
             if new_unit is not None:
-                self.poset.prepare_unit(new_unit)
-                assert self.poset.check_compliance(new_unit), "A unit created by our process is not passing the compliance test!"
-                self.sign_unit(new_unit)
-                self.logger.info(f"create_add {self.process_id} | Created a new unit {new_unit.short_name()}")
-                self.add_unit_to_poset(new_unit)
+
+                with timer(self.process_id, 'create_unit'):
+                    self.poset.prepare_unit(new_unit)
+                    assert self.poset.check_compliance(new_unit), "A unit created by our process is not passing the compliance test!"
+                    self.sign_unit(new_unit)
+                    self.add_unit_to_poset(new_unit)
+
+                n_parents = len(new_unit.parents)
+                self.logger.info(f"create_add {self.process_id} | Created a new unit {new_unit.short_name()} with {n_parents} parents")
                 if new_unit.level == consts.LEVEL_LIMIT:
                     max_level_reached = True
 
@@ -212,6 +214,9 @@ class Process:
                     self.prepared_txs = txs_queue.get()
                 else:
                     self.prepared_txs = []
+
+            timer.write_summary(where=self.logger, groups=[self.process_id])
+            timer.reset(self.process_id)
 
             await asyncio.sleep(consts.CREATE_FREQ)
 
