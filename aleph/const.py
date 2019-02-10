@@ -20,4 +20,4 @@ LOGGER_NAME     = 'aleph'
 
 SEND_COMPRESSED = 1            # use zlib compressing/decompressing when sending data over the network
 
-USE_FAST_POSET  = 1            # use fast poset in place of poset when using Processes
+USE_FAST_POSET  = 0            # use fast poset in place of poset when using Processes

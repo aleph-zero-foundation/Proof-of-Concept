@@ -56,7 +56,7 @@ class FastPoset(Poset):
         self.timing_partial_results = {}
 
 
-        default_consensus_params = {'t_first_vote' : 3, 't_switch_to_pi_delta' : 123456789}
+        default_consensus_params = {'t_first_vote' : 4, 't_switch_to_pi_delta' : 123456789}
         self.consensus_params = default_consensus_params if consensus_params is None else consensus_params
 
 
@@ -139,20 +139,20 @@ class FastPoset(Poset):
         return -1
 
     def default_vote(self, U, U_c):
-    	'''
-		Default vote of U on popularity of U_c, as in the fast consensus algorithm.
-    	'''
-    	r = U.level - U_c.level - self.consensus_params['t_first_vote']
-    	assert r >= 1, "Default vote is asked on too low unit level."
+        '''
+        Default vote of U on popularity of U_c, as in the fast consensus algorithm.
+        '''
+        r = U.level - U_c.level - self.consensus_params['t_first_vote']
+        assert r >= 1, "Default vote is asked on too low unit level."
 
-    	if r == 1:
-    		return 1
+        if r == 1:
+            return 1
 
-    	if r == 2:
-    		return 0
+        if r == 2:
+            return 0
 
-    	# something which depends upon U_c and U.level only: _simple_coin is good enough
-    	return self._simple_coin(U_c, U.level)
+        # something which depends upon U_c and U.level only: _simple_coin is good enough
+        return self._simple_coin(U_c, U.level)
 
 
     def compute_vote(self, U, U_c):
@@ -164,18 +164,18 @@ class FastPoset(Poset):
         vote = memo.get(('vote', U_hash), None)
 
         if vote is not None:
-        	return vote
+            return vote
 
         if r == 0:
-        	vote = int(self.proves_popularity(U, U_c))
+            vote = int(self.proves_popularity(U, U_c))
         else:
             votes_level_below = []
             for V in self.get_all_prime_units_by_level(U.level-1):
-            	vote_V = self.compute_vote(V, U_c)
-            	if vote_V == -1:
-            		# NOTE: this should never happen at r=1, it will trigger an assert in default_vote if so
-            		vote_V = self.default_vote(V, U_c)
-            	votes_level_below.append(vote_V)
+                vote_V = self.compute_vote(V, U_c)
+                if vote_V == -1:
+                    # NOTE: this should never happen at r=1, it will trigger an assert in default_vote if so
+                    vote_V = self.default_vote(V, U_c)
+                votes_level_below.append(vote_V)
             vote = self.super_majority(votes_level_below)
 
         memo[('vote', U_hash)] = vote
@@ -228,7 +228,7 @@ class FastPoset(Poset):
         sigma = self.crp[level]
 
         for process_id in sigma:
-        	#In case there are multiple (more than one) units to consider (forking) we sort them by hashes (to break ties)
+            #In case there are multiple (more than one) units to consider (forking) we sort them by hashes (to break ties)
             prime_units_by_curr_process = sorted(self.prime_units_by_level[level][process_id], key = lambda U: U.hash())
 
             if len(prime_units_by_curr_process) == 0:

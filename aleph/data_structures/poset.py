@@ -148,6 +148,8 @@ class Poset:
                 assert n_units_memoized == U_no, f"The number of units memoized is {n_units_memoized} while it should be {U_no}."
                 self.memoized_units[U.creator_id].append(U)
 
+
+
     def level(self, U):
         '''
         Calculates the level in the poset of the unit U.

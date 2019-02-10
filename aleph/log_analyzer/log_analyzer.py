@@ -18,7 +18,7 @@ class LogAnalyzer:
                            will be considered. If None, all log messages will be considered, yet in this case
                            it is assumed that only one process wrote logs to this file.
     '''
-    def __init__(self, file_path, process_id = None):
+    def __init__(self, file_path, process_id = None, generate_plots = True):
         self.units = {}
         self.syncs = {}
         self.levels = {}
@@ -34,6 +34,9 @@ class LogAnalyzer:
         self.start_date = None
         self.add_run_times = []
         self.process_id = None
+
+
+        self.generate_plots = generate_plots
 
 
 
@@ -375,7 +378,7 @@ class LogAnalyzer:
 
 
         # the plot with how the cpu time is divided between various tasks
-        if cpu_plot_file is not None and cpu_breakdown_entries != []:
+        if self.generate_plots and cpu_breakdown_entries != []:
             layers = []
             n_syncs = len(cpu_breakdown_entries)
             heights = [0.0] * n_syncs
@@ -388,11 +391,11 @@ class LogAnalyzer:
                 layers.append(layer)
                 heights = [y_series[i] + heights[i] for i in range(n_syncs)]
             plt.legend([layer[0] for layer in layers], timer_names)
-            plt.savefig(cpu_plot_file, dpi=1000)
+            plt.savefig(cpu_plot_file, dpi=800)
             plt.close()
 
         # the plot showing how the sync time divides into cpu vs non-cpu
-        if cpu_io_plot_file is not None and cpu_io_breakdown != []:
+        if self.generate_plots and cpu_io_breakdown != []:
             layers = []
             n_syncs = len(cpu_io_breakdown)
             heights = [0.0] * n_syncs
@@ -404,7 +407,7 @@ class LogAnalyzer:
             layer_cpu = plt.bar(x_series, y_series_cpu, width)
             layer_rest = plt.bar(x_series, y_series_rest, width, bottom=y_series_cpu)
             plt.legend([layer_cpu[0], layer_rest[0]], ('cpu_time', 'io+rest'))
-            plt.savefig(cpu_io_plot_file, dpi=1000)
+            plt.savefig(cpu_io_plot_file, dpi=800)
             plt.close()
 
         return cpu_time_summary
@@ -516,7 +519,7 @@ class LogAnalyzer:
                 establish_connection_times.append(sync['conn_est_time'])
 
 
-        if plot_file is not None:
+        if self.generate_plots:
             fig, ax = plt.subplots()
             units_exchanged = [s + r for (s,r) in zip(units_sent_per_sync, units_received_per_sync)]
             x_series, y_series = units_exchanged, time_per_sync
@@ -531,7 +534,7 @@ class LogAnalyzer:
 
 
 
-    def get_memory_usage_vs_poset_size(self, plot_file=None, show_plot=False):
+    def get_memory_usage_vs_poset_size(self, plot_file=None):
         '''
         Returns a list of memory usages (in MiB) of the python process at regular times.
         '''
@@ -540,15 +543,14 @@ class LogAnalyzer:
         for entry in self.memory_info:
             data.append((entry['poset_size'], entry['memory']))
 
-        fig, ax = plt.subplots()
-        x_series, y_series = [point[0] for point in data], [point[1] for point in data]
-        ax.plot(x_series, y_series)
-        ax.set(xlabel='#units', ylabel='usage (MiB)', title='Memory Consumption')
-        if plot_file is not None:
-            fig.savefig(plot_file)
-        if show_plot:
-            plt.show()
-        plt.close()
+        if self.generate_plots:
+            fig, ax = plt.subplots()
+            x_series, y_series = [point[0] for point in data], [point[1] for point in data]
+            ax.plot(x_series, y_series)
+            ax.set(xlabel='#units', ylabel='usage (MiB)', title='Memory Consumption')
+            if plot_file is not None:
+                fig.savefig(plot_file)
+            plt.close()
         return [point[1] for point in data]
 
 
