@@ -1,6 +1,7 @@
-N_PARENTS       = 8
+N_PARENTS       = 16           # maximal number of parents a unit can have
+USE_MAX_PARENTS = 1            # prefer maximal units (globally maximal in poset) when choosing parents
 
-USE_TCOIN       = 0        	   # whether to use threshold coin
+USE_TCOIN       = 0            # whether to use threshold coin
 ADD_SHARES      = 4            # level at which start to adding coin shares to units
 
 CREATE_FREQ     = 1.0          # frequency of creating new units
@@ -22,4 +23,4 @@ SEND_COMPRESSED = 1            # use zlib compressing/decompressing when sending
 
 USE_FAST_POSET  = 1            # use fast poset in place of poset when using Processes
 
-USE_MAX_PARENTS = 1            # prefer maximal units (globally maximal in poset) when choosing parents
+
