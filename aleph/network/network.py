@@ -254,11 +254,12 @@ async def _send_units(sync_id, process_id, ex_id, int_heights, ex_heights, proce
     send_ind = [i for i, (int_height, ex_height) in enumerate(zip(int_heights, ex_heights)) if int_height > ex_height]
 
     logger.info(f'send_units_start_{mode} {process_id} {sync_id} | Sending units to {ex_id}')
-    units_to_send = []
-    for i in send_ind:
-        units = process.poset.units_by_height_interval(creator_id=i, min_height=ex_heights[i]+1, max_height=int_heights[i])
-        units_to_send.extend(units)
-    units_to_send = process.poset.order_units_topologically(units_to_send)
+    with timer(f'{process_id} {sync_id}', 'prepare_units'):
+        units_to_send = []
+        for i in send_ind:
+            units = process.poset.units_by_height_interval(creator_id=i, min_height=ex_heights[i]+1, max_height=int_heights[i])
+            units_to_send.extend(units)
+        units_to_send = process.poset.order_units_topologically(units_to_send)
     with timer(f'{process_id} {sync_id}', 'pickle_units'):
         data = pickle.dumps(units_to_send)
 

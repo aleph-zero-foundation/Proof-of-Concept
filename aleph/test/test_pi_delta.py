@@ -128,7 +128,8 @@ def generate_delta_level_4_no_decision(det_coin_value = 0):
     for process_id in range(n_processes):
         sk = signing_keys[process_id]
         pk = public_keys[process_id]
-        new_process = Process(n_processes, process_id, sk, pk, addresses, public_keys, recv_addresses[process_id], None, 'LINEAR_ORDERING')
+        new_process = Process(n_processes, process_id, sk, pk, addresses, public_keys, recv_addresses[process_id],
+                                validation_method='LINEAR_ORDERING', use_fast_poset = False)
         processes.append(new_process)
 
     process = processes[0]
@@ -234,7 +235,6 @@ def generate_delta_level_4_no_decision(det_coin_value = 0):
 
         for process_id in all_ids:
             name_maximal = maximal_names[process_id]
-            #print(names_to_units[name_maximal].level, next_level)
 
 
 

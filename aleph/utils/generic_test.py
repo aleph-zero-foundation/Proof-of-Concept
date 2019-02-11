@@ -47,10 +47,7 @@ def generate_crp(n_processes):
 
 def initialize_posets(n_processes, use_tcoin = False):
     crp = generate_crp(n_processes)
-    if use_tcoin:
-        return [Poset(n_processes, crp, use_tcoin = True, process_id = process_id) for process_id in range(n_processes)]
-    else:
-        return [Poset(n_processes, crp) for process_id in range(n_processes)]
+    return [Poset(n_processes, process_id, crp, use_tcoin = use_tcoin) for process_id in range(n_processes)]
 
 def distribute_unit(U, name, posets, forkers, name_to_unit, unit_to_name):
     for process_id in range(len(posets)):

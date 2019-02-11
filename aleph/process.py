@@ -6,7 +6,7 @@ import os
 
 import psutil
 
-from aleph.data_structures import Poset, UserDB
+from aleph.data_structures import Poset, FastPoset, UserDB
 from aleph.crypto import CommonRandomPermutation
 from aleph.network import listener, sync, tx_listener
 from aleph.actions import create_unit
@@ -17,7 +17,8 @@ import aleph.const as consts
 class Process:
     '''This class is the main component of the Aleph protocol.'''
 
-    def __init__(self, n_processes, process_id, secret_key, public_key, addresses, public_key_list, tx_receiver_address, userDB=None, validation_method='SNAP', tx_source=tx_listener, gossip_strategy='unif_random'):
+    def __init__(self, n_processes, process_id, secret_key, public_key, addresses, public_key_list, tx_receiver_address, userDB=None,
+                validation_method='LINEAR_ORDERING', tx_source=tx_listener, gossip_strategy='unif_random', use_fast_poset = consts.USE_FAST_POSET):
         '''
         :param int n_processes: the committee size
         :param int process_id: the id of the current process
@@ -27,7 +28,7 @@ class Process:
         :param list public_keys: the list of public keys of all committee members
         :param tuple tx_receiver_address: address pair (host, port) on which the process listen for incomming txs
         :param object userDB: initial state of user accounts
-        :param string validation_method: the method of validating transactions/units: either "SNAP" or "LINEAR_ORDERING" or None for no validation
+        :param string validation_method: the method of validating transactions/units: either "LINEAR_ORDERING" or None for no validation
         :param object tx_source: method used for listening for incomming txs
         :param string gossip_strategy: name of gossip strategy to be used by the process
         '''
@@ -50,7 +51,12 @@ class Process:
         self.prepared_txs = []
 
         self.crp = CommonRandomPermutation([pk.to_hex() for pk in public_key_list])
-        self.poset = Poset(self.n_processes, self.crp, consts.USE_TCOIN, process_id = self.process_id)
+
+        if use_fast_poset:
+            self.poset = FastPoset(self.n_processes, self.process_id, self.crp, use_tcoin = consts.USE_TCOIN)
+        else:
+            self.poset = Poset(self.n_processes, self.process_id, self.crp, use_tcoin = consts.USE_TCOIN)
+
         self.userDB = userDB
         if self.userDB is None:
             self.userDB = UserDB()
@@ -58,15 +64,7 @@ class Process:
         self.keep_syncing = True
         self.tx_source = tx_source
 
-        # dictionary {user_public_key -> set of (tx, U)}  where tx is a pending transaction (sent by this user) in unit U
-        self.pending_txs = {}
-
-        # a bitmap specifying for every process whether he has been detected forking
-        self.is_forker = [False for _ in range(self.n_processes)]
-
         self.syncing_tasks = []
-
-        self.validated_transactions = []
 
         # hashes of units that have not yet been linearly ordered
         self.unordered_units = set()
@@ -106,24 +104,6 @@ class Process:
         return n_txs
 
 
-    def add_unit_and_snap_validate(self, U):
-        '''
-        Add a (compliant) unit to the poset and attempt fast validation of transactions inside.
-        '''
-        list_of_validated_units = []
-        self.poset.add_unit(U, list_of_validated_units)
-        self.logger.info(f'add_unit_to_poset {self.process_id} -> Validated a set of {len(list_of_validated_units)} units.')
-        for tx in U.transactions():
-            if tx.issuer not in self.pending_txs.keys():
-                self.pending_txs[tx.issuer] = set()
-            self.pending_txs[tx.issuer].add((tx,U))
-        for V in list_of_validated_units:
-            if V.transactions():
-                newly_validated = self.validate_transactions_in_unit(V, U)
-                self.logger.info(f'add_unit_to_poset {self.process_id} -> Validated a set of {len(newly_validated)} transactions.')
-                self.validated_transactions.extend(newly_validated)
-
-
     def add_unit_and_extend_linear_order(self, U):
         '''
         Add a (compliant) unit to the poset, try to find a new timing unit and if succeded, extend the linear order.
@@ -131,8 +111,14 @@ class Process:
         self.poset.add_unit(U)
         self.unordered_units.add(U.hash())
         if self.poset.is_prime(U):
-            new_timing_units = self.poset.attempt_timing_decision()
+
+            with timer(self.process_id, 'attempt_timing'):
+                new_timing_units = self.poset.attempt_timing_decision()
+            timer.write_summary(where=self.logger, groups=[self.process_id])
+            timer.reset(self.process_id)
+
             self.logger.info(f'prime_unit {self.process_id} | New prime unit at level {U.level} : {U.short_name()}')
+
             for U_timing in new_timing_units:
                 self.logger.info(f'timing_new {self.process_id} | Timing unit at level {U_timing.level} established.')
             for U_timing in new_timing_units:
@@ -169,9 +155,7 @@ class Process:
         if self.poset.check_compliance(U):
             old_level = self.poset.level_reached
 
-            if self.validation_method == 'SNAP':
-                self.add_unit_and_snap_validate(U)
-            elif self.validation_method == 'LINEAR_ORDERING':
+            if self.validation_method == 'LINEAR_ORDERING':
                 self.add_unit_and_extend_linear_order(U)
             else:
                 self.poset.add_unit(U)
@@ -183,40 +167,6 @@ class Process:
             return False
 
         return True
-
-    def validate_transactions_in_unit(self, U, U_validator):
-        '''
-        Returns a list of transactions in U that can be fast-validated if U's validator unit is U_validator
-        :param unit U: unit whose transactions should be validated
-        :param unit U_validator: a unit that validates U (is high above U)
-        :returns: list of all transactions in unit U that can be fast-validated
-        '''
-        validated_transactions = []
-        for tx in U.transactions():
-            user_public_key = tx.issuer
-
-            assert user_public_key in self.pending_txs.keys(), f"No transaction is pending for user {user_public_key}."
-            assert (tx, U) in self.pending_txs[user_public_key], "Transaction not found among pending"
-            if tx.index != self.userDB.last_transaction(tx.issuer) + 1:
-                self.logger.info(f'tx_validation {self.process_id} | transaction failed to validate because its index is {tx.index}, while the previous one was {self.userDB.last_transaction(tx.issuer)}')
-                continue
-            transaction_fork_present = False
-            for (pending_txs, V) in self.pending_txs[user_public_key]:
-                if tx.index == pending_txs.index:
-                    if (tx, U) != (pending_txs, V):
-                        if self.poset.below(V, U_validator):
-                            transaction_fork_present = True
-                            break
-
-            if not transaction_fork_present:
-                if self.userDB.check_transaction_correctness(tx):
-                    self.userDB.apply_transaction(tx)
-                    validated_transactions.append(tx)
-
-
-        for tx in validated_transactions:
-            self.pending_txs[tx.issuer].discard((tx,U))
-        return validated_transactions
 
     def choose_process_to_sync_with(self):
         if self.gossip_strategy == 'unif_random':
@@ -250,17 +200,20 @@ class Process:
 
             txs = self.prepared_txs
             with timer(self.process_id, 'create_unit'):
-                new_unit = create_unit(self.poset, self.process_id, txs)
-            timer.write_summary(where=self.logger, groups=[self.process_id])
-            timer.reset(self.process_id)
+                new_unit = create_unit(self.poset, self.process_id, txs, prefer_maximal = consts.USE_MAX_PARENTS)
+            created_count += 1
 
             if new_unit is not None:
-                created_count += 1
-                self.poset.prepare_unit(new_unit)
-                assert self.poset.check_compliance(new_unit), "A unit created by our process is not passing the compliance test!"
-                self.sign_unit(new_unit)
-                self.logger.info(f"create_add {self.process_id} | Created a new unit {new_unit.short_name()}")
+
+                with timer(self.process_id, 'create_unit'):
+                    self.poset.prepare_unit(new_unit)
+                    assert self.poset.check_compliance(new_unit), "A unit created by our process is not passing the compliance test!"
+                    self.sign_unit(new_unit)
+
                 self.add_unit_to_poset(new_unit)
+
+                n_parents = len(new_unit.parents)
+                self.logger.info(f"create_add {self.process_id} | Created a new unit {new_unit.short_name()} with {n_parents} parents")
                 if new_unit.level == consts.LEVEL_LIMIT:
                     max_level_reached = True
 
@@ -268,6 +221,9 @@ class Process:
                     self.prepared_txs = txs_queue.get()
                 else:
                     self.prepared_txs = []
+
+            timer.write_summary(where=self.logger, groups=[self.process_id])
+            timer.reset(self.process_id)
 
             await asyncio.sleep(consts.CREATE_FREQ)
 
@@ -296,7 +252,7 @@ class Process:
         await asyncio.gather(*self.syncing_tasks)
 
         # give some time for other processes to finish
-        await asyncio.sleep(10*consts.SYNC_INIT_FREQ)
+        await asyncio.sleep(3*consts.SYNC_INIT_FREQ)
 
         logger = logging.getLogger(consts.LOGGER_NAME)
         logger.info(f'sync_stop {self.process_id} | keep_syncing is {self.keep_syncing}')

@@ -18,8 +18,8 @@ import aleph.const as consts
 class Poset:
     '''This class is the core data structure of the Aleph protocol.'''
 
-
-    def __init__(self, n_processes, crp = None, use_tcoin=consts.USE_TCOIN, compliance_rules = None, memo_height = 10, process_id = None):
+    def __init__(self, n_processes, process_id = None, crp = None, use_tcoin = consts.USE_TCOIN,
+                compliance_rules = None, memo_height = 10):
         '''
         :param int n_processes: the committee size
         :param list compliance_rules: dictionary string -> bool
@@ -33,7 +33,8 @@ class Poset:
 
         self.units = {}
         self.max_units_per_process = [[] for _ in range(n_processes)]
-        self.min_non_validated = [[] for _ in range(n_processes)]
+        # the set of globally maximal units in the poset
+        self.max_units = set()
         self.forking_height = [float('inf')] * n_processes
 
         #common random permutation
@@ -83,7 +84,7 @@ class Poset:
         U.level = self.level(U)
 
 
-    def add_unit(self, U, newly_validated = None):
+    def add_unit(self, U):
         '''
         Add a unit compliant with the rules, what was checked by check_compliance.
         This method does the following:
@@ -93,10 +94,8 @@ class Poset:
             3. update forking_height
             4. if U is prime, add it to prime_units_by_level
             5. set ceil attribute of U and update ceil of predecessors of U
-            6. validate units using U if possible and updates the border between validated and non-validated units
-            7. if required, adds U to memoized_units
+            6. if required, adds U to memoized_units
         :param unit U: unit to be added to the poset
-        :returns: It does not return anything explicitly but modifies the newly_validated list: adds the units validated by U
         '''
 
         # 0. add the unit U to the poset
@@ -114,11 +113,16 @@ class Poset:
                 self.extract_tcoin_from_dealing_unit(U, self.process_id)
 
 
-        # 2. updates the lists of maximal elements in the poset and
+        # 2. updates the lists of maximal elements in the poset and forkinf height
         if len(U.parents) == 0:
             assert self.max_units_per_process[U.creator_id] == [], "A second dealing unit is attempted to be added to the poset"
             self.max_units_per_process[U.creator_id] = [U]
+            self.max_units.add(U)
         else:
+            # from max_units remove the ones that are U's parents, and add U as a new maximal unit
+            self.max_units = self.max_units - set(U.parents)
+            self.max_units.add(U)
+
             if U.self_predecessor in self.max_units_per_process[U.creator_id]:
                 self.max_units_per_process[U.creator_id].remove(U.self_predecessor)
                 self.max_units_per_process[U.creator_id].append(U)
@@ -139,16 +143,7 @@ class Poset:
         for parent in U.parents:
             self.update_ceil(U, parent)
 
-        # 6. validate units and update the "border" of non_validated units
-        if newly_validated is not None:
-            newly_validated.extend(self.validate_using_new_unit(U))
-
-        # the below might look over-complicated -- this is because of potentials forks of U's creator
-        # ignoring forks this simplifies to: if min_non_validated[U.creator_id] == [] then add U to it
-        if not any(self.below_within_process(V, U) for V in  self.min_non_validated[U.creator_id]):
-            self.min_non_validated[U.creator_id].append(U)
-
-        # 7. Update memoized_units
+        # 6. Update memoized_units
         if U.height % self.memo_height == 0:
             n_units_memoized = len(self.memoized_units[U.creator_id])
             U_no = U.height//self.memo_height
@@ -158,6 +153,8 @@ class Poset:
             else:
                 assert n_units_memoized == U_no, f"The number of units memoized is {n_units_memoized} while it should be {U_no}."
                 self.memoized_units[U.creator_id].append(U)
+
+
 
     def level(self, U):
         '''
@@ -1294,28 +1291,6 @@ class Poset:
 
         return top_list
 
-
-
-    def validate_using_new_unit(self, U):
-        '''
-        Validate as many units as possible using the newly-created unit U.
-        Start from min_non_validated and continue towards the top.
-        :returns: the set of all units first-time validated by U
-        '''
-        validated = []
-        for process_id in range(self.n_processes):
-            to_check = set(self.min_non_validated[process_id])
-            non_validated = []
-            while to_check:
-                V = to_check.pop()
-                # the first check below is for efficiency only
-                if self.high_below(V,U):
-                    validated.append(V)
-                    to_check = to_check.union(self.get_self_children(V))
-                else:
-                    non_validated.append(V)
-            self.min_non_validated[process_id] = non_validated
-        return validated
 
 
     def units_by_height(self, process_id, height):

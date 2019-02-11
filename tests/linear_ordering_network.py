@@ -53,12 +53,12 @@ def tx_source_gen(process_id, n_processes, batch_size, txpu):
 
 
 async def main():
-    n_processes = 4
+    n_processes = 32
     n_forkers = 0
     txps = 50
     n_light_nodes = 100
     use_tcoin = False
-    consts.LEVEL_LIMIT = 5
+    consts.UNITS_LIMIT = 200
 
     processes = []
     host_ports = [8900+i for i in range(n_processes)]
@@ -103,7 +103,3 @@ async def main():
 
 if __name__ == '__main__':
     asyncio.run(main())
-    # mp_main()
-
-
-

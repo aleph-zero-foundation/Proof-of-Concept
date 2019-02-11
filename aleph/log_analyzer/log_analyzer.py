@@ -18,7 +18,7 @@ class LogAnalyzer:
                            will be considered. If None, all log messages will be considered, yet in this case
                            it is assumed that only one process wrote logs to this file.
     '''
-    def __init__(self, file_path, process_id = None):
+    def __init__(self, file_path, process_id = None, generate_plots = True):
         self.units = {}
         self.syncs = {}
         self.levels = {}
@@ -26,6 +26,7 @@ class LogAnalyzer:
         self.create_attempt_dates = []
 
         self.create_times = []
+        self.timing_attempt_times = []
 
         self.current_recv_sync_no = []
         self.read_process_id = process_id
@@ -36,13 +37,16 @@ class LogAnalyzer:
         self.process_id = None
 
 
+        self.generate_plots = generate_plots
+
+
 
         # initialize a bunch of parsing patterns
         # doing parse.compile() beforehand once is to speed-up the parsing
         self.msg_pattern = parse.compile("[{date}] [{msg_level}] [{name}] {msg} [{file_line}]")
         self.split_on_bar = parse.compile("{left}|{right}")
 
-        self.pattern_create = parse.compile("Created a new unit <{unit}>")
+        self.pattern_create = parse.compile("Created a new unit <{unit}> with {n_parents:d} parents")
         self.pattern_memory = parse.compile("{usage:f} MiB")
         self.pattern_level = parse.compile("Level {level:d} reached")
         self.pattern_add_line = parse.compile("At lvl {timing_level:d} added {n_units:d} units and {n_txs:d} txs to the linear order {unit_list}")
@@ -104,7 +108,7 @@ class LogAnalyzer:
         assert U not in self.units, "Unit hash collision?"
         if self.levels == {} :
             self.levels[0] = {'date' : event['date']}
-        self.units[U] = {'created': event['date']}
+        self.units[U] = {'created': event['date'], 'n_parents': parsed['n_parents']}
         self.create_attempt_dates.append(event['date'])
 
     def parse_timer(self,  ev_params, msg_body, event):
@@ -117,6 +121,8 @@ class LogAnalyzer:
         else:
             if timer_name == "create_unit":
                 self.create_times.append(time_spent)
+            elif timer_name == "attempt_timing":
+                self.timing_attempt_times.append(time_spent)
             else:
             # this is 'linear_order_L' where L is the level
                 level = parse.parse("linear_order_{level:d}", timer_name)['level']
@@ -340,7 +346,7 @@ class LogAnalyzer:
 
 
     def get_cpu_times(self, cpu_plot_file = None, cpu_io_plot_file = None):
-        timer_names = ['t_compress_units', 't_decompress_units', 't_unpickle_units',
+        timer_names = ['t_prepare_units', 't_compress_units', 't_decompress_units', 't_unpickle_units',
                      't_pickle_units', 't_verify_signatures', 't_add_units']
         cpu_time_summary = { name : [] for name in timer_names }
         cpu_time_summary['t_tot_sync'] = []
@@ -372,10 +378,11 @@ class LogAnalyzer:
                 cpu_time_summary['t_order_level'].append(level_dict['t_lin_order'])
 
         cpu_time_summary['t_create'] = self.create_times
+        cpu_time_summary['t_attempt_timing'] = self.timing_attempt_times
 
 
         # the plot with how the cpu time is divided between various tasks
-        if cpu_plot_file is not None and cpu_breakdown_entries != []:
+        if self.generate_plots and cpu_breakdown_entries != []:
             layers = []
             n_syncs = len(cpu_breakdown_entries)
             heights = [0.0] * n_syncs
@@ -388,11 +395,11 @@ class LogAnalyzer:
                 layers.append(layer)
                 heights = [y_series[i] + heights[i] for i in range(n_syncs)]
             plt.legend([layer[0] for layer in layers], timer_names)
-            plt.savefig(cpu_plot_file, dpi=1000)
+            plt.savefig(cpu_plot_file, dpi=800)
             plt.close()
 
         # the plot showing how the sync time divides into cpu vs non-cpu
-        if cpu_io_plot_file is not None and cpu_io_breakdown != []:
+        if self.generate_plots and cpu_io_breakdown != []:
             layers = []
             n_syncs = len(cpu_io_breakdown)
             heights = [0.0] * n_syncs
@@ -404,7 +411,7 @@ class LogAnalyzer:
             layer_cpu = plt.bar(x_series, y_series_cpu, width)
             layer_rest = plt.bar(x_series, y_series_rest, width, bottom=y_series_cpu)
             plt.legend([layer_cpu[0], layer_rest[0]], ('cpu_time', 'io+rest'))
-            plt.savefig(cpu_io_plot_file, dpi=1000)
+            plt.savefig(cpu_io_plot_file, dpi=800)
             plt.close()
 
         return cpu_time_summary
@@ -516,7 +523,7 @@ class LogAnalyzer:
                 establish_connection_times.append(sync['conn_est_time'])
 
 
-        if plot_file is not None:
+        if self.generate_plots:
             fig, ax = plt.subplots()
             units_exchanged = [s + r for (s,r) in zip(units_sent_per_sync, units_received_per_sync)]
             x_series, y_series = units_exchanged, time_per_sync
@@ -531,7 +538,7 @@ class LogAnalyzer:
 
 
 
-    def get_memory_usage_vs_poset_size(self, plot_file=None, show_plot=False):
+    def get_memory_usage_vs_poset_size(self, plot_file=None):
         '''
         Returns a list of memory usages (in MiB) of the python process at regular times.
         '''
@@ -540,15 +547,14 @@ class LogAnalyzer:
         for entry in self.memory_info:
             data.append((entry['poset_size'], entry['memory']))
 
-        fig, ax = plt.subplots()
-        x_series, y_series = [point[0] for point in data], [point[1] for point in data]
-        ax.plot(x_series, y_series)
-        ax.set(xlabel='#units', ylabel='usage (MiB)', title='Memory Consumption')
-        if plot_file is not None:
-            fig.savefig(plot_file)
-        if show_plot:
-            plt.show()
-        plt.close()
+        if self.generate_plots:
+            fig, ax = plt.subplots()
+            x_series, y_series = [point[0] for point in data], [point[1] for point in data]
+            ax.plot(x_series, y_series)
+            ax.set(xlabel='#units', ylabel='usage (MiB)', title='Memory Consumption')
+            if plot_file is not None:
+                fig.savefig(plot_file)
+            plt.close()
         return [point[1] for point in data]
 
 
@@ -563,6 +569,17 @@ class LogAnalyzer:
 
 
         return create_delays, sync_delays
+
+    def get_n_parents(self):
+        '''
+        Returns statistics regarding the number of parents of units created by the tracked process.
+        '''
+        n_parents_list = []
+        for U, U_dict in self.units.items():
+            if 'n_parents' in U_dict:
+                n_parents_list.append(U_dict['n_parents'])
+
+        return n_parents_list
 
 
 
@@ -716,7 +733,11 @@ class LogAnalyzer:
 
         - time_order: cpu time spent on ordering units (per timing unit), includes dealing with txs
 
-        - time_create: averate cpu time to create a unit
+        - time_create: cpu time to create a unit
+
+        - time_decision: cpu time spent on attempting to decide popularity after adding a new prime unit
+
+        - n_parents: number of parents of units created by this process
 
         '''
 
@@ -790,6 +811,7 @@ class LogAnalyzer:
         sync_bar_plot_file_all = os.path.join(dest_dir,'plot-sync-bar','all-sync-' + str(self.process_id) + '.png')
         os.makedirs(os.path.dirname(sync_bar_plot_file_cpu), exist_ok=True)
         times = self.get_cpu_times(sync_bar_plot_file_cpu, sync_bar_plot_file_all)
+        _append_stat_line(times['t_prepare_units'], 'time_prepare')
         _append_stat_line(times['t_compress_units'], 'time_compress')
         _append_stat_line(times['t_decompress_units'], 'time_decompress')
         _append_stat_line(times['t_pickle_units'], 'time_pickle')
@@ -799,6 +821,11 @@ class LogAnalyzer:
         _append_stat_line(times['t_tot_sync'], 'time_cpu_sync')
         _append_stat_line(times['t_order_level'], 'time_order')
         _append_stat_line(times['t_create'], 'time_create')
+        _append_stat_line(times['t_attempt_timing'], 'time_decision')
+
+        # n_parents
+        _append_stat_line(self.get_n_parents(), 'n_parents')
+
 
 
         #self.get_sync_info_per_process()
