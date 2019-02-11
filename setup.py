@@ -14,6 +14,7 @@ setup(
         "psutil",
         "joblib",
         "pytest-xdist",
+        "tqdm"
         ],
     license="",
     package_data={"aleph.test.data": "simple.dag"},

@@ -1,12 +1,10 @@
 import asyncio
-import concurrent
 import logging
 import multiprocessing
 import random
-import psutil
 import os
-import time
 
+import psutil
 
 from aleph.data_structures import Poset, UserDB
 from aleph.crypto import CommonRandomPermutation
@@ -16,19 +14,22 @@ from aleph.utils import timer
 import aleph.const as consts
 
 
-
 class Process:
     '''This class is the main component of the Aleph protocol.'''
-
 
     def __init__(self, n_processes, process_id, secret_key, public_key, addresses, public_key_list, tx_receiver_address, userDB=None, validation_method='SNAP', tx_source=tx_listener, gossip_strategy='unif_random'):
         '''
         :param int n_processes: the committee size
         :param int process_id: the id of the current process
         :param string secret_key: the private key of the current process
+        :param string public_key: the public key of the current process
         :param list addresses: the list of length n_processes containing addresses (host, port) of all committee members
         :param list public_keys: the list of public keys of all committee members
+        :param tuple tx_receiver_address: address pair (host, port) on which the process listen for incomming txs
+        :param object userDB: initial state of user accounts
         :param string validation_method: the method of validating transactions/units: either "SNAP" or "LINEAR_ORDERING" or None for no validation
+        :param object tx_source: method used for listening for incomming txs
+        :param string gossip_strategy: name of gossip strategy to be used by the process
         '''
 
         self.n_processes = n_processes
@@ -44,6 +45,7 @@ class Process:
         self.ip = addresses[process_id][0]
         self.port = addresses[process_id][1]
 
+        self.tx_source = tx_source
         self.tx_receiver_address = tx_receiver_address
         self.prepared_txs = []
 
@@ -81,6 +83,8 @@ class Process:
         # initialize logger
         self.logger = logging.getLogger(consts.LOGGER_NAME)
 
+        self.keep_syncing = True
+
 
     def sign_unit(self, U):
         '''
@@ -100,7 +104,6 @@ class Process:
             n_txs += len(U.transactions())
 
         return n_txs
-
 
 
     def add_unit_and_snap_validate(self, U):
@@ -241,7 +244,6 @@ class Process:
         await serverStarted.wait()
         created_count, max_level_reached = 0, False
         while created_count != consts.UNITS_LIMIT and not max_level_reached:
-
             # log current memory consumption
             memory_usage_in_mib = (psutil.Process(os.getpid()).memory_info().rss)/(2**20)
             self.logger.info(f'memory_usage {self.process_id} | {memory_usage_in_mib:.4f} MiB')
@@ -277,7 +279,6 @@ class Process:
         elif created_count == consts.UNITS_LIMIT:
             logger.info(f'create_stop {self.process_id} | process created {consts.UNITS_LIMIT} units')
 
-
     async def dispatch_syncs(self, executor, serverStarted):
         await serverStarted.wait()
 
@@ -299,12 +300,10 @@ class Process:
 
         logger = logging.getLogger(consts.LOGGER_NAME)
         logger.info(f'sync_stop {self.process_id} | keep_syncing is {self.keep_syncing}')
-
-
     async def run(self):
         # start another process listening for incoming txs
         self.logger.info(f'start_process {self.process_id} | Starting a new process in committee of size {self.n_processes}')
-        txs_queue = multiprocessing.Queue()
+        txs_queue = multiprocessing.Queue(1000)
         p = multiprocessing.Process(target=self.tx_source, args=(self.tx_receiver_address, txs_queue))
         p.start()
 
@@ -319,3 +318,4 @@ class Process:
         listener_task.cancel()
 
         p.kill()
+        self.logger.info(f'process_done {self.process_id} | Exiting program')
