@@ -95,10 +95,14 @@ class Network:
             self.process.sync_id += 1
 
             self.logger.info(f'listener_sync_no {ids} | Number of syncs is {self.n_recv_syncs}')
-            if self.n_recv_syncs > consts.N_RECV_SYNC:
-                self.logger.info(f'listener_too_many_syncs {ids} | Too many syncs, rejecting {peer_id}')
-                self.n_recv_syncs -= 1
-                continue
+            #TODO: the code below is a remnant from the old network module, it does not work in the current setup!
+            #TODO: if N_RECV_SYNC is exceeded, one could use
+            #           a) a bounded semaphore and just wait
+            #           b) a special answer 'REJECT' that is sent back instead of poset_info
+            #if self.n_recv_syncs > consts.N_RECV_SYNC:
+            #    self.logger.info(f'listener_too_many_syncs {ids} | Too many syncs, rejecting {peer_id}')
+            #    self.n_recv_syncs -= 1
+            #    return
             self.logger.info(f'listener_establish {ids} | Connection established with {peer_id}')
 
             await self._send_poset_info(channel, 'listener', ids)
