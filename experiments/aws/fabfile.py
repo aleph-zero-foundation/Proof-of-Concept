@@ -8,35 +8,33 @@ from fabric import task
 #======================================================================================
 
 @task
-def install_dependencies(conn):
-    '''Installs dependencies via fabric. Deprecated since it blocks till finished.'''
+def sync_files(conn):
+    ''' Syncs files needed for running a process.'''
 
-    conn.sudo('apt update')
+    # send files: addresses, signing_keys, setup.sh, set_env.sh, light_nodes_public_keys
+    conn.run(f'echo {conn.host} > proof-of-concept/aleph/my_ip')
+    conn.put('ip_addresses', 'proof-of-concept/aleph/')
+    conn.put('signing_keys', 'proof-of-concept/aleph/')
+    conn.put('light_nodes_public_keys', 'proof-of-concept/aleph/')
 
-    # install dependencies for building pbc and charm
-    conn.sudo('apt install -y make flex bison unzip libgmp-dev libmpc-dev libssl-dev')
-    conn.sudo('apt install -y python3.7-dev python3-pip')
 
-    conn.sudo('python3.7 -m pip install setuptools pytest-xdist pynacl')
+@task
+def inst_dep(conn):
+    ''' Install dependencies in a nonblocking way.'''
 
-    # download and install pbc
-    conn.run('wget https://crypto.stanford.edu/pbc/files/pbc-0.5.14.tar.gz')
-    conn.run('tar -xvf pbc-0.5.14.tar.gz')
-    with conn.cd('pbc-0.5.14'):
-        conn.run('./configure')
-        conn.run('make')
-        conn.run('sudo make install')
+    conn.put('setup.sh', '.')
+    conn.put('set_env.sh', '.')
+    conn.sudo('apt update', hide='out')
+    conn.sudo('apt install dtach', hide='out')
+    conn.run('dtach -n `mktemp -u /tmp/dtach.XXXX` bash setup.sh', hide='out')
 
-    # exports paths were pbc is installed
-    conn.run('export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/local/lib')
-    conn.run('export LIBRARY_PATH=$LIBRARY_PATH:/usr/local/lib')
 
-    # download and install charm
-    conn.run('git clone https://github.com/JHUISI/charm.git')
-    with conn.cd('charm'):
-        conn.run('./configure.sh')
-        conn.run('make')
-        conn.run('sudo make install')
+@task
+def inst_dep_completed(conn):
+    ''' Check if installation completed.'''
+
+    result = conn.run('tail -1 setup.log')
+    return result.stdout.strip()
 
 
 @task
@@ -48,11 +46,12 @@ def clone_repo(conn):
     # clone using deployment token
     user_token = 'gitlab+deploy-token-38770:usqkQKRbQiVFyKZ2byZw'
     conn.run(f'git clone http://{user_token}@gitlab.com/alephledger/proof-of-concept.git')
-    # install via pip
+    # checkout to devel
     with conn.cd('proof-of-concept'):
         conn.run('git checkout devel')
-        # python 3.7 is established in virtual env, hence we need to activate it in every conn.run
-        conn.run('source /home/ubuntu/p37/bin/activate && pip install .', hide='out')
+
+    # install current version
+    install_repo(conn)
 
 
 @task
@@ -75,7 +74,7 @@ def init(conn):
        installs dependencies, clones repo, and syncs keys and hosts' adresses. '''
 
     print('installing dependencies')
-    install_dependencies(conn)
+    inst_dep(conn)
     print('cloning the repo')
     clone_repo(conn)
     print('syncing signing keys')
@@ -114,37 +113,14 @@ def zip_repo(conn):
 def send_testing_repo(conn):
     ''' Sends zipped local version of the repo to a host.'''
 
-    # rename main repo
-    conn.run('mv proof-of-concept proof-of-concept.old')
-    # send it upstream
+    # remove current version
+    conn.run('rm -rf proof-of-concept')
+    # send local repo upstream
     conn.put('../../../poc.zip', '.')
     # unpack
     conn.run('unzip -q poc.zip')
     # install new version
     install_repo(conn)
-
-
-@task
-def delete_testing_repo(conn):
-    ''' Restore the main repo.'''
-
-    conn.sudo('rm -rf proof-of-concept')
-    conn.run('mv proof-of-concept.old proof-of-concept')
-
-
-@task
-def resync_local_repo(conn):
-    ''' Resyncs current version of a local repo with a host.'''
-
-    conn.run('rm -rf proof-of-concept')
-    # send it upstream
-    conn.put('../../../poc.zip', '.')
-    # unpack
-    conn.run('unzip -q poc.zip')
-    # install
-    install_repo(conn)
-    # resend hosts and keys
-    sync_files(conn)
 
 
 @task
@@ -170,8 +146,6 @@ def simple_ec2_test(conn):
 
     conn.put('../simple_ec2_test.py', 'proof-of-concept/experiments/')
     with conn.cd('proof-of-concept/experiments'):
-        # cmd = 'python simple_ec2_test.py -i addresses -k signing_keys -l 10 -b 6553 -u 100 -t 0'
-        # cmd = 'python simple_ec2_test.py -i addresses -k signing_keys -l 10 -b 65536 -u 1000'
         cmd = 'python simple_ec2_test.py -i addresses -k signing_keys -l 10 -b 1000000 -u 1000'
         # export env var needed for pbc, activate venv, cross fingers, and run the experiment
         conn.run('export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/local/lib &&'
@@ -198,8 +172,11 @@ def get_logs(conn):
     ''' Retrieves aleph.log from the server.'''
 
     ip = conn.host.replace('.', '-')
-    conn.get('proof-of-concept/aleph/aleph.log', f'../results/{ip}-aleph.log')
-    conn.get('proof-of-concept/aleph/other.log', f'../results/{ip}-other.log')
+
+    conn.run(f'zip -rq {ip}-aleph.log.zip proof-of-concept/aleph/aleph.log')
+    conn.get(f'{ip}-aleph.log.zip', f'../results/{ip}-aleph.log.zip')
+    conn.run(f'zip -rq {ip}-other.log.zip proof-of-concept/aleph/other.log')
+    conn.get(f'{ip}-other.log', f'../results/{ip}-other.log.zip')
 
 
 @task
@@ -214,13 +191,7 @@ def stop_world(conn):
 def test(conn):
     ''' Always changing task for experimenting with fab.'''
 
-    #print(type(conn.host))
-    conn.run('source p37/bin/activate && pip install proof-of-concept/', hide='out')
-
-
-#======================================================================================
-#                                   ?
-#======================================================================================
+    conn.run(f'echo "Hello {conn.host}!"')
 
 
 @task
@@ -231,34 +202,9 @@ def run_unit_tests(conn):
         conn.run('pytest aleph')
 
 
-@task
-def sync_files(conn):
-    ''' Syncs files needed for running a process.'''
-
-    # send files: addresses, signing_keys, setup.sh, set_env.sh, light_nodes_public_keys
-    conn.run(f'echo {conn.host} > proof-of-concept/aleph/my_ip')
-    conn.put('ip_addresses', 'proof-of-concept/aleph/')
-    conn.put('signing_keys', 'proof-of-concept/aleph/')
-    conn.put('light_nodes_public_keys', 'proof-of-concept/aleph/')
-
-
-@task
-def inst_dep(conn):
-    ''' Install dependencies in a nonblocking way.'''
-
-    conn.put('setup.sh', '.')
-    conn.put('set_env.sh', '.')
-    conn.sudo('apt update', hide='out')
-    conn.sudo('apt install dtach', hide='out')
-    conn.run('dtach -n `mktemp -u /tmp/dtach.XXXX` bash setup.sh', hide='out')
-
-
-@task
-def inst_dep_completed(conn):
-    ''' Check if installation completed.'''
-
-    result = conn.run('tail -1 setup.log')
-    return result.stdout.strip()
+#======================================================================================
+#                                   ?
+#======================================================================================
 
 
 #======================================================================================

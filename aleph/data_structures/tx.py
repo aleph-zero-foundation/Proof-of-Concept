@@ -12,18 +12,12 @@ class Tx(object):
         self.issuer = issuer
         self.receiver = receiver
         self.amount = amount
-        #self.signature = signature
-
 
     def __getstate__(self):
         return (self.issuer, self.receiver, self.amount)
-        # self.index = index
-        # self.signature = signature
-
 
     def __setstate__(self, state):
         self.issuer, self.receiver, self.amount = state
-
 
     def __str__(self):
         tx_string =  'Issuer: ' + str(self.issuer) + '\n'
@@ -31,18 +25,12 @@ class Tx(object):
         tx_string += 'Amount: ' + str(self.amount) + '\n'
         return tx_string
 
-
     __repr__ = __str__
-
 
     def __eq__(self, other):
         return (isinstance(other, Tx) and self.issuer == other.issuer
                 and self.receiver == other.receiver
                 and self.amount == other.amount)
-                # and self.index == other.index)
-                # and self.signature == other.signature)
-
 
     def __hash__(self):
         return hash(str(self))
-

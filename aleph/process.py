@@ -1,12 +1,10 @@
 import asyncio
-import concurrent
 import logging
 import multiprocessing
 import random
-import psutil
 import os
-import time
 
+import psutil
 
 from aleph.data_structures import Poset, UserDB
 from aleph.crypto import CommonRandomPermutation
@@ -16,21 +14,22 @@ from aleph.utils import timer
 import aleph.const as consts
 
 
-
 class Process:
     '''This class is the main component of the Aleph protocol.'''
-
 
     def __init__(self, n_processes, process_id, secret_key, public_key, addresses, public_key_list, tx_receiver_address, userDB=None, validation_method='SNAP', tx_source=tx_listener, gossip_strategy='unif_random'):
         '''
         :param int n_processes: the committee size
         :param int process_id: the id of the current process
         :param string secret_key: the private key of the current process
+        :param string public_key: the public key of the current process
         :param list addresses: the list of length n_processes containing addresses (host, port) of all committee members
         :param list public_keys: the list of public keys of all committee members
+        :param tuple tx_receiver_address: address pair (host, port) on which the process listen for incomming txs
+        :param object userDB: initial state of user accounts
         :param string validation_method: the method of validating transactions/units: either "SNAP" or "LINEAR_ORDERING" or None for no validation
-        :param int n_create: number of units created by this process; -1 for no limit
-        :param int n_create: number of synchronizations performed by this process; -1 for no limit
+        :param object tx_source: method used for listening for incomming txs
+        :param string gossip_strategy: name of gossip strategy to be used by the process
         '''
 
         self.n_processes = n_processes
@@ -255,10 +254,7 @@ class Process:
             timer.write_summary(where=self.logger, groups=[self.process_id])
             timer.reset(self.process_id)
 
-
             if new_unit is not None:
-                if txs and self.process_id == 0:
-                    print(f'adding {len(txs)} txs')
                 created_count += 1
                 self.poset.prepare_unit(new_unit)
                 assert self.poset.check_compliance(new_unit), "A unit created by our process is not passing the compliance test!"
@@ -283,14 +279,6 @@ class Process:
         elif created_count == consts.UNITS_LIMIT:
             logger.info(f'create_stop {self.process_id} | process created {consts.UNITS_LIMIT} units')
 
-        self.keep_syncing = False
-        logger = logging.getLogger(LOGGER_NAME)
-        if max_level_reached:
-            logger.info(f'create_stop {self.process_id} | process reached max_level {self.n_level}')
-        elif created_count == self.n_create:
-            logger.info(f'create_stop {self.process_id} | process created {self.n_create} units')
-
-
     async def dispatch_syncs(self, executor, serverStarted):
         await serverStarted.wait()
 
@@ -312,12 +300,6 @@ class Process:
 
         logger = logging.getLogger(consts.LOGGER_NAME)
         logger.info(f'sync_stop {self.process_id} | keep_syncing is {self.keep_syncing}')
-
-        await asyncio.gather(*self.syncing_tasks)
-        logger = logging.getLogger(LOGGER_NAME)
-        logger.info(f'sync_stop {self.process_id} | keep_syncing is {self.keep_syncing}')
-
-
     async def run(self):
         # start another process listening for incoming txs
         self.logger.info(f'start_process {self.process_id} | Starting a new process in committee of size {self.n_processes}')

@@ -53,7 +53,7 @@ def tx_source_gen(process_id, n_processes, batch_size, txpu):
 
 
 async def main():
-    n_processes = 32
+    n_processes = 4
     n_forkers = 0
     txps = 50
     n_light_nodes = 100
@@ -91,8 +91,6 @@ async def main():
                       None,
                       userDB,
                       'LINEAR_ORDERING',
-                      use_tcoin,
-                      stop_conditions,
                       tx_source_gen(process_id, n_processes, 3,1))
         processes.append(new_process)
         tasks.append(asyncio.create_task(new_process.run()))

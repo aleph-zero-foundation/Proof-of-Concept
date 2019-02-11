@@ -10,12 +10,6 @@ from aleph.crypto.keys import SigningKey
 from config import SYNC_PORT, SIGN_KEYS_FP
 
 
-def _def_filter(name, values):
-    ''' Helper function for creating filters.'''
-
-    return {'Name': name, 'Values': values}
-
-
 def image_id_in_region(region_name, version='bionic'):
     '''Find id of os image we use. The id may differ for different regions'''
 
@@ -39,7 +33,7 @@ def vpc_id_in_region(region_name):
         vpcs_ids.append(vpc.id)
 
     if len(vpcs_ids) > 1 or not vpcs_ids:
-        raise Exception  # not so perfect, I know...
+        raise Exception(f'Found {len(vpcs_ids)} vpc, expected one!')
 
     return vpcs_ids[0]
 

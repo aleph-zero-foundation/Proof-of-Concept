@@ -22,7 +22,7 @@ from config import N_JOBS
 #======================================================================================
 
 def latency_in_region(region_name):
-    if region_name == 'default':
+    if region_name == default_region_name():
         region_name = default_region_name()
 
     print('finding latency', region_name)
@@ -46,26 +46,19 @@ def latency_in_region(region_name):
     return latency
 
 
-def launch_new_instances_in_region(n_processes=1, region_name='default', instance_type='t2.micro'):
+def launch_new_instances_in_region(n_processes=1, region_name=default_region_name(), instance_type='t2.micro'):
     '''Launches n_processes in a given region.'''
-
-    if region_name == 'default':
-        region_name = default_region_name()
 
     print('launching instances in', region_name)
 
-    #print(region_name, 'key init')
     key_name = 'aleph'
     init_key_pair(region_name, key_name)
 
-    #print(region_name, 'sg init')
     security_group_name = 'aleph'
     security_group_id = security_group_id_by_region(region_name, security_group_name)
 
-    #print(region_name, 'image init')
     image_id = image_id_in_region(region_name)
 
-    #print(region_name, 'launch instance')
     ec2 = boto3.resource('ec2', region_name)
     instances = ec2.create_instances(ImageId=image_id,
                                  MinCount=n_processes, MaxCount=n_processes,
@@ -81,75 +74,54 @@ def launch_new_instances_in_region(n_processes=1, region_name='default', instanc
                                  KeyName=key_name,
                                  Monitoring={ 'Enabled': False },
                                  SecurityGroupIds = [security_group_id])
-    #print(region_name, 'done')
 
     return instances
 
 
-def terminate_instances_in_region(region_name='default'):
-    '''Terminates all running instances in a given regions.'''
-
-    if region_name == 'default':
-        region_name = default_region_name()
-
-    print('terminating instances in', region_name)
-
-    ec2 = boto3.resource('ec2', region_name)
-    print(region_name, 'terminating')
-    for instance in ec2.instances.all():
-        instance.terminate()
-
-
-def all_instances_in_region(region_name='default'):
+def all_instances_in_region(region_name=default_region_name(), states=['running', 'pending']):
     '''Returns all running or pending instances in a given region.'''
-
-    if region_name == 'default':
-        region_name = default_region_name()
 
     ec2 = boto3.resource('ec2', region_name)
     instances = []
     print(region_name, 'collecting instances')
     for instance in ec2.instances.all():
-        if instance.state['Name'] in ['running', 'pending']:
+        if instance.state['Name'] in states:
             instances.append(instance)
 
     return instances
 
 
-def instances_ip_in_region(region_name='default'):
+def terminate_instances_in_region(region_name=default_region_name()):
+    '''Terminates all running instances in a given regions.'''
+
+    print(region_name, 'terminating instances')
+    for instance in all_instances_in_region(region_name):
+        instance.terminate()
+
+
+def instances_ip_in_region(region_name=default_region_name()):
     '''Returns ips of all running or pending instances in a given region.'''
 
-    if region_name == 'default':
-        region_name = default_region_name()
-
-    ec2 = boto3.resource('ec2', region_name)
     ips = []
-    # print(region_name, 'collecting ips')
-    for instance in ec2.instances.all():
-        if instance.state['Name'] in ['running', 'pending']:
-            ips.append(instance.public_ip_address)
+
+    for instance in all_instances_in_region(region_name):
+        ips.append(instance.public_ip_address)
 
     return ips
 
 
-def instances_state_in_region(region_name='default'):
+def instances_state_in_region(region_name=default_region_name()):
     '''Returns states of all instances in a given regions.'''
 
-    if region_name == 'default':
-        region_name = default_region_name()
-
-    print('finging states of instances in', region_name)
-
-    ec2 = boto3.resource('ec2', region_name)
-    states = []
     print(region_name, 'collecting instances states')
-    for instance in ec2.instances.all():
+    possible_states = ['running', 'pending', 'shutting-down', 'terminating']
+    for instance in all_instances_in_region(region_name, possible_states):
         states.append(instance.state['Name'])
 
     return states
 
 
-def run_task_in_region(task='test', region_name='default', parallel=False, output=False):
+def run_task_in_region(task='test', region_name=default_region_name(), parallel=False, output=False):
     '''
     Runs a task from fabfile.py on all instances in a given region.
     :param string task: name of a task defined in fabfile.py
@@ -158,10 +130,7 @@ def run_task_in_region(task='test', region_name='default', parallel=False, outpu
     :param bool output: indicates whether output of task is needed
     '''
 
-    if region_name == 'default':
-        region_name = default_region_name()
-
-    print(f'running task {task} in', region_name)
+    print(f'running task {task} in {region_name}')
 
     ip_list = instances_ip_in_region(region_name)
     if parallel:
@@ -179,7 +148,7 @@ def run_task_in_region(task='test', region_name='default', parallel=False, outpu
         print('paramiko troubles')
 
 
-def run_cmd_in_region(cmd='tail -f proof-of-concept/experiments/aleph.log', region_name='default', output=False):
+def run_cmd_in_region(cmd='tail -f proof-of-concept/experiments/aleph.log', region_name=default_region_name(), output=False):
     '''
     Runs a shell command cmd on all instances in a given region.
     :param string cmd: a shell command that is run on instances
@@ -187,11 +156,7 @@ def run_cmd_in_region(cmd='tail -f proof-of-concept/experiments/aleph.log', regi
     :param bool output: indicates whether output of cmd is needed
     '''
 
-    if region_name == 'default':
-        region_name = default_region_name()
-
-
-    print(f'running command {cmd} in', region_name)
+    print(f'running command {cmd} in {region_name})
 
     ip_list = instances_ip_in_region(region_name)
     results = []
@@ -208,7 +173,7 @@ def run_cmd_in_region(cmd='tail -f proof-of-concept/experiments/aleph.log', regi
 def wait_in_region(target_state, region_name):
     '''Waits until all machines in a given region reach a given state.'''
 
-    if region_name == 'default':
+    if region_name == default_region_name():
         region_name = default_region_name()
 
     print('waiting in', region_name)
@@ -311,6 +276,9 @@ def launch_new_instances(nppr, instance_type='t2.micro'):
             if instances:
                 failed.remove(region_name)
 
+    if failed:
+        print('reporting complete failure in regions', failed)
+
 
 def terminate_instances(regions='badger regions'):
     '''Terminates all instances in ever region from given regions.'''
@@ -369,11 +337,15 @@ def wait(target_state, regions='badger regions'):
 def wait_install(regions='badger regions'):
     '''Waits till installation finishes in all given regions.'''
 
+    if regions == 'all':
+        regions = available_regions()
+    if regions == 'badger regions':
+        regions = badger_regions()
+
     sleep(60)
     wait_for_regions = regions.copy()
     while wait_for_regions:
         sleep(10)
-        finished = []
         results = Parallel(n_jobs=N_JOBS)(delayed(installation_finished_in_region)(r) for r in wait_for_regions)
 
         wait_for_regions = [r for i,r in enumerate(wait_for_regions) if not results[i]]
@@ -448,7 +420,7 @@ def get_logs(n_processes, regions=badger_regions()):
 
     if not os.path.exists('../results'):
         os.makedirs('../results')
-    run_task('get-logs', regions, parallel=True)
+    #run_task('get-logs', regions, parallel=True)
 
     print('read addresses')
     with open('ip_addresses', 'r') as f:
@@ -477,17 +449,17 @@ def get_logs(n_processes, regions=badger_regions()):
 
     print('rename logs')
     for fp in os.listdir('../results'):
-        name = fp[-9:-4] # other | aleph
-        pid = ip_addresses.index(fp.split(f'-{name}.log')[0].replace('-','.'))
-        os.rename(f'../results/{fp}', f'../results/{pid}.{name}.log')
+        name = fp[-13:-8] # other | aleph
+        pid = ip_addresses.index(fp.split(f'-{name}.log')[0].replace('-', '.'))
+        os.rename(f'../results/{fp}', f'../results/{pid}.{name}.log.zip')
 
     params = configparser.ConfigParser()
     params.read('config.ini')
     params = params['Default']
     n_parents = int(params['N_PARENTS'])
     tcoin = int(params['USE_TCOIN'])
-    cfreq = int(params['CREATE_FREQ'])
-    sfreq = int(params['SYNC_INIT_FREQ'])
+    cfreq = float(params['CREATE_FREQ'])
+    sfreq = float(params['SYNC_INIT_FREQ'])
     n_recv_sync = int(params['N_RECV_SYNC'])
     txpu = int(params['TXPU'])
     fast = int(params['USE_FAST_POSET'])
@@ -528,13 +500,11 @@ t = run_task
 cmr = run_cmd_in_region
 cm = run_cmd
 
-p = run_protocol
-
 ti = terminate_instances
 
-A = [104, badger_regions(), [], 't2.medium']
 res = ['sa-east-1', 'ap-southeast-2']
 
+p  = lambda : run_protocol(104, badger_regions(), [], 't2.medium')
 rs = lambda n=8: p(n, badger_regions(), res, 't2.micro')
 ms = lambda regions=badger_regions(): memory_usage(regions)
 

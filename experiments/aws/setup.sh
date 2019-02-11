@@ -4,7 +4,7 @@ echo update > setup.log
 sudo apt update
 
 echo install from ubuntu repo >> setup.log
-sudo apt install -y make flex bison unzip virtualenv libgmp-dev libmpc-dev libssl-dev
+sudo apt install -y make flex bison zip unzip virtualenv libgmp-dev libmpc-dev libssl-dev
 sudo apt install -y python3.7-dev python3-pip
 
 echo install pbc >> setup.log
@@ -46,8 +46,6 @@ echo install aleph >> setup.log
 cd proof-of-concept
 git checkout devel
 pip install .
-
-find . -name '*.pyc' -delete
 cd
 
 echo done >> setup.log

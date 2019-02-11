@@ -1,5 +1,6 @@
 import asyncio
 import configparser
+import logging
 import multiprocessing
 import random
 import sys
@@ -37,6 +38,12 @@ def sort_and_get_my_pid(public_keys, signing_keys, my_ip, ip_addresses):
 
     return public_keys.index(my_pk), public_keys, signing_keys, ip_addresses
 
+def _is_float(string):
+    try:
+        float(string)
+        return True
+    except:
+        return False
 
 def update_global_consts(params):
     ''' updates global consts defined in aleph/const.py by values in params '''
@@ -44,8 +51,18 @@ def update_global_consts(params):
         if const_name in params:
             if params[const_name].isdigit():
                 consts.__dict__[const_name] = int(params[const_name])
+            elif _is_float(params[const_name]):
+                consts.__dict__[const_name] = float(params[const_name])
             else:
                 consts.__dict__[const_name] = params[const_name]
+
+def log_consts():
+    logger = logging.getLogger(consts.LOGGER_NAME)
+    consts_names = ['N_PARENTS', 'USE_TCOIN', 'CREATE_FREQ', 'SYNC_INIT_FREQ', 'N_RECV_SYNC', 'TXPU', 'LEVEL_LIMIT']
+    consts_values = ''
+    for const_name in consts_names:
+        consts_values += f'\n{const_name}={consts.__dict__[const_name]}'
+    logger.info(consts_values)
 
 
 async def main():
@@ -59,6 +76,8 @@ async def main():
     params = params['Default']
 
     update_global_consts(params)
+
+    log_consts()
 
     ip_addresses = read_ip_addresses(params['ip_addresses'])
     signing_keys = read_signing_keys(params['signing_keys'])
