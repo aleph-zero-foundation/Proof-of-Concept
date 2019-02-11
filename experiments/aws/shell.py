@@ -2,6 +2,7 @@
 import configparser
 import os
 
+from fabric import Connection
 from functools import partial
 from subprocess import call, check_output
 from time import sleep, time
@@ -13,6 +14,7 @@ import numpy as np
 from aleph.crypto.keys import SigningKey, VerifyKey
 import aleph.const as consts
 
+from fabfile import zip_repo
 from utils import image_id_in_region, default_region_name, init_key_pair, security_group_id_by_region, available_regions, badger_regions, generate_signing_keys, n_processes_per_regions, eu_regions
 from config import N_JOBS
 
@@ -401,7 +403,8 @@ def run_protocol(n_processes, regions, restricted, instance_type):
 
     print('packing local repo')
     # pack testing repo
-    call('fab -H 127.0.0.1 zip-repo'.split())
+    with Connection('localhost') as c:
+        zip_repo(c)
 
     print('sending testing repo')
     # send testing repo
