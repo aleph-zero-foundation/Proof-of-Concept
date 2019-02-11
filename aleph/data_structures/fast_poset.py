@@ -201,23 +201,6 @@ class FastPoset(Poset):
         memo[('proof', V_hash)] = len(seen_processes) >= threshold
         return memo[('proof', V_hash)]
 
-    def _simple_coin(self, U, level):
-        return (U.hash()[level%3])%2
-
-
-    def super_majority(self, list_vals):
-        '''
-        Returns the value of supermajority of a list of bits.
-        :param list list_vals: list of {0, 1}
-        :returns: 0, 1 or -1, depending on whether there is supermajority (>=2/3 fraction) of 0s, 1s, or none of them
-        '''
-        treshold_majority = (2*self.n_processes + 2)//3
-        if list_vals.count(1) >= treshold_majority:
-            return 1
-        if list_vals.count(0) >= treshold_majority:
-            return 0
-
-        return -1
 
     def default_vote(self, U, U_c):
         '''
