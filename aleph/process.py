@@ -241,8 +241,8 @@ class Process:
         return random.choice(sync_candidates)
 
 
-    async def create_add(self, txs_queue, serverStarted):
-        await serverStarted.wait()
+    async def create_add(self, txs_queue, server_started):
+        await server_started.wait()
         created_count, max_level_reached = 0, False
         while created_count != consts.UNITS_LIMIT and not max_level_reached:
 
@@ -288,13 +288,9 @@ class Process:
         sync_count = 0
         while sync_count != consts.SYNCS_LIMIT and self.keep_syncing:
             sync_count += 1
-            sync_candidates = list(range(self.n_processes))
-            sync_candidates.remove(self.process_id)
             target_id = self.choose_process_to_sync_with()
             self.syncing_tasks.append(asyncio.create_task(self.network.sync(target_id)))
-
             await asyncio.sleep(consts.SYNC_INIT_FREQ)
-            #_, self.syncing_tasks = await asyncio.wait(self.syncing_tasks, return_when=asyncio.FIRST_COMPLETED)
 
         await asyncio.gather(*self.syncing_tasks)
 
@@ -326,7 +322,7 @@ class Process:
         syncing_task = asyncio.create_task(self.dispatch_syncs(server_started))
 
         await asyncio.gather(syncing_task, creator_task)
-        self.logger.info(f'listener_done {self.process_id} | Gathered results; cancelling listener')
+        self.logger.info(f'listener_done {self.process_id} | Gathered results; canceling server and listeners')
         server_task.cancel()
         listener_task.cancel()
 

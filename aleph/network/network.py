@@ -17,28 +17,25 @@ class Network:
         self.logger = logger
 
         self.n_recv_syncs = 0
-        self.address_dict = {addr[0]: i for i, addr in enumerate(addresses)}
-        self.channels = [Channel(i, addr) for i, addr in enumerate(addresses)]
+        pid = self.process.process_id
+        self.sync_channels = {i: Channel(pid, i, addr) for i, addr in enumerate(addresses) if i != pid}
+        self.listen_channels = {i: Channel(pid, i, addr) for i, addr in enumerate(addresses) if i != pid}
 
 
     async def start_server(self, server_started):
 
         async def channel_handler(reader, writer):
-            peer_addr = writer.get_extra_info('peername')[0]
-            self.logger.info(f'channel_handler {self.process.process_id} | Receiving connection from {peer_addr}')
+            self.logger.info(f'channel_handler {self.process.process_id} | Receiving connection from unknown process')
 
-            if peer_addr not in self.address_dict:
-                self.logger.info(f'channel_handler {self.process.process_id} | Closing conn with {peer_addr}, not in address book')
-                return
+            peer_id = await Channel.receive_handshake(reader, writer)
+            self.logger.info(f'channel_handler {self.process.process_id} | Exchanged handshake with {peer_id}')
+            channel = self.listen_channels[peer_id]
 
-            peer_id = self.address_dict[peer_addr]
-            channel = self.channels[peer_id]
-
-            if channel.is_open():
+            if channel.is_active():
                 self.logger.error(f'channel_handler {self.process.process_id} | Channel with {peer_id} already open, received another connection')
                 return
 
-            await channel.open((reader, writer))
+            channel.connect(reader, writer)
             self.logger.info(f'channel_handler {self.process.process_id} | Opened channel with {peer_id}')
 
         host_ip = socket.gethostbyname(socket.gethostname())
@@ -56,7 +53,7 @@ class Network:
         ids = self._get_ids_as_str()
         self.logger.info(f'sync_establish {ids} | Beginning sync with {target_id}')
 
-        channel = self.channels[target_id]
+        channel = self.sync_channels[target_id]
 
         self.process.last_synced_with_process[target_id] = self.process.sync_id
         self.process.sync_id += 1
@@ -70,12 +67,12 @@ class Network:
         if not self._verify_signatures_and_add_units(units_received, target_id, 'sync', ids):
             return
 
-        self.logger.info(f'sync_done {ids} | Syncing with {target_id} succesful')
+        self.logger.info(f'sync_done {ids} | Syncing with {target_id} successful')
         timer.write_summary(where=self.logger, groups=[ids])
 
 
     async def listener(self, peer_id):
-        channel = self.channels[peer_id]
+        channel = self.listen_channels[peer_id]
         while True:
             their_poset_info = await self._receive_poset_info(channel, 'listener', f'{self.process.process_id} ???')
             self.n_recv_syncs += 1
@@ -100,19 +97,19 @@ class Network:
 
             await self._send_units(their_poset_info, channel, 'listener', ids)
 
-            logger.info(f'listener_succ {ids} | Syncing with {peer_id} succesful')
+            self.logger.info(f'listener_succ {ids} | Syncing with {peer_id} succesful')
             timer.write_summary(where=self.logger, groups=[ids])
             self.n_recv_syncs -= 1
 
 
     async def _send_poset_info(self, channel, mode, ids):
-        self.logger.info(f'send_poset_{mode} {ids} | sending info about forkers and heights&hashes to {channel.peer_id}')
+        self.logger.info(f'send_poset_{mode} {ids} | sending info about heights to {channel.peer_id}')
         poset_info = self.process.poset.get_heights()
         data = pickle.dumps((self.process.process_id, poset_info))
         if consts.SEND_COMPRESSED:
             data = zlib.compress(data)
         await channel.write(data)
-        self.logger.info(f'send_poset_{mode} {ids} | sending forkers/heights {poset_info} to {channel.peer_id}')
+        self.logger.info(f'send_poset_{mode} {ids} | sent heights {poset_info} to {channel.peer_id}')
 
 
     async def _receive_poset_info(self, channel, mode, ids):
@@ -170,7 +167,7 @@ class Network:
         with timer(ids, 'unpickle_units'):
             units_received = pickle.loads(data)
 
-        logger.info(f'receive_units_done_{mode} {ids} | Received {n_bytes} bytes and {len(units_received)} units')
+        self.logger.info(f'receive_units_done_{mode} {ids} | Received {n_bytes} bytes and {len(units_received)} units')
         return units_received
 
 
