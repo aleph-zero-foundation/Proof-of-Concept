@@ -114,7 +114,8 @@ def instances_state_in_region(region_name=default_region_name()):
     '''Returns states of all instances in a given regions.'''
 
     print(region_name, 'collecting instances states')
-    possible_states = ['running', 'pending', 'shutting-down', 'terminating']
+    states = []
+    possible_states = ['running', 'pending', 'shutting-down', 'terminated']
     for instance in all_instances_in_region(region_name, possible_states):
         states.append(instance.state['Name'])
 
@@ -156,7 +157,7 @@ def run_cmd_in_region(cmd='tail -f proof-of-concept/experiments/aleph.log', regi
     :param bool output: indicates whether output of cmd is needed
     '''
 
-    print(f'running command {cmd} in {region_name})
+    print(f'running command {cmd} in {region_name}')
 
     ip_list = instances_ip_in_region(region_name)
     results = []
@@ -504,8 +505,8 @@ ti = terminate_instances
 
 res = ['sa-east-1', 'ap-southeast-2']
 
-p  = lambda : run_protocol(104, badger_regions(), [], 't2.medium')
-rs = lambda n=8: p(n, badger_regions(), res, 't2.micro')
+pb = lambda : run_protocol(104, badger_regions(), [], 't2.medium')
+rs = lambda : run_protocol(8, badger_regions(), res, 't2.micro')
 ms = lambda regions=badger_regions(): memory_usage(regions)
 
 #======================================================================================
