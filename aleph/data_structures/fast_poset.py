@@ -165,6 +165,7 @@ class FastPoset(Poset):
         '''
         Checks whether V proves that U_c is popular on V's level, i.e. whether there exist
             >=2/3 N units W on level L(V)-1 such that: (1) W <= V and (2) U_c <= W.
+        This corresponds to V >>> U_c in the paper.
         :param unit V: the "prover" unit
         :param unit U_c: the unit tested for popularity
         :returns: True or False: does V prove that U_c is popular?
@@ -220,7 +221,15 @@ class FastPoset(Poset):
 
 
     def compute_vote(self, U, U_c):
-        # determine the vote of unit U on popularity of U_c
+        '''
+        Determine the vote of unit U on popularity of U_c.
+        If the first round of voting is at level L then:
+            - at lvl L the vote is just whether U proves popularity of U_c (i.e. whether U_c <<< U)
+            - at lvl (L+1) the vote is the supermajority of votes of prime ancestors (at level L)
+            - at lvl (L+2) the vote is the supermajority of votes (replaced by default_vote if no supermajority) of prime ancestors (at level L+1)
+            - etc.
+        '''
+
         r = U.level - U_c.level - self.consensus_params['t_first_vote']
         assert r >= 0, "Vote is asked on too low unit level."
         U_c_hash, U_hash = U_c.hash(), U.hash()
@@ -228,10 +237,11 @@ class FastPoset(Poset):
         vote = memo.get(('vote', U_hash), None)
 
         if vote is not None:
+            # this has been already computed and memoized in the past
             return vote
 
         if r == 0:
-            # this should be in fact a "1" if any primt ancestor (at any level) of U proves popularity of U_c,
+            # this should be in fact a "1" if any prime ancestor (at any level) of U proves popularity of U_c,
             # but it seems to be equivalent to the below
             vote = int(self.proves_popularity(U, U_c))
         else:
@@ -249,12 +259,15 @@ class FastPoset(Poset):
 
     def decide_unit_is_popular(self, U_c):
         '''
-        Decides popularity of U_c by going over all prime units that are high enough above U_c.
+        Decides popularity of U_c (i.e. whether it should be a candidate for a timing unit).
+        :returns: one of {-1,0,1}: the decision (0 or 1) in case it follows from our local view of the poset,
+                  or -1 if the decision cannot be inferred yet
         '''
         logger = logging.getLogger(consts.LOGGER_NAME)
         U_c_hash = U_c.hash()
 
         if U_c_hash not in self.timing_partial_results:
+            # set up memoization for this unit
             self.timing_partial_results[U_c_hash] = {}
 
         memo = self.timing_partial_results[U_c_hash]
@@ -263,6 +276,9 @@ class FastPoset(Poset):
 
         t = self.consensus_params['t_first_vote']
 
+        # At levels +2, +3,..., +(t-1) it might be possible to prove that the consensus will be "1"
+        # This is being tried in the loop below -- as Lemma 2.3.(1) in "Lewelewele" allows us to do:
+        #   -- whenever there is unit U at one of this levels that proves popularity of U_c, we can conclude the decision is "1"
         for level in range(U_c.level + 2, U_c.level + t):
             for U in self.get_all_prime_units_by_level(level):
                 if self.proves_popularity(U, U_c):
@@ -272,10 +288,11 @@ class FastPoset(Poset):
                     return 1
 
 
-
+        # Attempt to make a decision using "The fast algorithm" from Def. 2.4 in "Lewelewele".
         for level in range(U_c.level + t + 1, self.level_reached + 1):
             for U in self.get_all_prime_units_by_level(level):
                 decision = self.compute_vote(U, U_c)
+                # this is the crucial line: if the (supermajority) vote agrees with the default one -- we have reached consensus
                 if decision == self.default_vote(U, U_c):
                     memo['decision'] = decision
 
@@ -317,26 +334,3 @@ class FastPoset(Poset):
                     return -1
 
         assert False, f"Something terrible happened: no timing unit was chosen at level {level}."
-
-
-    def attempt_timing_decision(self):
-        '''
-        Tries to find timing units for levels which currently don't have one.
-        :returns: List of timing units that have been established by this function call (in the order from lower to higher levels)
-        '''
-        timing_established = []
-        for level in range(self.level_timing_established + 1, self.level_reached + 1):
-            U_t = self.decide_timing_on_level(level)
-            if U_t != -1:
-                timing_established.append(U_t)
-                self.timing_units.append(U_t)
-                # need to clean up the memoized results about this level
-                for U in self.get_all_prime_units_by_level(level):
-                    self.timing_partial_results.pop(U.hash(), None)
-            else:
-                # don't need to consider next level if there is already no timing unit chosen for the current level
-                break
-        if timing_established:
-            self.level_timing_established = timing_established[-1].level
-
-        return timing_established
