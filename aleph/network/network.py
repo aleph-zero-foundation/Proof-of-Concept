@@ -111,18 +111,18 @@ class Network:
         data = pickle.dumps((self.process.process_id, poset_info))
         if consts.SEND_COMPRESSED:
             data = zlib.compress(data)
-        channel.send(data)
-        self.logger.info(f'send_poset_{mode} {ids} | sending forkers/heights {poset_info} to {ex_id}')
+        await channel.write(data)
+        self.logger.info(f'send_poset_{mode} {ids} | sending forkers/heights {poset_info} to {channel.peer_id}')
 
 
     async def _receive_poset_info(self, channel, mode, ids):
-        self.logger.info(f'receive_poset_{mode} {ids} | Receiving info about forkers and heights&hashes from an unknown process')
+        self.logger.info(f'receive_poset_{mode} {ids} | Receiving info about forkers and heights&hashes from {channel.peer_id}')
         data = await channel.read()
         if consts.SEND_COMPRESSED:
             data = zlib.decompress(data)
         peer_id, poset_info = pickle.loads(data)
         assert peer_id != self.process.process_id, "It seems we are syncing with ourselves."
-        assert peer_id < len(self.addressess), "Incorrect process id received."
+        assert peer_id == channel.peer_id, "Incorrect process id sent with poset info."
         self.logger.info(f'receive_poset_{mode} {ids} | Got forkers/heights {poset_info} from {peer_id}')
         return poset_info
 
@@ -151,7 +151,7 @@ class Network:
             self.logger.info(f'compression_rate {ids} | Compressed {initial_len} to {compressed_len}, gained {gained:.4f} of size.')
 
         self.logger.info(f'send_units_wait_{mode} {ids} | Sending {len(units_to_send)} units and {len(data)} bytes to {channel.peer_id}')
-        channel.write(data)
+        await channel.write(data)
         self.logger.info(f'send_units_sent_{mode} {ids} | Sent {len(units_to_send)} units and {len(data)} bytes to {channel.peer_id}')
         #previously there was a drain() call here, now it's a part of channel.write() Maybe this log below could be removed?
         self.logger.info(f'send_units_done_{mode} {ids} | Units sent {channel.peer_id}')
@@ -213,6 +213,7 @@ class Network:
             self.logger.error(f'{mode}_not_compliant {ids} | Got unit from {target_id} that does not comply to the rules; aborting')
             return False
         return True
+
 
     def _get_ids_as_str(self):
         return f'{self.process.process_id} {self.process.sync_id}'
