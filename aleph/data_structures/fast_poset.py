@@ -164,7 +164,7 @@ class FastPoset(Poset):
     def proves_popularity(self, V, U_c):
         '''
         Checks whether V proves that U_c is popular on V's level, i.e. whether there exist
-            >=2/3 N prime units W on level L(V)-1 such that: (1) W <= V and (2) U_c <= W.
+            >=2/3 N units W on level L(V)-1 such that: (1) W <= V and (2) U_c <= W.
         :param unit V: the "prover" unit
         :param unit U_c: the unit tested for popularity
         :returns: True or False: does V prove that U_c is popular?
@@ -173,17 +173,32 @@ class FastPoset(Poset):
         memo = self.timing_partial_results[U_c_hash]
         if ('proof', V_hash) in memo:
             return memo[('proof', V_hash)]
+
         level_V = self.level(V)
-        if level_V == 0:
+        if level_V <= U_c.level or not self.below(U_c, V):
             return False
 
-        vouchers = 0
-        for Ws in self.prime_units_by_level[level_V - 1]:
-            # Ws is typically a list of *one* unit, but in case of forks can be longer, hence the use of "any"
-            if any(self.below(U_c, W) and self.below(W, V) for W in Ws):
-                vouchers += 1
+        # implementation of a simple DFS from V down until we hit units of level (level_V - 2)
+        threshold = (2*self.n_processes + 2)//3
+        seen_units = set([V])
+        seen_processes = set()
+        stack = [V]
+        # the invariants here are that all elements W on stack:
+        #    (1) are also in seen_units
+        #    (2) are above U_c
+        #    (3) have level_V - 1 <= level_W <= level_V
+        # also, we make sure that no unit is put on stack more than once
+        while stack != [] and len(seen_processes) < threshold:
+            W = stack.pop()
+            # this check is necessary since W might be of level == level_V (but cannot be of level < level_V - 1)
+            if W.level == level_V - 1:
+                seen_processes.add(W.creator_id)
+            for W_parent in W.parents:
+                if W_parent.level >= level_V - 1 and self.below(U_c, W_parent) and W_parent not in seen_units:
+                    stack.append(W_parent)
+                    seen_units.add(W_parent)
 
-        memo[('proof', V_hash)] = 3*vouchers >= 2*self.n_processes
+        memo[('proof', V_hash)] = len(seen_processes) >= threshold
         return memo[('proof', V_hash)]
 
     def _simple_coin(self, U, level):
@@ -233,6 +248,8 @@ class FastPoset(Poset):
             return vote
 
         if r == 0:
+            # this should be in fact a "1" if any primt ancestor (at any level) of U proves popularity of U_c,
+            # but it seems to be equivalent to the below
             vote = int(self.proves_popularity(U, U_c))
         else:
             votes_level_below = []

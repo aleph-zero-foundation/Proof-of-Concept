@@ -26,6 +26,7 @@ class LogAnalyzer:
         self.create_attempt_dates = []
 
         self.create_times = []
+        self.timing_attempt_times = []
 
         self.current_recv_sync_no = []
         self.read_process_id = process_id
@@ -120,6 +121,8 @@ class LogAnalyzer:
         else:
             if timer_name == "create_unit":
                 self.create_times.append(time_spent)
+            elif timer_name == "attempt_timing":
+                self.timing_attempt_times.append(time_spent)
             else:
             # this is 'linear_order_L' where L is the level
                 level = parse.parse("linear_order_{level:d}", timer_name)['level']
@@ -375,6 +378,7 @@ class LogAnalyzer:
                 cpu_time_summary['t_order_level'].append(level_dict['t_lin_order'])
 
         cpu_time_summary['t_create'] = self.create_times
+        cpu_time_summary['t_attempt_timing'] = self.timing_attempt_times
 
 
         # the plot with how the cpu time is divided between various tasks
@@ -729,7 +733,9 @@ class LogAnalyzer:
 
         - time_order: cpu time spent on ordering units (per timing unit), includes dealing with txs
 
-        - time_create: averate cpu time to create a unit
+        - time_create: cpu time to create a unit
+
+        - time_decision: cpu time spent on attempting to decide popularity after adding a new prime unit
 
         - n_parents: number of parents of units created by this process
 
@@ -815,6 +821,7 @@ class LogAnalyzer:
         _append_stat_line(times['t_tot_sync'], 'time_cpu_sync')
         _append_stat_line(times['t_order_level'], 'time_order')
         _append_stat_line(times['t_create'], 'time_create')
+        _append_stat_line(times['t_attempt_timing'], 'time_decision')
 
         # n_parents
         _append_stat_line(self.get_n_parents(), 'n_parents')

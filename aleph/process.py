@@ -111,8 +111,14 @@ class Process:
         self.poset.add_unit(U)
         self.unordered_units.add(U.hash())
         if self.poset.is_prime(U):
-            new_timing_units = self.poset.attempt_timing_decision()
+
+            with timer(self.process_id, 'attempt_timing'):
+                new_timing_units = self.poset.attempt_timing_decision()
+            timer.write_summary(where=self.logger, groups=[self.process_id])
+            timer.reset(self.process_id)
+
             self.logger.info(f'prime_unit {self.process_id} | New prime unit at level {U.level} : {U.short_name()}')
+
             for U_timing in new_timing_units:
                 self.logger.info(f'timing_new {self.process_id} | Timing unit at level {U_timing.level} established.')
             for U_timing in new_timing_units:
