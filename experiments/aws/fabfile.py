@@ -154,13 +154,16 @@ def simple_ec2_test(conn):
 
 
 @task
-def run_protocol(conn):
-    ''' Runs the protocol.'''
-
+def send_params(conn):
+    ''' Sends parameters for expermients'''
     conn.put('../../aleph/main.py', 'proof-of-concept/aleph/')
     conn.put('const.py', 'proof-of-concept/aleph')
     install_repo(conn)
-    conn.run(f'echo {conn.host} > proof-of-concept/aleph/my_ip')
+
+@task
+def run_protocol(conn):
+    ''' Runs the protocol.'''
+
     with conn.cd('proof-of-concept/aleph'):
         # export env var needed for pbc, activate venv, cross fingers, and run the protocol
         cmd = 'python main.py'

@@ -444,6 +444,10 @@ def run_protocol(n_processes, regions, restricted, instance_type):
     # send files: addresses, signing_keys, light_nodes_public_keys
     run_task('sync-files', regions, parallel)
 
+    print('sending parameters')
+    # send parameters
+    run_task('send-params', regions, parallel)
+
     print(f'establishing the environment took {round(time()-start, 2)}s')
     # run the experiment
     run_task('run-protocol', regions, parallel)
