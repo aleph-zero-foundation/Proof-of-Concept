@@ -64,8 +64,6 @@ class Process:
         self.keep_syncing = True
         self.tx_source = tx_source
 
-        self.syncing_tasks = []
-
         # hashes of units that have not yet been linearly ordered
         self.unordered_units = set()
 
@@ -241,13 +239,14 @@ class Process:
         await server_started.wait()
 
         sync_count = 0
+        syncing_tasks = []
         while sync_count != consts.SYNCS_LIMIT and self.keep_syncing:
             sync_count += 1
             target_id = self.choose_process_to_sync_with()
-            self.syncing_tasks.append(asyncio.create_task(self.network.sync(target_id)))
+            syncing_tasks.append(asyncio.create_task(self.network.sync(target_id)))
             await asyncio.sleep(consts.SYNC_INIT_FREQ)
 
-        await asyncio.gather(*self.syncing_tasks)
+        await asyncio.gather(*syncing_tasks)
 
         # give some time for other processes to finish
         await asyncio.sleep(3*consts.SYNC_INIT_FREQ)
