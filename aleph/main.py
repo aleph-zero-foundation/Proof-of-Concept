@@ -1,5 +1,4 @@
 import asyncio
-import configparser
 import logging
 import multiprocessing
 import random
@@ -38,27 +37,10 @@ def sort_and_get_my_pid(public_keys, signing_keys, my_ip, ip_addresses):
 
     return public_keys.index(my_pk), public_keys, signing_keys, ip_addresses
 
-def _is_float(string):
-    try:
-        float(string)
-        return True
-    except:
-        return False
-
-def update_global_consts(params):
-    ''' updates global consts defined in aleph/const.py by values in params '''
-    for const_name in consts.__dict__:
-        if const_name in params:
-            if params[const_name].isdigit():
-                consts.__dict__[const_name] = int(params[const_name])
-            elif _is_float(params[const_name]):
-                consts.__dict__[const_name] = float(params[const_name])
-            else:
-                consts.__dict__[const_name] = params[const_name]
 
 def log_consts():
     logger = logging.getLogger(consts.LOGGER_NAME)
-    consts_names = ['N_PARENTS', 'USE_TCOIN', 'CREATE_FREQ', 'SYNC_INIT_FREQ', 'N_RECV_SYNC', 'TXPU', 'LEVEL_LIMIT']
+    consts_names = ['N_PARENTS', 'USE_TCOIN', 'CREATE_FREQ', 'SYNC_INIT_FREQ', 'N_RECV_SYNC', 'TXPU', 'LEVEL_LIMIT', 'USE_FAST_POSET', 'UNITS_LIMIT']
     consts_values = ''
     for const_name in consts_names:
         consts_values += f'\n{const_name}={consts.__dict__[const_name]}'
@@ -66,26 +48,17 @@ def log_consts():
 
 
 async def main():
-    if len(sys.argv) < 2:
-        print('Specifiy path to .ini file')
-        sys.exit(1)
-
-    ini_path = sys.argv[1]
-    params = configparser.ConfigParser()
-    params.read(ini_path)
-    params = params['Default']
-
-    update_global_consts(params)
-
     log_consts()
 
-    ip_addresses = read_ip_addresses(params['ip_addresses'])
-    signing_keys = read_signing_keys(params['signing_keys'])
+    signing_keys = read_signing_keys('signing_keys')
+    ip_addresses = read_ip_addresses('ip_addresses')
+    with open('my_ip', 'r') as f:
+        my_ip = f.readline().strip()
 
     assert len(ip_addresses) == len(signing_keys), 'number of hosts and signing keys dont match!!!'
     public_keys = [VerifyKey.from_SigningKey(sk) for sk in signing_keys]
 
-    process_id, public_keys, signing_keys, ip_addresses = sort_and_get_my_pid(public_keys, signing_keys, params['my_ip'], ip_addresses)
+    process_id, public_keys, signing_keys, ip_addresses = sort_and_get_my_pid(public_keys, signing_keys, my_ip, ip_addresses)
     addresses = [(ip, consts.HOST_PORT) for ip in ip_addresses]
 
     sk, pk = signing_keys[process_id], public_keys[process_id]
@@ -94,8 +67,8 @@ async def main():
     userDB = None
 
     recv_address = None
-    if params['tx_source'] == 'tx_source_gen':
-        tx_source = tx_source_gen(params['tx_limit'], seed=process_id)
+    if consts.TX_SOURCE == 'tx_source_gen':
+        tx_source = tx_source_gen(n_processes, consts.TX_LIMIT, process_id)
     else:
         tx_source = tx_listener
 

@@ -38,14 +38,14 @@ cd
 echo install from pip repo >> setup.log
 pip install setuptools pytest-xdist pynacl pynacl networkx numpy matplotlib joblib 
 
-echo clone repo >> setup.log
-user_token=gitlab+deploy-token-38770:usqkQKRbQiVFyKZ2byZw
-git clone http://${user_token}@gitlab.com/alephledger/proof-of-concept.git
-
-echo install aleph >> setup.log
-cd proof-of-concept
-git checkout devel
-pip install .
-cd
+# echo clone repo >> setup.log
+# user_token=gitlab+deploy-token-38770:usqkQKRbQiVFyKZ2byZw
+# git clone http://${user_token}@gitlab.com/alephledger/proof-of-concept.git
+# 
+# echo install aleph >> setup.log
+# cd proof-of-concept
+# git checkout devel
+# pip install .
+# cd
 
 echo done >> setup.log

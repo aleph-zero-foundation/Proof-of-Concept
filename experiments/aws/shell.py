@@ -16,8 +16,37 @@ import aleph.const as consts
 
 from fabfile import zip_repo
 from utils import image_id_in_region, default_region_name, init_key_pair, security_group_id_by_region, available_regions, badger_regions, generate_signing_keys, n_processes_per_regions, eu_regions
-from config import N_JOBS
 
+N_JOBS = 8
+
+#======================================================================================
+#                              routines for ips
+#======================================================================================
+
+def run_task_for_ip(task='test', ip_list=[], parallel=False, output=False):
+    '''
+    Runs a task from fabfile.py on all instances in a given region.
+    :param string task: name of a task defined in fabfile.py
+    :param list ip_list: list of ips of hosts
+    :param bool parallel: indicates whether task should be dispatched in parallel
+    :param bool output: indicates whether output of task is needed
+    '''
+
+    print(f'running task {task} in {ip_list}')
+
+    if parallel:
+        hosts = " ".join(["ubuntu@"+ip for ip in ip_list])
+        cmd = 'parallel fab -i key_pairs/aleph.pem -H {} '+task+' ::: '+hosts
+    else:
+        hosts = ",".join(["ubuntu@"+ip for ip in ip_list])
+        cmd = f'fab -i key_pairs/aleph.pem -H {hosts} {task}'
+
+    try:
+        if output:
+            return check_output(cmd.split())
+        return call(cmd.split())
+    except Exception as e:
+        print('paramiko troubles')
 
 #======================================================================================
 #                              routines for some region
@@ -228,7 +257,7 @@ def installation_finished_in_region(region_name):
 #                              routines for all regions
 #======================================================================================
 
-def exec_for_regions(func, regions='badger regions', parallel=True):
+def exec_for_regions(func, regions='all', parallel=True):
     '''A helper function for running routines in all regions.'''
 
     if regions == 'all':
@@ -283,31 +312,31 @@ def launch_new_instances(nppr, instance_type='t2.micro'):
         print('reporting complete failure in regions', failed)
 
 
-def terminate_instances(regions='badger regions'):
+def terminate_instances(regions='all', parallel=True):
     '''Terminates all instances in ever region from given regions.'''
 
-    return exec_for_regions(terminate_instances_in_region, regions)
+    return exec_for_regions(terminate_instances_in_region, regions, parallel)
 
 
-def all_instances(regions='badger regions'):
+def all_instances(regions='all', states=['running','pending'], parallel=True):
     '''Returns all running or pending instances from given regions.'''
 
-    return exec_for_regions(all_instances_in_region, regions, parallel=False)
+    return exec_for_regions(partial(all_instances_in_region, states=states), regions, parallel)
 
 
-def instances_ip(regions='badger regions'):
+def instances_ip(regions='all', parallel=True):
     '''Returns ip addresses of all running or pending instances from given regions.'''
 
-    return exec_for_regions(instances_ip_in_region, regions)
+    return exec_for_regions(instances_ip_in_region, regions, parallel)
 
 
-def instances_state(regions='badger regions'):
+def instances_state(regions='all', parallel=True):
     '''Returns states of all instances in given regions.'''
 
-    return exec_for_regions(instances_state_in_region, regions)
+    return exec_for_regions(instances_state_in_region, regions, parallel)
 
 
-def run_task(task='test', regions='badger regions', parallel=True, output=False):
+def run_task(task='test', regions='all', parallel=True, output=False):
     '''
     Runs a task from fabfile.py on all instances in all given regions.
     :param string task: name of a task defined in fabfile.py
@@ -319,7 +348,7 @@ def run_task(task='test', regions='badger regions', parallel=True, output=False)
     return exec_for_regions(partial(run_task_in_region, task, parallel=parallel, output=output), regions, parallel)
 
 
-def run_cmd(cmd='ls', regions='badger regions', output=False, parallel=True):
+def run_cmd(cmd='ls', regions='all', output=False, parallel=True):
     '''
     Runs a shell command cmd on all instances in all given regions.
     :param string cmd: a shell command that is run on instances
@@ -331,13 +360,13 @@ def run_cmd(cmd='ls', regions='badger regions', output=False, parallel=True):
     return exec_for_regions(partial(run_cmd_in_region, cmd, output=output), regions, parallel)
 
 
-def wait(target_state, regions='badger regions'):
+def wait(target_state, regions='all'):
     '''Waits until all machines in all given regions reach a given state.'''
 
     exec_for_regions(partial(wait_in_region, target_state), regions)
 
 
-def wait_install(regions='badger regions'):
+def wait_install(regions='all'):
     '''Waits till installation finishes in all given regions.'''
 
     if regions == 'all':
@@ -424,7 +453,21 @@ def get_logs(n_processes, regions=badger_regions()):
 
     if not os.path.exists('../results'):
         os.makedirs('../results')
-    #run_task('get-logs', regions, parallel=True)
+
+    l = len(os.listdir('../results'))
+    if l:
+        print('sth is in dir ../results; aborting')
+        return
+
+    for rn in regions:
+        print('collecting logs in ', rn)
+        for ip in instances_ip_in_region(rn):
+            run_task_for_ip('get-logs', [ip], parallel=0)
+            if len(os.listdir('../results')) > l:
+                l = len(os.listdir('../results'))
+                break
+
+    print(len(os.listdir('../results')), 'files in ../results')
 
     print('read addresses')
     with open('ip_addresses', 'r') as f:
@@ -457,16 +500,13 @@ def get_logs(n_processes, regions=badger_regions()):
         pid = ip_addresses.index(fp.split(f'-{name}.log')[0].replace('-', '.'))
         os.rename(f'../results/{fp}', f'../results/{pid}.{name}.log.zip')
 
-    params = configparser.ConfigParser()
-    params.read('config.ini')
-    params = params['Default']
-    n_parents = int(params['N_PARENTS'])
-    tcoin = int(params['USE_TCOIN'])
-    cfreq = float(params['CREATE_FREQ'])
-    sfreq = float(params['SYNC_INIT_FREQ'])
-    n_recv_sync = int(params['N_RECV_SYNC'])
-    txpu = int(params['TXPU'])
-    fast = int(params['USE_FAST_POSET'])
+    n_parents = consts.N_PARENTS
+    tcoin = consts.USE_TCOIN
+    cfreq = consts.CREATE_FREQ
+    sfreq = consts.SYNC_INIT_FREQ
+    n_recv_sync = consts.N_RECV_SYNC
+    txpu = consts.TXPU
+    fast = consts.USE_FAST_POSET
 
     result_path = f'../{n_parents}_{tcoin}_{cfreq}_{sfreq}_{n_recv_sync}_{txpu}_{fast}'
 
@@ -506,11 +546,20 @@ cm = run_cmd
 
 ti = terminate_instances
 
-res = ['sa-east-1', 'ap-southeast-2']
+restricted = {'ap-south-1':     10,  # Mumbai
+              'ap-southeast-2': 5,   # Sydney
+              'ap-northeast-2': 0,
+              'eu-central-1':   10,  # Frankfurt
+              'eu-west-3':      0,   # London
+              'eu-west-2':      0,   # Paris
+              'eu-north-1':     0,   # Stockholm
+              'sa-east-1':      5}   # Sao Paolo
+
 
 pb = lambda : run_protocol(104, badger_regions(), [], 't2.medium')
-rs = lambda : run_protocol(8, badger_regions(), res, 't2.micro')
-ms = lambda regions=badger_regions(): memory_usage(regions)
+rs = lambda : run_protocol(8, badger_regions(), restricted, 't2.micro')
+rf = lambda : run_protocol(128, available_regions(), restricted, 't2.micro')
+mu = lambda regions=badger_regions(): memory_usage(regions)
 
 #======================================================================================
 #                                         main

@@ -7,7 +7,6 @@ from subprocess import call
 import boto3
 
 from aleph.crypto.keys import SigningKey
-from config import SYNC_PORT, SIGN_KEYS_FP
 
 
 def image_id_in_region(region_name, version='bionic'):
@@ -48,7 +47,7 @@ def create_security_group(region_name, security_group_name):
     sg = ec2.create_security_group(GroupName=security_group_name, Description='ssh and gossip', VpcId=vpc_id)
 
     # authorize incomming connections to port 22 for ssh, mainly for debugging
-    # and to port SYNC_PORT for syncing the posets
+    # and to port 8888 for syncing the posets
     sg.authorize_ingress(
         GroupName=security_group_name,
         IpPermissions=[
@@ -211,20 +210,21 @@ def generate_signing_keys(n_processes):
     ''' Generate signing keys for the committee.'''
 
     # if file exists check if it is of appropriate size
-    if os.path.exists(SIGN_KEYS_FP):
-        with open(SIGN_KEYS_FP, 'r') as f:
+    if os.path.exists('signing_keys'):
+        with open('signing_keys', 'r') as f:
             if n_processes == sum(1 for line in f):
                 return
 
     priv_keys = [SigningKey() for _ in range(n_processes)]
-    with open(SIGN_KEYS_FP, 'w') as f:
+    with open('signing_keys', 'w') as f:
         for _ in range(n_processes):
             f.write(SigningKey().to_hex().decode()+'\n')
 
 
 def available_regions():
     ''' Returns a list of all currently available regions.'''
-    return boto3.Session().get_available_regions('ec2')
+    non_badger_regions = list(set(boto3.Session().get_available_regions('ec2'))-set(badger_regions()))
+    return badger_regions()+non_badger_regions
 
 
 def eu_regions():
@@ -257,20 +257,24 @@ def describe_instances(region_name):
         print(f'ami_launch_index={instance.ami_launch_index} state={instance.state}')
 
 
-def n_processes_per_regions(n_processes, regions=badger_regions(), restricted=['sa-east-1', 'ap-southeast-2']):
+def n_processes_per_regions(n_processes, regions=badger_regions(), restricted={'sa-east-1':5, 'ap-southeast-2':5}):
     assert n_processes <= 20*(len(regions)-len(restricted))+5*len(restricted), 'n_processes exceeds instances available on AWS'
 
     nhpr = {}
     n_left = n_processes
-    unrestricted = [r for r in regions if r not in restricted]
-    if restricted and n_processes/len(regions)>5:
+    unrestricted = [r for r in regions if r not in restricted.keys()]
+    if restricted and n_processes/len(regions) > min(restricted.values()):
+        nh = n_processes
         for r in restricted:
-            nhpr[r] = 5
-            n_left -= 5
-        for r in unrestricted:
-            nh = (n_processes-5*len(restricted)) // (len(unrestricted))
-            nhpr[r] = nh
+            nh -= restricted[r]
+        nh //= (len(unrestricted))
+        for ur in unrestricted:
+            nhpr[ur] = nh
             n_left -= nh
+        for r in restricted:
+            if restricted[r]:
+                nhpr[r] = restricted[r]
+                n_left -= restricted[r]
 
         for i in range(n_left):
             nhpr[unrestricted[i]] += 1
@@ -284,7 +288,7 @@ def n_processes_per_regions(n_processes, regions=badger_regions(), restricted=['
             nhpr[regions[i]] += 1
 
     for r in regions:
-        if not nhpr[r]:
+        if r in nhpr and not nhpr[r]:
             nhpr.pop(r)
 
     return nhpr

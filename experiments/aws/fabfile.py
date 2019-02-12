@@ -158,11 +158,12 @@ def run_protocol(conn):
     ''' Runs the protocol.'''
 
     conn.put('../../aleph/main.py', 'proof-of-concept/aleph/')
-    conn.put('config.ini', 'proof-of-concept/aleph')
-    conn.run(f'echo my_ip={conn.host} >> proof-of-concept/aleph/config.ini')
+    conn.put('const.py', 'proof-of-concept/aleph')
+    install_repo(conn)
+    conn.run(f'echo {conn.host} > proof-of-concept/aleph/my_ip')
     with conn.cd('proof-of-concept/aleph'):
         # export env var needed for pbc, activate venv, cross fingers, and run the protocol
-        cmd = 'python main.py config.ini'
+        cmd = 'python main.py'
         conn.run('export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/local/lib &&'
                  'source /home/ubuntu/p37/bin/activate &&'
                  f'dtach -n `mktemp -u /tmp/dtach.XXXX` {cmd}')
@@ -173,10 +174,9 @@ def get_logs(conn):
 
     ip = conn.host.replace('.', '-')
 
-    conn.run(f'zip -rq {ip}-aleph.log.zip proof-of-concept/aleph/aleph.log')
-    conn.get(f'{ip}-aleph.log.zip', f'../results/{ip}-aleph.log.zip')
-    conn.run(f'zip -rq {ip}-other.log.zip proof-of-concept/aleph/other.log')
-    conn.get(f'{ip}-other.log', f'../results/{ip}-other.log.zip')
+    with conn.cd('proof-of-concept/aleph/'):
+        conn.run(f'zip -q {ip}-aleph.log.zip aleph.log')
+    conn.get(f'proof-of-concept/aleph/{ip}-aleph.log.zip', f'../results/{ip}-aleph.log.zip')
 
 
 @task
