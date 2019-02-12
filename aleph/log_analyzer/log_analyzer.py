@@ -160,8 +160,13 @@ class LogAnalyzer:
                 self.units[U] = {'received': [event['date']]}
             else:
                 U_dict = self.units[U]
-                assert 'created' not in U_dict, f"Unit created by {self.read_process_id} later also received from another process."
-                U_dict['received'].append(event['date'])
+                if 'created' in U_dict:
+                    continue
+                #assert 'created' not in U_dict, f"Unit created by {self.read_process_id} later also received from another process."
+                if 'received' not in U_dict:
+                    U_dict['received'] = [event['date']]
+                else:
+                    U_dict['received'].append(event['date'])
 
     def parse_receive_units_start(self, ev_params, msg_body, event):
         parsed = self.pattern_receive_units_start.parse(msg_body)
@@ -217,7 +222,10 @@ class LogAnalyzer:
         self.levels[level]['n_txs_ordered'] = parsed['n_txs']
 
         for U in units:
-            assert U in self.units, f"Unit {U} being added to linear order, but its appearance not noted."
+            if U not in self.units:
+                # this can happen and should not trigger an exception because timing units are logged before the list of units received in one sync
+                #assert U in self.units, f"Unit {U} being added to linear order, but its appearance not noted."
+                self.units[U] = {}
             self.units[U]['ordered'] = event['date']
 
     def parse_decide_timing(self, ev_params, msg_body, event):
