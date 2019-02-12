@@ -145,11 +145,12 @@ class Network:
         int_heights = self.process.poset.get_heights()
 
         units_to_send = []
-        for i, (int_height, ex_height) in enumerate(zip(int_heights, ex_heights)):
-            if int_height > ex_height:
-                units = self.process.poset.units_by_height_interval(creator_id=i, min_height=ex_height+1, max_height=int_height)
-                units_to_send.extend(units)
-        units_to_send = self.process.poset.order_units_topologically(units_to_send)
+        with timer(ids, 'prepare_units'):
+            for i, (int_height, ex_height) in enumerate(zip(int_heights, ex_heights)):
+                if int_height > ex_height:
+                    units = self.process.poset.units_by_height_interval(creator_id=i, min_height=ex_height+1, max_height=int_height)
+                    units_to_send.extend(units)
+            units_to_send = self.process.poset.order_units_topologically(units_to_send)
 
         with timer(ids, 'pickle_units'):
             data = pickle.dumps(units_to_send)
