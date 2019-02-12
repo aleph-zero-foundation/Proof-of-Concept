@@ -1,6 +1,10 @@
 import asyncio
 
+
+class RejectException(Exception): pass
+
 class Channel:
+    REJECT = b'REJECT'
 
     def __init__(self, owner_id, peer_id, peer_address):
         '''
@@ -42,11 +46,24 @@ class Channel:
         return self.active.is_set()
 
 
+    async def reject(self):
+        '''Send REJECT message.'''
+        if self.is_active():
+            self.writer.write(self.REJECT)
+            await self.writer.drain()
+
+
     async def read(self):
-        '''Read data from the channel. If channel has not been activated yet, block and wait.'''
+        '''
+        Read data from the channel.
+        If channel has not been activated yet, block and wait.
+        If obtained REJECT message, raise RejectException.
+        '''
         await self.active.wait()
 
         data = await self.reader.readuntil()
+        if data == self.REJECT:
+            raise RejectException()
         n_bytes = int(data[:-1])
         data = await self.reader.readexactly(n_bytes)
         return data
