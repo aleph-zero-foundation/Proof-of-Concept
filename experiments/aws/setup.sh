@@ -36,7 +36,7 @@ pip install .
 cd
 
 echo install from pip repo >> setup.log
-pip install setuptools pytest-xdist pynacl pynacl networkx numpy matplotlib joblib 
+pip install setuptools pytest-xdist pynacl networkx numpy matplotlib joblib 
 
 # echo clone repo >> setup.log
 # user_token=gitlab+deploy-token-38770:usqkQKRbQiVFyKZ2byZw
