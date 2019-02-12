@@ -1,13 +1,9 @@
 import asyncio
-import multiprocessing
 import socket
-import random
 
-from aleph.network import tx_generator, tx_source_gen
-from aleph.data_structures import Poset, UserDB, Tx
+from aleph.network import tx_source_gen
 from aleph.process import Process
 from aleph.crypto.keys import SigningKey, VerifyKey
-from aleph.utils.dag_utils import generate_random_forking, poset_from_dag
 
 import aleph.const as consts
 
