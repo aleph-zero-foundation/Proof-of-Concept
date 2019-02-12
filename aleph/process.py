@@ -195,7 +195,7 @@ class Process:
         return random.choice(sync_candidates)
 
     def create_unit(self, txs, prefer_maximal = consts.USE_MAX_PARENTS):
-        return create_unit(self.poset, self.process_id, txs, prefer_maximal)
+        return create_unit(self.poset, self.process_id, txs, prefer_maximal = prefer_maximal)
 
     async def create_add(self, txs_queue, server_started):
         await server_started.wait()
