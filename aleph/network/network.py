@@ -10,13 +10,14 @@ import aleph.const as consts
 
 class Network:
 
-    def __init__(self, process, addresses, public_key_list, logger, keep_connection=True):
+    def __init__(self, process, addresses, public_key_list, logger, protocol='old', keep_connection=True):
         '''Class that takes care of handling network connections with other processes.
 
         :param Process process: process who uses this network to communicate with others
         :param list addresses: list of addresses of all committee members, ordered by their process_id. Each address is a pair (IP, port)
         :param list public_key_list: the list of public keys of all committee members
         :param Logger logger: where to write all the log messages
+        :param str protocol: which sync protocol to use. Methods sync and listener are redirected to, respectively {protocol}_sync and {protocol}_listener
         :param bool keep_connection: Don't close network connection after every sync
         '''
         self.process = process
@@ -29,6 +30,9 @@ class Network:
         pid = self.process.process_id
         self.sync_channels = {i: Channel(pid, i, addr) for i, addr in enumerate(addresses) if i != pid}
         self.listen_channels = {i: Channel(pid, i, addr) for i, addr in enumerate(addresses) if i != pid}
+
+        self.sync = self.__getattribute__(protocol + '_sync')
+        self.listener = self.__getattribute__(protocol + '_listener')
 
 
     async def start_server(self, server_started):
@@ -60,6 +64,8 @@ class Network:
 
         async with server:
             await server.serve_forever()
+
+
 
 
     def _new_sync_id(self, peer_id):
@@ -189,8 +195,11 @@ class Network:
 #===============================================================================================================================
 
 
-    async def sync(self, peer_id):
-        '''Sync with process peer_id.'''
+    async def old_sync(self, peer_id):
+        '''
+        Sync with process peer_id.
+        This version uses the old "symmetric" 4-exchange protocol: send heights, receive heights, send units, receive units.
+        '''
         channel = self.sync_channels[peer_id]
         if channel.in_use.locked():
             self.logger.info(f'sync_canceled {self.process.process_id} | Previous sync with {peer_id} still in progress')
@@ -216,8 +225,11 @@ class Network:
         timer.write_summary(where=self.logger, groups=[ids])
 
 
-    async def listener(self, peer_id):
-        '''Listen indefinitely for incoming syncs from process peer_id.'''
+    async def old_listener(self, peer_id):
+        '''
+        Listen indefinitely for incoming syncs from process peer_id.
+        This version is a counterpart for old_sync, follows the same 4-exchange protocol.
+        '''
         channel = self.listen_channels[peer_id]
         while True:
             their_poset_info, ids = await self._receive_poset_info(channel, 'listener', None)
