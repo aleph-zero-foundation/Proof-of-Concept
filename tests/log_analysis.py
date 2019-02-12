@@ -95,7 +95,7 @@ if len(sys.argv) in [2,3]:
     else:
         process_id = None
 
-    analyzer = LogAnalyzer(path, process_id, generate_plots = False)
+    analyzer = LogAnalyzer(path, process_id, generate_plots = True)
     if not analyzer.analyze():
         print('Failed because the log does not even contain the Process start message.')
         sys.exit(0)
