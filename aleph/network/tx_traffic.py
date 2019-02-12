@@ -42,16 +42,17 @@ def tx_listener(listen_addr, queue):
         server.serve_forever()
 
 
-def tx_source_gen(tx_limit, seed):
+def tx_source_gen(batch_size, txpu, seed):
     '''
     Produces a simple tx generator.
-    :param int tx_limit: number of txs for a process to input into the system.
+    :param int batch_size: number of txs for a process to input into the system.
+    :param int txpu: number of txs to be included in one unit.
     :param int seed: seed for random generator.
     '''
 
     def _tx_source(dummy, queue):
         '''
-        Generates transactions in bundles of size TXPU till tx_limit is reached
+        Generates transactions in bundles of size txpu till batch_size is reached
         :param dummy: dummy argument needed for comatibility of args list with tx_listener()
         :param queue queue: queue for newly generated txs
         '''
@@ -61,8 +62,8 @@ def tx_source_gen(tx_limit, seed):
             ln_public_keys = [line.rstrip('\n') for line in f]
 
         produced = 0
-        while produced < tx_limit:
-            offset = min(consts.TXPU, tx_limit - produced)
+        while produced < batch_size:
+            offset = min(txpu, batch_size - produced)
 
             txs = []
             for _ in range(offset):
