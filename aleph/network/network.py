@@ -62,68 +62,6 @@ class Network:
             await server.serve_forever()
 
 
-    async def sync(self, peer_id):
-        '''Sync with process peer_id.'''
-        channel = self.sync_channels[peer_id]
-        if channel.in_use.locked():
-            self.logger.info(f'sync_canceled {self.process.process_id} | Previous sync with {peer_id} still in progress')
-            return
-
-        async with channel.in_use:
-            ids = self._new_sync_id(peer_id)
-            self.logger.info(f'sync_establish {ids} | Beginning sync with {peer_id}')
-
-            await self._send_poset_info(channel, 'sync', ids)
-            their_poset_info, _ = await self._receive_poset_info(channel, 'sync', ids)
-
-            await self._send_units(their_poset_info, channel, 'sync', ids)
-            units_received = await self._receive_units(channel, 'sync', ids)
-
-        if not self.keep_connection:
-            await channel.close()
-
-        if not self._verify_signatures_and_add_units(units_received, peer_id, 'sync', ids):
-            return
-
-        self.logger.info(f'sync_done {ids} | Syncing with {peer_id} successful')
-        timer.write_summary(where=self.logger, groups=[ids])
-
-
-    async def listener(self, peer_id):
-        '''Listen indefinitely for incoming syncs from process peer_id.'''
-        channel = self.listen_channels[peer_id]
-        while True:
-            their_poset_info, ids = await self._receive_poset_info(channel, 'listener', None)
-
-            self.n_recv_syncs += 1
-            self.logger.info(f'listener_sync_no {ids} | Number of syncs is {self.n_recv_syncs}')
-            #TODO: the code below is a remnant from the old network module, it does not work in the current setup!
-            #TODO: if N_RECV_SYNC is exceeded, one could use
-            #           a) a bounded semaphore and just wait
-            #           b) a special answer 'REJECT' that is sent back instead of poset_info
-            #if self.n_recv_syncs > consts.N_RECV_SYNC:
-            #    self.logger.info(f'listener_too_many_syncs {ids} | Too many syncs, rejecting {peer_id}')
-            #    self.n_recv_syncs -= 1
-            #    return
-            self.logger.info(f'listener_establish {ids} | Connection established with {peer_id}')
-
-            await self._send_poset_info(channel, 'listener', ids)
-
-            units_received = await self._receive_units(channel, 'listener', ids)
-            if not self._verify_signatures_and_add_units(units_received, peer_id, 'listener', ids):
-                self.n_recv_syncs -= 1
-                return
-
-            await self._send_units(their_poset_info, channel, 'listener', ids)
-
-            if not self.keep_connection:
-                await channel.close()
-
-            self.logger.info(f'listener_succ {ids} | Syncing with {peer_id} succesful')
-            timer.write_summary(where=self.logger, groups=[ids])
-            self.n_recv_syncs -= 1
-
-
     def _new_sync_id(self, peer_id):
         '''
         Increase sync_id counter in the parent process and register the current sync as a sync with process peer_id.
@@ -244,4 +182,71 @@ class Network:
             self.logger.error(f'{mode}_not_compliant {ids} | Got unit from {peer_id} that does not comply to the rules; aborting')
             return False
         return True
+
+
+#===============================================================================================================================
+# SYNCING PROTOCOLS
+#===============================================================================================================================
+
+
+    async def sync(self, peer_id):
+        '''Sync with process peer_id.'''
+        channel = self.sync_channels[peer_id]
+        if channel.in_use.locked():
+            self.logger.info(f'sync_canceled {self.process.process_id} | Previous sync with {peer_id} still in progress')
+            return
+
+        async with channel.in_use:
+            ids = self._new_sync_id(peer_id)
+            self.logger.info(f'sync_establish {ids} | Beginning sync with {peer_id}')
+
+            await self._send_poset_info(channel, 'sync', ids)
+            their_poset_info, _ = await self._receive_poset_info(channel, 'sync', ids)
+
+            await self._send_units(their_poset_info, channel, 'sync', ids)
+            units_received = await self._receive_units(channel, 'sync', ids)
+
+        if not self.keep_connection:
+            await channel.close()
+
+        if not self._verify_signatures_and_add_units(units_received, peer_id, 'sync', ids):
+            return
+
+        self.logger.info(f'sync_done {ids} | Syncing with {peer_id} successful')
+        timer.write_summary(where=self.logger, groups=[ids])
+
+
+    async def listener(self, peer_id):
+        '''Listen indefinitely for incoming syncs from process peer_id.'''
+        channel = self.listen_channels[peer_id]
+        while True:
+            their_poset_info, ids = await self._receive_poset_info(channel, 'listener', None)
+
+            self.n_recv_syncs += 1
+            self.logger.info(f'listener_sync_no {ids} | Number of syncs is {self.n_recv_syncs}')
+            #TODO: the code below is a remnant from the old network module, it does not work in the current setup!
+            #TODO: if N_RECV_SYNC is exceeded, one could use
+            #           a) a bounded semaphore and just wait
+            #           b) a special answer 'REJECT' that is sent back instead of poset_info
+            #if self.n_recv_syncs > consts.N_RECV_SYNC:
+            #    self.logger.info(f'listener_too_many_syncs {ids} | Too many syncs, rejecting {peer_id}')
+            #    self.n_recv_syncs -= 1
+            #    return
+            self.logger.info(f'listener_establish {ids} | Connection established with {peer_id}')
+
+            await self._send_poset_info(channel, 'listener', ids)
+
+            units_received = await self._receive_units(channel, 'listener', ids)
+            if not self._verify_signatures_and_add_units(units_received, peer_id, 'listener', ids):
+                self.n_recv_syncs -= 1
+                return
+
+            await self._send_units(their_poset_info, channel, 'listener', ids)
+
+            if not self.keep_connection:
+                await channel.close()
+
+            self.logger.info(f'listener_succ {ids} | Syncing with {peer_id} succesful')
+            timer.write_summary(where=self.logger, groups=[ids])
+            self.n_recv_syncs -= 1
 
