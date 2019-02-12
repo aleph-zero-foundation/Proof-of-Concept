@@ -49,7 +49,7 @@ class Channel:
     async def reject(self):
         '''Send REJECT message.'''
         if self.is_active():
-            self.writer.write(self.REJECT)
+            self.writer.write(self.REJECT + b'\n')
             await self.writer.drain()
 
 
