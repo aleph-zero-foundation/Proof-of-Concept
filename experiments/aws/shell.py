@@ -10,6 +10,7 @@ from joblib import Parallel, delayed
 
 import boto3
 import numpy as np
+import zipfile
 
 from aleph.crypto.keys import SigningKey, VerifyKey
 import aleph.const as consts
@@ -500,18 +501,31 @@ def get_logs(n_processes, regions=badger_regions()):
         pid = ip_addresses.index(fp.split(f'-{name}.log')[0].replace('-', '.'))
         os.rename(f'../results/{fp}', f'../results/{pid}.{name}.log.zip')
 
-    n_parents = consts.N_PARENTS
-    tcoin = consts.USE_TCOIN
-    cfreq = consts.CREATE_FREQ
-    sfreq = consts.SYNC_INIT_FREQ
-    n_recv_sync = consts.N_RECV_SYNC
-    txpu = consts.TXPU
-    fast = consts.USE_FAST_POSET
+    with open('const.py', 'r') as f:
+        for l in f:
+            exec(l.strip())
 
-    result_path = f'../{n_parents}_{tcoin}_{cfreq}_{sfreq}_{n_recv_sync}_{txpu}_{fast}'
+    result_path = f'../{N_PARENTS}_{USE_TCOIN}_{CREATE_FREQ}_{SYNC_INIT_FREQ}_{N_RECV_SYNC}_{TXPU}_{USE_FAST_POSET}'
 
     print('rename dir')
     os.rename('../results', result_path)
+
+    for path in os.listdir(result_path):
+        index = path.split('.')[0]
+        path = os.path.join(result_path, path)
+        with zipfile.ZipFile(path, 'r') as zf:
+            zf.extractall(result_path)
+        os.rename(f'{result_path}/aleph.log', f'{result_path}/{index}.aleph.log')
+        os.remove(path)
+
+    with zipfile.ZipFile(result_path+'.zip', 'w') as zf:
+        for path in os.listdir(result_path):
+            path = os.path.join(result_path, path)
+            zf.write(path)
+            os.remove(path)
+
+    os.rmdir(result_path)
+
 
 
 def memory_usage(regions=badger_regions()):
