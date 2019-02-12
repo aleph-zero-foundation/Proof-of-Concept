@@ -3,7 +3,7 @@ import pickle
 import zlib
 import socket
 
-from .channel import Channel
+from .channel import Channel, RejectException
 from aleph.utils import timer
 import aleph.const as consts
 
@@ -66,8 +66,6 @@ class Network:
             await server.serve_forever()
 
 
-
-
     def _new_sync_id(self, peer_id):
         '''
         Increase sync_id counter in the parent process and register the current sync as a sync with process peer_id.
@@ -77,6 +75,11 @@ class Network:
         self.process.last_synced_with_process[peer_id] = self.process.sync_id
         self.process.sync_id += 1
         return s
+
+
+    async def maybe_close(self, channel):
+        if not self.keep_connection:
+            await channel.close()
 
 
     async def _send_poset_info(self, channel, mode, ids):
@@ -94,7 +97,6 @@ class Network:
         if ids is None:
             ids = self._new_sync_id(channel.peer_id)
         self.logger.info(f'receive_poset_{mode} {ids} | Receiving info about heights from {channel.peer_id}')
-
         if consts.SEND_COMPRESSED:
             data = zlib.decompress(data)
         poset_info = pickle.loads(data)
@@ -207,16 +209,33 @@ class Network:
 
         async with channel.in_use:
             ids = self._new_sync_id(peer_id)
-            self.logger.info(f'sync_establish {ids} | Beginning sync with {peer_id}')
+            self.logger.info(f'sync_establish_try {ids} | Establishing connection to {peer_id}')
+            self.logger.info(f'sync_establish {ids} | Established connection to {peer_id}')
 
+            #step 1
             await self._send_poset_info(channel, 'sync', ids)
-            their_poset_info, _ = await self._receive_poset_info(channel, 'sync', ids)
 
+            #step 2
+            try:
+                their_poset_info, _ = await self._receive_poset_info(channel, 'sync', ids)
+            except RejectException:
+                self.logger.info(f'sync_rejected_early {ids} | Process {peer_id} rejected sync attempt')
+                await self.maybe_close(channel)
+                return
+
+            #step 3
             await self._send_units(their_poset_info, channel, 'sync', ids)
-            units_received = await self._receive_units(channel, 'sync', ids)
 
-        if not self.keep_connection:
-            await channel.close()
+            #step 4
+            try:
+                units_received = await self._receive_units(channel, 'sync', ids)
+            except RejectException:
+                self.logger.info(f'sync_rejected_late {ids} | Process {peer_id} rejected units sent to him')
+                await self.maybe_close(channel)
+                return
+
+
+        await self.maybe_close(channel)
 
         if not self._verify_signatures_and_add_units(units_received, peer_id, 'sync', ids):
             return
@@ -232,33 +251,40 @@ class Network:
         '''
         channel = self.listen_channels[peer_id]
         while True:
+            #step 1
             their_poset_info, ids = await self._receive_poset_info(channel, 'listener', None)
 
             self.n_recv_syncs += 1
             self.logger.info(f'listener_sync_no {ids} | Number of syncs is {self.n_recv_syncs}')
-            #TODO: the code below is a remnant from the old network module, it does not work in the current setup!
-            #TODO: if N_RECV_SYNC is exceeded, one could use
-            #           a) a bounded semaphore and just wait
-            #           b) a special answer 'REJECT' that is sent back instead of poset_info
-            #if self.n_recv_syncs > consts.N_RECV_SYNC:
-            #    self.logger.info(f'listener_too_many_syncs {ids} | Too many syncs, rejecting {peer_id}')
-            #    self.n_recv_syncs -= 1
-            #    return
+
+            if self.n_recv_syncs > consts.N_RECV_SYNC:
+                self.logger.info(f'listener_too_many_syncs {ids} | Too many syncs, rejecting {peer_id}')
+                await channel.reject()
+                await self.maybe_close(channel)
+                self.n_recv_syncs -= 1
+                continue
+
             self.logger.info(f'listener_establish {ids} | Connection established with {peer_id}')
 
+            #step 2
             await self._send_poset_info(channel, 'listener', ids)
 
+            #step 3
             units_received = await self._receive_units(channel, 'listener', ids)
-            if not self._verify_signatures_and_add_units(units_received, peer_id, 'listener', ids):
-                self.n_recv_syncs -= 1
-                return
 
+            if not self._verify_signatures_and_add_units(units_received, peer_id, 'listener', ids):
+                self.logger.info(f'listener_verify_failed {ids} | Received incorrect units, interrupting sync with {peer_id}')
+                await channel.reject()
+                await self.maybe_close(channel)
+                self.n_recv_syncs -= 1
+                continue
+
+            #step 4
             await self._send_units(their_poset_info, channel, 'listener', ids)
 
-            if not self.keep_connection:
-                await channel.close()
-
-            self.logger.info(f'listener_succ {ids} | Syncing with {peer_id} succesful')
-            timer.write_summary(where=self.logger, groups=[ids])
+            await self.maybe_close(channel)
             self.n_recv_syncs -= 1
+
+            self.logger.info(f'listener_succ {ids} | Syncing with {peer_id} successful')
+            timer.write_summary(where=self.logger, groups=[ids])
 
