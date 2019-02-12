@@ -95,7 +95,7 @@ async def main():
 
     recv_address = None
     if params['tx_source'] == 'tx_source_gen':
-        tx_source = tx_source_gen(n_processes, int(params['tx_limit']), process_id)
+        tx_source = tx_source_gen(params['tx_limit'], seed=process_id)
     else:
         tx_source = tx_listener
 

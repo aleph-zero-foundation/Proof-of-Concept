@@ -370,6 +370,14 @@ class Poset:
         return heights, hashes
 
 
+    def get_heights(self):
+        '''
+        Similar to get_max_heights_hashes() but does not care about hashes.
+        Assumes no forks exist.
+        '''
+        return [(Us[0].height if len(Us) > 0 else -1) for Us in self.max_units_per_process]
+
+
     def get_diff(self, process_id, current, prev):
         '''
         Outputs the set of all units U such that U lies strictly above some unit in prev and below some unit in current.
