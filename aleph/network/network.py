@@ -10,18 +10,20 @@ import aleph.const as consts
 
 class Network:
 
-    def __init__(self, process, addresses, public_key_list, logger):
+    def __init__(self, process, addresses, public_key_list, logger, keep_connection=True):
         '''Class that takes care of handling network connections with other processes.
 
         :param Process process: process who uses this network to communicate with others
         :param list addresses: list of addresses of all committee members, ordered by their process_id. Each address is a pair (IP, port)
         :param list public_key_list: the list of public keys of all committee members
         :param Logger logger: where to write all the log messages
+        :param bool keep_connection: Don't close network connection after every sync
         '''
         self.process = process
         self.addresses = addresses
         self.public_key_list = public_key_list
         self.logger = logger
+        self.keep_connection = keep_connection
 
         self.n_recv_syncs = 0
         pid = self.process.process_id
@@ -77,6 +79,9 @@ class Network:
             await self._send_units(their_poset_info, channel, 'sync', ids)
             units_received = await self._receive_units(channel, 'sync', ids)
 
+        if not self.keep_connection:
+            await channel.close()
+
         if not self._verify_signatures_and_add_units(units_received, peer_id, 'sync', ids):
             return
 
@@ -110,6 +115,9 @@ class Network:
                 return
 
             await self._send_units(their_poset_info, channel, 'listener', ids)
+
+            if not self.keep_connection:
+                await channel.close()
 
             self.logger.info(f'listener_succ {ids} | Syncing with {peer_id} succesful')
             timer.write_summary(where=self.logger, groups=[ids])
