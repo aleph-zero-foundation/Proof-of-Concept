@@ -1,5 +1,6 @@
 import logging
 import pickle
+import pkg_resources
 import random
 import socket
 import socketserver
@@ -42,13 +43,22 @@ def tx_listener(listen_addr, queue):
         server.serve_forever()
 
 
-def tx_source_gen(batch_size, txpu, seed):
+def tx_source_gen(batch_size, txpu, seed=27091986, filename=None):
     '''
     Produces a simple tx generator.
     :param int batch_size: number of txs for a process to input into the system.
     :param int txpu: number of txs to be included in one unit.
     :param int seed: seed for random generator.
+    :param str filename: path to file with names of txs senders and recipients (each in a separate line). If None, aleph/test/data/light_nodes_public_keys is used.
     '''
+
+    if filename is None:
+        filename = pkg_resources.resource_stream('aleph.test.data', 'light_nodes_public_keys')
+        lines = [line.decode() for line in filename.readlines()]
+    else:
+        with open(filename) as f:
+            lines = f.readlines()
+    ln_public_keys = [line.rstrip('\n') for line in lines]
 
     def _tx_source(dummy, queue):
         '''
@@ -58,8 +68,6 @@ def tx_source_gen(batch_size, txpu, seed):
         '''
         # ensure that batches are different
         random.seed(seed)
-        with open('light_nodes_public_keys', 'r') as f:
-            ln_public_keys = [line.rstrip('\n') for line in f]
 
         produced = 0
         while produced < batch_size:

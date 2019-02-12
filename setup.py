@@ -17,5 +17,5 @@ setup(
         "tqdm"
         ],
     license="",
-    package_data={"aleph.test.data": "simple.dag"},
+    package_data={"aleph.test.data": ["simple.dag", "light_nodes_public_keys"]},
 )
