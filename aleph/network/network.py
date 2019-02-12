@@ -62,16 +62,20 @@ class Network:
 
     async def sync(self, peer_id):
         '''Sync with process peer_id.'''
-        ids = self._new_sync_id(peer_id)
-
         channel = self.sync_channels[peer_id]
-        self.logger.info(f'sync_establish {ids} | Beginning sync with {peer_id}')
+        if channel.in_use.locked():
+            self.logger.info(f'sync_canceled {self.process.process_id} | Previous sync with {peer_id} still in progress')
+            return
 
-        await self._send_poset_info(channel, 'sync', ids)
-        their_poset_info, _ = await self._receive_poset_info(channel, 'sync', ids)
+        async with channel.in_use:
+            ids = self._new_sync_id(peer_id)
+            self.logger.info(f'sync_establish {ids} | Beginning sync with {peer_id}')
 
-        await self._send_units(their_poset_info, channel, 'sync', ids)
-        units_received = await self._receive_units(channel, 'sync', ids)
+            await self._send_poset_info(channel, 'sync', ids)
+            their_poset_info, _ = await self._receive_poset_info(channel, 'sync', ids)
+
+            await self._send_units(their_poset_info, channel, 'sync', ids)
+            units_received = await self._receive_units(channel, 'sync', ids)
 
         if not self._verify_signatures_and_add_units(units_received, peer_id, 'sync', ids):
             return

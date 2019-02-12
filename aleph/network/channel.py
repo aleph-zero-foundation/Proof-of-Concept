@@ -13,6 +13,7 @@ class Channel:
         self.peer_id = peer_id
         self.address = peer_address
         self.active = asyncio.Event()
+        self.in_use = asyncio.Lock()
         self.reader = None
         self.writer = None
 
