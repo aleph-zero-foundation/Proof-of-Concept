@@ -64,6 +64,7 @@ class Process:
             self.userDB = UserDB()
 
         self.keep_syncing = True
+        self.keep_adding = True
         self.tx_source = tx_source
 
         # units that have not yet been linearly ordered
@@ -193,18 +194,21 @@ class Process:
 
         return random.choice(sync_candidates)
 
+    def create_unit(self, txs, prefer_maximal = consts.USE_MAX_PARENTS):
+        return create_unit(self.poset, self.process_id, txs, prefer_maximal)
 
     async def create_add(self, txs_queue, server_started):
         await server_started.wait()
         created_count, max_level_reached = 0, False
-        while created_count != consts.UNITS_LIMIT and not max_level_reached:
+        while created_count != consts.UNITS_LIMIT and not max_level_reached and self.keep_adding:
+
             # log current memory consumption
             memory_usage_in_mib = (psutil.Process(os.getpid()).memory_info().rss)/(2**20)
             self.logger.info(f'memory_usage {self.process_id} | {memory_usage_in_mib:.4f} MiB')
 
             txs = self.prepared_txs
             with timer(self.process_id, 'create_unit'):
-                new_unit = create_unit(self.poset, self.process_id, txs, prefer_maximal = consts.USE_MAX_PARENTS)
+                new_unit = self.create_unit(txs, prefer_maximal = consts.USE_MAX_PARENTS)
             created_count += 1
 
             if new_unit is not None:
