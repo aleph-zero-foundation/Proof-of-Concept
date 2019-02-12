@@ -62,16 +62,13 @@ class Network:
 
     async def sync(self, peer_id):
         '''Sync with process peer_id.'''
-        ids = self._get_ids_as_str()
-        self.logger.info(f'sync_establish {ids} | Beginning sync with {peer_id}')
+        ids = self._new_sync_id(peer_id)
 
         channel = self.sync_channels[peer_id]
-
-        self.process.last_synced_with_process[peer_id] = self.process.sync_id
-        self.process.sync_id += 1
+        self.logger.info(f'sync_establish {ids} | Beginning sync with {peer_id}')
 
         await self._send_poset_info(channel, 'sync', ids)
-        their_poset_info = await self._receive_poset_info(channel, 'sync', ids)
+        their_poset_info, _ = await self._receive_poset_info(channel, 'sync', ids)
 
         await self._send_units(their_poset_info, channel, 'sync', ids)
         units_received = await self._receive_units(channel, 'sync', ids)
@@ -87,13 +84,9 @@ class Network:
         '''Listen indefinitely for incoming syncs from process peer_id.'''
         channel = self.listen_channels[peer_id]
         while True:
-            their_poset_info = await self._receive_poset_info(channel, 'listener', f'{self.process.process_id} ???')
+            their_poset_info, ids = await self._receive_poset_info(channel, 'listener', None)
+
             self.n_recv_syncs += 1
-            ids = self._get_ids_as_str()
-
-            self.process.last_synced_with_process[peer_id] = self.process.sync_id
-            self.process.sync_id += 1
-
             self.logger.info(f'listener_sync_no {ids} | Number of syncs is {self.n_recv_syncs}')
             #TODO: the code below is a remnant from the old network module, it does not work in the current setup!
             #TODO: if N_RECV_SYNC is exceeded, one could use
@@ -119,6 +112,17 @@ class Network:
             self.n_recv_syncs -= 1
 
 
+    def _new_sync_id(self, peer_id):
+        '''
+        Increase sync_id counter in the parent process and register the current sync as a sync with process peer_id.
+        Return a string identifier of that sync. The identifier is of the form 'process_id sync_id'.
+        '''
+        s = f'{self.process.process_id} {self.process.sync_id}'
+        self.process.last_synced_with_process[peer_id] = self.process.sync_id
+        self.process.sync_id += 1
+        return s
+
+
     async def _send_poset_info(self, channel, mode, ids):
         self.logger.info(f'send_poset_{mode} {ids} | sending info about heights to {channel.peer_id}')
         poset_info = self.process.poset.get_heights()
@@ -130,13 +134,16 @@ class Network:
 
 
     async def _receive_poset_info(self, channel, mode, ids):
-        self.logger.info(f'receive_poset_{mode} {ids} | Receiving info about forkers and heights&hashes from {channel.peer_id}')
         data = await channel.read()
+        if ids is None:
+            ids = self._new_sync_id(channel.peer_id)
+        self.logger.info(f'receive_poset_{mode} {ids} | Receiving info about heights from {channel.peer_id}')
+
         if consts.SEND_COMPRESSED:
             data = zlib.decompress(data)
         poset_info = pickle.loads(data)
-        self.logger.info(f'receive_poset_{mode} {ids} | Got forkers/heights {poset_info} from {channel.peer_id}')
-        return poset_info
+        self.logger.info(f'receive_poset_{mode} {ids} | Got heights {poset_info} from {channel.peer_id}')
+        return poset_info, ids
 
 
     async def _send_units(self, ex_heights, channel, mode, ids):
@@ -225,8 +232,4 @@ class Network:
             self.logger.error(f'{mode}_not_compliant {ids} | Got unit from {peer_id} that does not comply to the rules; aborting')
             return False
         return True
-
-
-    def _get_ids_as_str(self):
-        return f'{self.process.process_id} {self.process.sync_id}'
 
