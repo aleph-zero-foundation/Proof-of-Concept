@@ -4,15 +4,15 @@ USE_MAX_PARENTS = 1            # prefer maximal units (globally maximal in poset
 USE_TCOIN       = 0            # whether to use threshold coin
 ADD_SHARES      = 4            # level at which start to adding coin shares to units
 
-CREATE_FREQ     = 0.5          # frequency of creating new units
-SYNC_INIT_FREQ  = 0.1          # frequency of initianing syncs with other processes
+CREATE_FREQ     = 1            # frequency of creating new units
+SYNC_INIT_FREQ  = 0.25         # frequency of initianing syncs with other processes
 N_RECV_SYNC     = 10           # number of allowed parallel syncs
 
-TXPU            = 10         # number of transactions per unit
+TXPU            = 2000         # number of transactions per unit
 TX_LIMIT        = 1000000      # total number of tx generated
 
-LEVEL_LIMIT     = 40           # maximal level after which process shuts donw
-UNITS_LIMIT     = 300          # maximal number of units that are constructed
+LEVEL_LIMIT     = 20           # maximal level after which process shuts donw
+UNITS_LIMIT     = None         # maximal number of units that are constructed
 SYNCS_LIMIT     = None         # maximal number of syncs that are performed
 
 HOST_IP         = '127.0.0.1'  # default ip address of a process
@@ -20,7 +20,7 @@ HOST_PORT       = 8888         # default port of incoming syncs
 
 LOGGER_NAME     = 'aleph'
 
-SEND_COMPRESSED = 1            # use zlib compressing/decompressing when sending data over the network
+SEND_COMPRESSED = 0            # use zlib compressing/decompressing when sending data over the network
 
 USE_FAST_POSET  = 1            # use fast poset in place of poset when using Processes
 
