@@ -24,9 +24,9 @@ def inst_dep(conn):
 
     conn.put('setup.sh', '.')
     conn.put('set_env.sh', '.')
-    conn.sudo('apt update', hide='out')
-    conn.sudo('apt install dtach', hide='out')
-    conn.run('dtach -n `mktemp -u /tmp/dtach.XXXX` bash setup.sh', hide='out')
+    conn.sudo('apt update', hide='both')
+    conn.sudo('apt install dtach', hide='both')
+    conn.run('dtach -n `mktemp -u /tmp/dtach.XXXX` bash setup.sh', hide='both')
 
 
 @task
