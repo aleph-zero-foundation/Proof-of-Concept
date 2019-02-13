@@ -352,6 +352,20 @@ class LogAnalyzer:
         else:
             return 0.0
 
+    def get_txps_till_last_timing_unit(self):
+        '''
+        Returns the number of transactions per second averaged from start till deciding on the timing unit at lvl 1.
+        '''
+        levels_with_timing = [level for level in self.levels if 'timing_decided_date' in self.levels[level]]
+        if levels_with_timing == []:
+            return 0.0
+
+        max_level = max(levels_with_timing)
+        # we use range(1, max_level+1) since nothing is decided on lvl 0
+        tot_txs = sum(self.levels[level]['n_txs_ordered'] for level in range(1, max_level+1))
+        secs_till_max_level_timing = diff_in_seconds(self.levels[0]['date'], self.levels[max_level]['timing_decided_date'])
+        return tot_txs/secs_till_max_level_timing
+
 
     def get_cpu_times(self, cpu_plot_file = None, cpu_io_plot_file = None):
         timer_names = ['t_prepare_units', 't_compress_units', 't_decompress_units', 't_unpickle_units',
@@ -366,7 +380,7 @@ class LogAnalyzer:
         cpu_breakdown_entries = []
         cpu_io_breakdown = []
 
-        for sync_id, sync_dict in self.syncs.items():
+        for sync_id, sync_dict in sorted(self.syncs.items(), key = lambda x: x[0]):
             sync_tot_cpu_time = 0.0
             entry = []
             for name in timer_names:
@@ -482,7 +496,7 @@ class LogAnalyzer:
                 # timing is not decided on level
                 continue
             else:
-                if 'timing_decided_date' in self.levels[level]:
+                if 'n_units_decided' in self.levels[level]:
                     n_units = self.levels[level]['n_units_decided']
                     delay = diff_in_seconds(self.levels[level]['date'], self.levels[level]['timing_decided_date'])
                     level_diff = self.levels[level]['timing_decided_level'] - level
@@ -513,7 +527,7 @@ class LogAnalyzer:
         bytes_per_unit_exchanged = []
         establish_connection_times = []
 
-        for sync_id, sync in self.syncs.items():
+        for sync_id, sync in sorted(self.syncs.items(), key = lambda x: x[0]):
             if not 'stop_date' in sync:
                 syncs_not_succeeded += 1
                 continue
@@ -589,6 +603,43 @@ class LogAnalyzer:
 
         return n_parents_list
 
+    def gen_units_exchanged_plots(self, plot_file):
+        if self.generate_plots:
+
+            n_sent_list = []
+            n_recv_list = []
+            dates = []
+
+            for sync_id, sync_dict in sorted(self.syncs.items(), key = lambda x: x[0]):
+                n_sent = sync_dict.get('units_sent', 0)
+                n_recv = sync_dict.get('units_received', 0)
+                if n_sent > 0 or n_recv > 0:
+                    n_sent_list.append(n_sent)
+                    n_recv_list.append(n_recv)
+                    dates.append(sync_dict['start_date'])
+            ticks = 5
+            jump_len = len(n_sent_list) // ticks
+            x_series = range(len(n_sent_list))
+            x_ticks = x_series[::jump_len]
+            time_ticks = [diff_in_seconds(dates[0], dates[ind]) for ind in x_ticks]
+            fig, (ax_sent, ax_recv) = plt.subplots(2,1)
+            width = 1.0
+            sent_bars = ax_sent.bar(x_series, n_sent_list, width, color = 'red')
+            recv_bars = ax_recv.bar(x_series, n_recv_list, width, color = 'blue')
+
+            plt.setp((ax_sent, ax_recv), xticks=x_ticks, xticklabels=time_ticks)
+            #ax_recv.xticks(x_ticks, time_ticks)
+
+            ax_sent.legend([sent_bars[0]], ['units sent'])
+            ax_recv.legend([recv_bars[0]], ['units received'])
+
+            ax_sent.set(xlabel='time from start (s)')
+            ax_recv.set(xlabel='time from start (s)')
+            plt.tight_layout()
+
+            plt.savefig(plot_file, dpi=800)
+            plt.close()
+
 
 
     def prepare_report_per_process(self, dest_dir = 'reports', file_name_prefix = 'report-sync-'):
@@ -620,7 +671,7 @@ class LogAnalyzer:
         conn_est_time = [0.0] * self.n_processes
         n_conn_est = [0] * self.n_processes
         n_conn_fail = [0] * self.n_processes
-        for sync_id, sync in self.syncs.items():
+        for sync_id, sync in sorted(self.syncs.items(), key = lambda x: x[0]):
             if 'target' not in sync:
                 # this sync has no info on which process are we talking to, cannot do much
                 continue
@@ -797,6 +848,11 @@ class LogAnalyzer:
         _append_stat_line(est_conn_time, 'est_conn_time')
         _append_stat_line([syncs_not_succ], 'sync_fail')
 
+        # gen plot on units exchanged vs time
+        units_ex_plot_file = os.path.join(dest_dir, 'plot-units', f'units-{self.process_id}.png')
+        os.makedirs(os.path.dirname(units_ex_plot_file), exist_ok=True)
+        self.gen_units_exchanged_plots(units_ex_plot_file)
+
         # delay stats
         create_delays, sync_delays = self.get_delay_stats()
         _append_stat_line(create_delays, 'create_freq')
@@ -833,6 +889,7 @@ class LogAnalyzer:
 
         # n_parents
         _append_stat_line(self.get_n_parents(), 'n_parents')
+
 
 
 
