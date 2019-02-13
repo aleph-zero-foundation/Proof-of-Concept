@@ -20,7 +20,7 @@ HOST_PORT       = 8888         # default port of incoming syncs
 
 LOGGER_NAME     = 'aleph'
 
-SEND_COMPRESSED = 1            # use zlib compressing/decompressing when sending data over the network
+SEND_COMPRESSED = 0            # use zlib compressing/decompressing when sending data over the network
 
 USE_FAST_POSET  = 1            # use fast poset in place of poset when using Processes
 
