@@ -496,7 +496,7 @@ class LogAnalyzer:
                 # timing is not decided on level
                 continue
             else:
-                if 'timing_decided_date' in self.levels[level]:
+                if 'n_units_decided' in self.levels[level]:
                     n_units = self.levels[level]['n_units_decided']
                     delay = diff_in_seconds(self.levels[level]['date'], self.levels[level]['timing_decided_date'])
                     level_diff = self.levels[level]['timing_decided_level'] - level
