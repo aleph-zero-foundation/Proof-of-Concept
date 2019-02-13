@@ -243,7 +243,6 @@ def wait_in_region(target_state, region_name):
 def installation_finished_in_region(region_name):
     '''Checks if installation has finished on all instances in a given region.'''
 
-    ip_list = instances_ip_in_region(region_name)
     results = []
     cmd = "tail -1 setup.log"
     results = run_cmd_in_region(cmd, region_name, output=True)
@@ -375,13 +374,12 @@ def wait_install(regions='all'):
     if regions == 'badger regions':
         regions = badger_regions()
 
-    sleep(60)
     wait_for_regions = regions.copy()
     while wait_for_regions:
-        sleep(10)
         results = Parallel(n_jobs=N_JOBS)(delayed(installation_finished_in_region)(r) for r in wait_for_regions)
 
         wait_for_regions = [r for i,r in enumerate(wait_for_regions) if not results[i]]
+        sleep(10)
 
 
 #======================================================================================
@@ -419,7 +417,7 @@ def run_protocol(n_processes, regions, restricted, instance_type):
     print('waiting till ports are open on machines')
     # this is really slow, and actually machines are ready earlier! refactor
     #wait('ssh ready', regions)
-    sleep(60)
+    sleep(120)
 
     # TODO try to prevent output of apt spoiling to console
     print('installing dependencies')
@@ -429,6 +427,7 @@ def run_protocol(n_processes, regions, restricted, instance_type):
     # TODO check if it works of more than 1 machine per region
     print('wait till installation finishes')
     # wait till installing finishes
+    sleep(60)
     wait_install(regions)
 
     print('packing local repo')
@@ -444,12 +443,16 @@ def run_protocol(n_processes, regions, restricted, instance_type):
     # send files: addresses, signing_keys, light_nodes_public_keys
     run_task('sync-files', regions, parallel)
 
+    print('sending parameters')
+    # send parameters
+    run_task('send-params', regions, parallel)
+
     print(f'establishing the environment took {round(time()-start, 2)}s')
     # run the experiment
     run_task('run-protocol', regions, parallel)
 
 
-def get_logs(n_processes, regions=badger_regions()):
+def get_logs(n_processes, regions, n_parents, use_tcoin, create_freq, sync_init_freq, n_recv_sync, txpu, use_fast_poset):
     '''Retrieves all logs from instances.'''
 
     if not os.path.exists('../results'):
@@ -501,11 +504,7 @@ def get_logs(n_processes, regions=badger_regions()):
         pid = ip_addresses.index(fp.split(f'-{name}.log')[0].replace('-', '.'))
         os.rename(f'../results/{fp}', f'../results/{pid}.{name}.log.zip')
 
-    with open('const.py', 'r') as f:
-        for l in f:
-            exec(l.strip())
-
-    result_path = f'../{N_PARENTS}_{USE_TCOIN}_{CREATE_FREQ}_{SYNC_INIT_FREQ}_{N_RECV_SYNC}_{TXPU}_{USE_FAST_POSET}'
+    result_path = f'../{n_processes}_{n_parents}_{use_tcoin}_{create_freq}_{sync_init_freq}_{n_recv_sync}_{txpu}_{use_fast_poset}'
 
     print('rename dir')
     os.rename('../results', result_path)
@@ -527,7 +526,6 @@ def get_logs(n_processes, regions=badger_regions()):
     os.rmdir(result_path)
 
 
-
 def memory_usage(regions=badger_regions()):
     cmd = 'grep memory proof-of-concept/aleph/aleph.log | tail -1'
     output = run_cmd(cmd, regions, True)
@@ -537,7 +535,7 @@ def memory_usage(regions=badger_regions()):
 
 def reached_max_level(regions=badger_regions()):
     cmd = 'grep max_level proof-of-concept/aleph/aleph.log'
-    output = run_cmd(cmd, regions, True)
+    output = run_cmd(cmd, regions, True, True)
     n_protocol_stopped = 0
     for out in output:
         if len(out.decode().split('reached')) > 1:
@@ -562,12 +560,9 @@ ti = terminate_instances
 
 restricted = {'ap-south-1':     10,  # Mumbai
               'ap-southeast-2': 5,   # Sydney
-              'ap-northeast-2': 0,
               'eu-central-1':   10,  # Frankfurt
-              'eu-west-3':      0,   # London
-              'eu-west-2':      0,   # Paris
-              'eu-north-1':     0,   # Stockholm
               'sa-east-1':      5}   # Sao Paolo
+badger_restricted = {'ap-southeast-2': 5, 'sa-east-1': 5}
 
 
 pb = lambda : run_protocol(104, badger_regions(), [], 't2.medium')

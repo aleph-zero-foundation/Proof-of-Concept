@@ -155,7 +155,7 @@ def generate_key_pair_all_regions(key_name='aleph'):
             wrote_fp = True
 
 
-def init_key_pair(region_name, key_name='aleph'):
+def init_key_pair(region_name, key_name='aleph', dry_run=False):
     ''' Initializes key pair needed for using instances.'''
 
     key_path = f'key_pairs/{key_name}.pem'
@@ -164,7 +164,8 @@ def init_key_pair(region_name, key_name='aleph'):
     if os.path.exists(key_path) and os.path.exists(fingerprint_path):
         # we have the private key locally so let check if we have pk in the region
 
-        print('found local key; ', end='')
+        if not dry_run:
+            print('found local key; ', end='')
         ec2 = boto3.resource('ec2', region_name)
         with open(fingerprint_path, 'r') as f:
             fp = f.readline()
@@ -173,11 +174,13 @@ def init_key_pair(region_name, key_name='aleph'):
         for key in keys:
             if key.name == key_name:
                 if key.key_fingerprint != fp:
-                    print('there is old version of key in region', region_name)
+                    if not dry_run:
+                        print('there is old version of key in region', region_name)
                     # there is an old version of the key, let remove it
                     key.delete()
                 else:
-                    print('local and upstream key match')
+                    if not dry_run:
+                        print('local and upstream key match')
                     # check permissions
                     call(f'chmod 400 {key_path}'.split())
                     # everything is alright
@@ -224,7 +227,11 @@ def generate_signing_keys(n_processes):
 def available_regions():
     ''' Returns a list of all currently available regions.'''
     non_badger_regions = list(set(boto3.Session().get_available_regions('ec2'))-set(badger_regions()))
-    return badger_regions()+non_badger_regions
+    regions = badger_regions()+non_badger_regions
+    for rn in ['ap-northeast-2', 'eu-west-3', 'eu-west-2', 'eu-north-1']:
+        regions.remove(rn)
+
+    return regions
 
 
 def eu_regions():
@@ -258,7 +265,10 @@ def describe_instances(region_name):
 
 
 def n_processes_per_regions(n_processes, regions=badger_regions(), restricted={'sa-east-1':5, 'ap-southeast-2':5}):
-    assert n_processes <= 20*(len(regions)-len(restricted))+5*len(restricted), 'n_processes exceeds instances available on AWS'
+    bound_n_processes = 20*(len(regions)-len(restricted))
+    for r in restricted:
+        bound_n_processes += restricted[r]
+    assert n_processes <= bound_n_processes, 'n_processes exceeds instances available on AWS'
 
     nhpr = {}
     n_left = n_processes
