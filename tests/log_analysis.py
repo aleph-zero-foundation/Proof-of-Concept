@@ -6,11 +6,9 @@ def prepare_common_stats(process_stats, rep_dir):
     '''
     Write basic stats common to all processes to a file.
     '''
-    # NOTE: the txps in this stat is actually much lower than in reality, because here it is measured as
-    #       the total number of txs validated till the first timing unit was found, divided by the time
-    #       to reach the first timing unit.
-    #       If one wanted to calculate it more precisely then it should be something like
-    #       (the number of txs included in one level) / (the time to build one level)
+    # NOTE: the txps in this stat is calculated as the ratio:
+    #            (total n of txs validated by timing units up to lvl L) / (time to find the timing unit at lvl L)
+    # where L is the highest level for which a timing unit has been established
 
     n_stats = len(process_stats)
     rep_path = os.path.join(rep_dir, "common-stats.txt")
@@ -82,7 +80,7 @@ if len(sys.argv) == 4 and sys.argv[1] == 'ALL':
 
         stats = {'process_id' : process_id}
         stats['latency'] = analyzer.get_unit_latency()
-        stats['txps'] = analyzer.get_txps_till_first_timing_unit()
+        stats['txps'] = analyzer.get_txps_till_last_timing_unit()
         process_stats.append(stats)
 
     prepare_common_stats(process_stats, rep_dir)

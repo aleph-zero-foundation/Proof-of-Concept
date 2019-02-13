@@ -352,6 +352,20 @@ class LogAnalyzer:
         else:
             return 0.0
 
+    def get_txps_till_last_timing_unit(self):
+        '''
+        Returns the number of transactions per second averaged from start till deciding on the timing unit at lvl 1.
+        '''
+        levels_with_timing = [level for level in self.levels if 'timing_decided_date' in self.levels[level]]
+        if levels_with_timing == []:
+            return 0.0
+
+        max_level = max(levels_with_timing)
+        # we use range(1, max_level+1) since nothing is decided on lvl 0
+        tot_txs = sum(self.levels[level]['n_txs_ordered'] for level in range(1, max_level+1))
+        secs_till_max_level_timing = diff_in_seconds(self.levels[0]['date'], self.levels[max_level]['timing_decided_date'])
+        return tot_txs/secs_till_max_level_timing
+
 
     def get_cpu_times(self, cpu_plot_file = None, cpu_io_plot_file = None):
         timer_names = ['t_prepare_units', 't_compress_units', 't_decompress_units', 't_unpickle_units',
