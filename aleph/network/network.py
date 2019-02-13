@@ -34,6 +34,8 @@ class Network:
         self.sync = self.__getattribute__(protocol + '_sync')
         self.listener = self.__getattribute__(protocol + '_listener')
 
+        self.logger.info(f'network_init {self.process.process_id} | Using {protocol} protocol')
+
 
     async def start_server(self, server_started):
         '''
@@ -197,6 +199,152 @@ class Network:
 #===============================================================================================================================
 
 
+    async def pull_sync(self, peer_id):
+        '''
+        Sync with process peer_id.
+        This version uses 2-exchange "pull" protocol: send heights, receive units.
+        '''
+        channel = self.sync_channels[peer_id]
+        if channel.in_use.locked():
+            self.logger.info(f'sync_canceled {self.process.process_id} | Previous sync with {peer_id} still in progress')
+            return
+
+        async with channel.in_use:
+            ids = self._new_sync_id(peer_id)
+            self.logger.info(f'sync_establish_try {ids} | Establishing connection to {peer_id}')
+            self.logger.info(f'sync_establish {ids} | Established connection to {peer_id}')
+
+            #step 1
+            await self._send_poset_info(channel, 'sync', ids)
+
+            #step 2
+            try:
+                units_received = await self._receive_units(channel, 'sync', ids)
+            except RejectException:
+                self.logger.info(f'sync_rejected {ids} | Process {peer_id} rejected sync attempt')
+                await self.maybe_close(channel)
+                return
+
+        await self.maybe_close(channel)
+
+        if self._verify_signatures_and_add_units(units_received, peer_id, 'sync', ids):
+            self.logger.info(f'sync_done {ids} | Syncing with {peer_id} successful')
+            timer.write_summary(where=self.logger, groups=[ids])
+
+
+    async def pull_listener(self, peer_id):
+        '''
+        Listen indefinitely for incoming syncs from process peer_id.
+        This version is a counterpart for pull_sync, follows the same 2-exchange protocol.
+        '''
+        channel = self.listen_channels[peer_id]
+        while True:
+            #step 1
+            their_poset_info, ids = await self._receive_poset_info(channel, 'listener', None)
+
+            self.n_recv_syncs += 1
+            self.logger.info(f'listener_sync_no {ids} | Number of syncs is {self.n_recv_syncs}')
+
+            if self.n_recv_syncs > consts.N_RECV_SYNC:
+                self.logger.info(f'listener_too_many_syncs {ids} | Too many syncs, rejecting {peer_id}')
+                await channel.reject()
+                await self.maybe_close(channel)
+                self.n_recv_syncs -= 1
+                continue
+
+            self.logger.info(f'listener_establish {ids} | Connection established with {peer_id}')
+
+            #step 2
+            await self._send_units(their_poset_info, channel, 'listener', ids)
+
+            self.logger.info(f'listener_succ {ids} | Syncing with {peer_id} successful')
+            timer.write_summary(where=self.logger, groups=[ids])
+
+            await self.maybe_close(channel)
+            self.n_recv_syncs -= 1
+
+
+
+#===============================================================================================================================
+
+
+    async def pullpush_sync(self, peer_id):
+        '''
+        Sync with process peer_id.
+        This version uses 3-exchange "pullpush" protocol: send heights, receive heights and units, send units.
+        '''
+        channel = self.sync_channels[peer_id]
+        if channel.in_use.locked():
+            self.logger.info(f'sync_canceled {self.process.process_id} | Previous sync with {peer_id} still in progress')
+            return
+
+        async with channel.in_use:
+            ids = self._new_sync_id(peer_id)
+            self.logger.info(f'sync_establish_try {ids} | Establishing connection to {peer_id}')
+            self.logger.info(f'sync_establish {ids} | Established connection to {peer_id}')
+
+            #step 1
+            await self._send_poset_info(channel, 'sync', ids)
+
+            #step 2
+            try:
+                their_poset_info, _ = await self._receive_poset_info(channel, 'sync', ids)
+                units_received = await self._receive_units(channel, 'sync', ids)
+            except RejectException:
+                self.logger.info(f'sync_rejected {ids} | Process {peer_id} rejected sync attempt')
+                await self.maybe_close(channel)
+                return
+
+            #step 3
+            await self._send_units(their_poset_info, channel, 'sync', ids)
+
+        await self.maybe_close(channel)
+
+        if self._verify_signatures_and_add_units(units_received, peer_id, 'sync', ids):
+            self.logger.info(f'sync_done {ids} | Syncing with {peer_id} successful')
+            timer.write_summary(where=self.logger, groups=[ids])
+
+
+    async def pullpush_listener(self, peer_id):
+        '''
+        Listen indefinitely for incoming syncs from process peer_id.
+        This version is a counterpart for pullpush_sync, follows the same 3-exchange protocol.
+        '''
+        channel = self.listen_channels[peer_id]
+        while True:
+            #step 1
+            their_poset_info, ids = await self._receive_poset_info(channel, 'listener', None)
+
+            self.n_recv_syncs += 1
+            self.logger.info(f'listener_sync_no {ids} | Number of syncs is {self.n_recv_syncs}')
+
+            if self.n_recv_syncs > consts.N_RECV_SYNC:
+                self.logger.info(f'listener_too_many_syncs {ids} | Too many syncs, rejecting {peer_id}')
+                await channel.reject()
+                await self.maybe_close(channel)
+                self.n_recv_syncs -= 1
+                continue
+
+            self.logger.info(f'listener_establish {ids} | Connection established with {peer_id}')
+
+            #step 2
+            await self._send_poset_info(channel, 'listener', ids)
+            await self._send_units(their_poset_info, channel, 'listener', ids)
+
+            #step 3
+            units_received = await self._receive_units(channel, 'listener', ids)
+
+            if self._verify_signatures_and_add_units(units_received, peer_id, 'listener', ids):
+                self.logger.info(f'listener_succ {ids} | Syncing with {peer_id} successful')
+                timer.write_summary(where=self.logger, groups=[ids])
+
+            await self.maybe_close(channel)
+            self.n_recv_syncs -= 1
+
+
+#===============================================================================================================================
+
+
     async def old_sync(self, peer_id):
         '''
         Sync with process peer_id.
@@ -237,11 +385,9 @@ class Network:
 
         await self.maybe_close(channel)
 
-        if not self._verify_signatures_and_add_units(units_received, peer_id, 'sync', ids):
-            return
-
-        self.logger.info(f'sync_done {ids} | Syncing with {peer_id} successful')
-        timer.write_summary(where=self.logger, groups=[ids])
+        if self._verify_signatures_and_add_units(units_received, peer_id, 'sync', ids):
+            self.logger.info(f'sync_done {ids} | Syncing with {peer_id} successful')
+            timer.write_summary(where=self.logger, groups=[ids])
 
 
     async def old_listener(self, peer_id):
