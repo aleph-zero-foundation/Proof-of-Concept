@@ -11,17 +11,17 @@ from byzantine_process import ByzantineProcess
 import aleph.const as consts
 
 
-async def execute_test(node_builder=Process):
+async def execute_test(node_builder=Process, start_port=8900, tx_receiver_address_start_port=9100):
     n_processes = 4
     txps = 50
     n_light_nodes = 100
     consts.LEVEL_LIMIT = 5
 
     processes = []
-    host_ports = [8900+i for i in range(n_processes)]
+    host_ports = [start_port+i for i in range(n_processes)]
     local_ip = socket.gethostbyname(socket.gethostname())
     addresses = [(local_ip, port) for port in host_ports]
-    recv_addresses = [(local_ip, 9100+i) for i in range(n_processes)]
+    recv_addresses = [(local_ip, tx_receiver_address_start_port+i) for i in range(n_processes)]
 
     signing_keys = [SigningKey() for _ in range(n_processes)]
     public_keys = [VerifyKey.from_SigningKey(sk) for sk in signing_keys]
@@ -149,22 +149,31 @@ class ForkDivideAndDieProcess(ByzantineProcess):
         return False
 
 
-def byzantine_process_builder(n_processes,
-                              process_id,
-                              sk, pk,
-                              addresses,
-                              public_keys,
-                              recv_address,
-                              userDB=None,
-                              validation_method='LINEAR_ORDERING',
-                              gossip_strategy='non_recent_random'):
-    creator = Process
-    if process_id == 0:
-        creator = ForkDivideAndDieProcess
+def process_builder(byzantine_builder):
+    def byzantine_process_builder(n_processes,
+                                  process_id,
+                                  sk, pk,
+                                  addresses,
+                                  public_keys,
+                                  recv_address,
+                                  userDB=None,
+                                  validation_method='LINEAR_ORDERING',
+                                  gossip_strategy='non_recent_random'):
+        creator = Process
+        if process_id == 0:
+            creator = byzantine_builder
 
-    return creator(n_processes, process_id, sk, pk, addresses, public_keys, recv_address, userDB,
-                   validation_method, gossip_strategy=gossip_strategy)
+        return creator(n_processes, process_id, sk, pk, addresses, public_keys, recv_address, userDB,
+                       validation_method, gossip_strategy=gossip_strategy)
+
+    return byzantine_process_builder
 
 
 if __name__ == '__main__':
-    asyncio.run(execute_test(byzantine_process_builder))
+    print('executing the ByzantineProcess test')
+    asyncio.run(execute_test(process_builder(ByzantineProcess), 8900, 9100))
+    print('success')
+
+    print('executing the ForkDivideAndDieProcess test')
+    asyncio.run(execute_test(process_builder(ForkDivideAndDieProcess), 9300, 9500))
+    print('success')
