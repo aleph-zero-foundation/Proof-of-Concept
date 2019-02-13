@@ -68,7 +68,7 @@ async def main():
 
     recv_address = None
     if consts.TX_SOURCE == 'tx_source_gen':
-        tx_source = tx_source_gen(n_processes, consts.TX_LIMIT, process_id)
+        tx_source = tx_source_gen(consts.TX_LIMIT, consts.TXPU, process_id)
     else:
         tx_source = tx_listener
 
