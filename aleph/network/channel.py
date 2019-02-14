@@ -26,7 +26,7 @@ class Channel:
     async def receive_handshake(reader, writer):
         '''Receive handshake from an unknown process and find out their process_id.'''
         data = await reader.readuntil()
-        return int(data[:-1])
+        return int(data.rstrip(b'\n'))
 
 
     def send_handshake(self):
@@ -49,7 +49,8 @@ class Channel:
     async def reject(self):
         '''Send REJECT message.'''
         if self.is_active():
-            self.writer.write(self.REJECT + b'\n')
+            self.writer.write(self.REJECT)
+            self.writer.write(b'\n')
             await self.writer.drain()
 
 
@@ -62,9 +63,10 @@ class Channel:
         await self.active.wait()
 
         data = await self.reader.readuntil()
+        data = data.rstrip(b'\n')
         if data == self.REJECT:
             raise RejectException()
-        n_bytes = int(data[:-1])
+        n_bytes = int(data)
         data = await self.reader.readexactly(n_bytes)
         return data
 
