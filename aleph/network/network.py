@@ -106,18 +106,11 @@ class Network:
         return poset_info, ids
 
 
-    async def _send_units(self, ex_heights, channel, mode, ids):
+    async def _send_units(self, their_poset_info, channel, mode, ids):
         self.logger.info(f'send_units_start_{mode} {ids} | Sending units to {channel.peer_id}')
 
-        int_heights = self.process.poset.get_heights()
-
-        units_to_send = []
         with timer(ids, 'prepare_units'):
-            for i, (int_height, ex_height) in enumerate(zip(int_heights, ex_heights)):
-                if int_height > ex_height:
-                    units = self.process.poset.units_by_height_interval(creator_id=i, min_height=ex_height+1, max_height=int_height)
-                    units_to_send.extend(units)
-            units_to_send = self.process.poset.order_units_topologically(units_to_send)
+            units_to_send = self.process.poset.units_to_send(their_poset_info)
 
         with timer(ids, 'pickle_units'):
             data = pickle.dumps(units_to_send)

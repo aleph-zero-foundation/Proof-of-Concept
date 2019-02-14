@@ -1219,6 +1219,7 @@ class Poset:
 
         return timing_established
 
+
     def extract_tcoin_from_dealing_unit(self, U, process_id):
         assert U.parents == [], "Trying to extract tcoin from a non-dealing unit."
         threshold = self.n_processes//3+1
@@ -1228,13 +1229,14 @@ class Poset:
         self.threshold_coins[U.creator_id].append(threshold_coin)
 
 
-
     def add_threshold_coin(self, threshold_coin):
         self.threshold_coins[threshold_coin.dealer_id].append(threshold_coin)
+
 
 #===============================================================================================================================
 # HELPER FUNCTIONS LOOSELY RELATED TO POSETS
 #===============================================================================================================================
+
 
     def get_prime_unit_above_level(self, process_id, level):
         '''
@@ -1300,7 +1302,6 @@ class Poset:
         return top_list
 
 
-
     def units_by_height(self, process_id, height):
         '''
         Returns list of units created by a given process of a given height.
@@ -1341,7 +1342,6 @@ class Poset:
         return list(set(result_list))
 
 
-
     def get_self_children(self, U):
         '''
         Returns the set of all units V in the poset such that V.self_predecessor == U
@@ -1368,10 +1368,20 @@ class Poset:
         U.height = U.parents[0].height+1 if len(U.parents) > 0 else 0
 
 
+    def units_to_send(self, ex_heights):
+        '''Return a topologically sorted list of units that are in this poset, but not in a local view represented by *ex_heights*.'''
+        int_heights = self.get_heights()
+        to_send = []
+        for i, (int_height, ex_height) in enumerate(zip(int_heights, ex_heights)):
+            if int_height > ex_height:
+                units = self.units_by_height_interval(creator_id=i, min_height=ex_height+1, max_height=int_height)
+                to_send.extend(units)
+        return self.order_units_topologically(to_send)
+
+
 #===============================================================================================================================
 # LINEAR ORDER
 #===============================================================================================================================
-
 
 
     def break_ties(self, units_list):
@@ -1410,7 +1420,6 @@ class Poset:
         return ret
 
 
-
     def timing_round(self, k):
         '''
         Return a list of all units with timing round equal k.
@@ -1429,5 +1438,4 @@ class Poset:
                     Q.add(P)
 
         return ret
-
 
