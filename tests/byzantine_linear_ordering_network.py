@@ -90,8 +90,8 @@ class ForkDivideAndDieProcess(ByzantineProcess):
                                     gossip_strategy=gossip_strategy)
         self.has_stopped_adding = False
 
-    def handle_byzantine_state(self, forking_unit):
-        ByzantineProcess.handle_byzantine_state(self, forking_unit)
+    def handle_byzantine_state(self, unit, forking_unit):
+        ByzantineProcess.handle_byzantine_state(self, unit, forking_unit)
 
         self.stop_adding()
         sync_candidates = list(range(self.n_processes))

@@ -58,10 +58,9 @@ class ByzantineProcess(Process):
         self.keep_syncing = False
         self.keep_adding = False
 
-    def is_disabled(self):
-        return not (self.keep_syncing and self.keep_adding)
-
-    def handle_byzantine_state(self, forking_unit):
+    def handle_byzantine_state(self, unit, forking_unit):
+        self.memo_1 = unit
+        self.memo_2 = forking_unit
         self.forking_units.append(forking_unit)
 
     def add_byzantine_unit(self, process, unit):
@@ -87,31 +86,29 @@ class ByzantineProcess(Process):
             logger.debug("can't add a forking unit to the poset")
             return None
 
-        self.memo_1 = unit
-        self.memo_2 = forking_unit
-
-        self.handle_byzantine_state(forking_unit)
+        self.handle_byzantine_state(unit, forking_unit)
         return forking_unit
 
     def log_new_unit(self, new_unit, memo_1, memo_2, poset):
         logger = self.logger
-        if memo_1 is None or memo_2 is None:
-            return
-        above_first = poset.below(memo_1, new_unit)
-        above_second = poset.below(memo_2, new_unit)
-        if above_first and above_second:
+        if not self.check_for_self_diamond(new_unit, memo_1, memo_2, poset):
             logger.debug(
                 'newly created unit is above the both forking units')
             logger.debug(f'''diamond unit creator: {new_unit.creator_id}
                          first parent: {self.poset.units[new_unit.parents[1]]}''')
             logger.debug(f'diamond unit parents: {new_unit.parents}')
         else:
-            if above_first:
-                logger.debug(
-                    'newly created unit is above the first forking unit')
-            if above_second:
-                logger.debug(
-                    'newly created unit is above the second forking unit')
+            if memo_1 is not None:
+                above_first = poset.below(memo_1, new_unit)
+                if above_first:
+                    logger.debug(
+                        'newly created unit is above the first forking unit')
+
+            if memo_2 is not None:
+                above_second = poset.below(memo_2, new_unit)
+                if above_second:
+                    logger.debug(
+                        'newly created unit is above the second forking unit')
 
     def update_state(self, poset, new_unit):
         if self.memo_1 is not None:
