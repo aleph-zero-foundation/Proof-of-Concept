@@ -18,7 +18,7 @@ class Process:
     '''This class is the main component of the Aleph protocol.'''
 
     def __init__(self, n_processes, process_id, secret_key, public_key, addresses, public_key_list, tx_receiver_address, userDB=None,
-                validation_method='LINEAR_ORDERING', tx_source=tx_listener, gossip_strategy='unif_random', use_fast_poset = consts.USE_FAST_POSET):
+                validation_method='LINEAR_ORDERING', tx_source=tx_listener, gossip_strategy='unif_random', use_fast_poset=None):
         '''
         :param int n_processes: the committee size
         :param int process_id: the id of the current process
@@ -51,6 +51,8 @@ class Process:
         self.prepared_txs = []
 
         self.crp = CommonRandomPermutation([pk.to_hex() for pk in public_key_list])
+
+        use_fast_poset = consts.USE_FAST_POSET if use_fast_poset is None else use_fast_poset
 
         if use_fast_poset:
             self.poset = FastPoset(self.n_processes, self.process_id, self.crp, use_tcoin = consts.USE_TCOIN)

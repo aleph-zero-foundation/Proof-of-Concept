@@ -97,7 +97,7 @@ def parents_allowed_with_restrictions(poset, creator_id, restrictions, parent_pr
 
     return list(single_tip_processes - restricted_set)
 
-def create_unit(poset, creator_id, txs, num_parents = consts.N_PARENTS, restrictions=[expand_primes_restricted], force_parents = None, prefer_maximal = False):
+def create_unit(poset, creator_id, txs, num_parents = None, restrictions=[expand_primes_restricted], force_parents = None, prefer_maximal = False):
     '''
     Creates a new unit and stores txs in it. Correctness of the txs is checked by a thread listening for new transactions.
     :param list txs: list of correct transactions
@@ -107,7 +107,7 @@ def create_unit(poset, creator_id, txs, num_parents = consts.N_PARENTS, restrict
     :param bool prefer_maximal: whether when choosing parents the globally maximal units in the poset are preferred over non-maximal
     :returns: the new-created unit, or None if it is not possible to create a compliant unit
     '''
-
+    num_parents = consts.N_PARENTS if num_parents is None else num_parents
     # NOTE: perhaps we (as an honest process) should always try (if possible)
     # NOTE: to create a unit that gives evidence of another process forking
     logger = logging.getLogger(consts.LOGGER_NAME)
