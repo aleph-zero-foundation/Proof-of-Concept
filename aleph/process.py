@@ -100,8 +100,7 @@ class Process:
         '''
         n_txs = 0
         for U in list_U:
-            n_txs += len(U.transactions())
-
+            n_txs += U.n_txs
         return n_txs
 
 
@@ -138,7 +137,7 @@ class Process:
                     self.linear_order += [W.hash() for W in ordered_units]
                     self.unordered_units = updated_unordered_units
 
-                    printable_unit_hashes = ''.join([' '+W.short_name() for W in ordered_units])
+                    printable_unit_hashes = ' '.join(W.short_name() for W in ordered_units)
                     n_txs = self.process_txs_in_unit_list(ordered_units)
 
                 self.logger.info(f'add_linear_order {self.process_id} | At lvl {U_timing.level} added {len(units_to_order)} units and {n_txs} txs to the linear order {printable_unit_hashes}')
