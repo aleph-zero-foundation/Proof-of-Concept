@@ -10,7 +10,7 @@ class Unit(object):
     '''This class is the building block for the poset'''
 
     __slots__ = ['creator_id', 'parents', 'txs', 'signature', 'coin_shares',
-                 'level', 'floor', 'ceil', 'height', 'hash_value']
+                 'level', 'floor', 'ceil', 'height', 'hash_value', 'n_txs']
 
     def __init__(self, creator_id, parents, txs, signature=None, coin_shares=None):
         '''
@@ -27,6 +27,7 @@ class Unit(object):
         self.level = None
         self.hash_value = None
         self.txs = zlib.compress(pickle.dumps(txs), level=4)
+        self.n_txs = len(txs)
         self.height = parents[0].height+1 if len(parents) > 0 else 0
 
 
@@ -62,11 +63,11 @@ class Unit(object):
 
     def __getstate__(self):
         serialized_coin_shares = _serialize_coin_shares(self.coin_shares)
-        return (self.creator_id, self.parents_hashes(), self.txs, self.signature, serialized_coin_shares)
+        return (self.creator_id, self.parents_hashes(), self.txs, self.n_txs, self.signature, serialized_coin_shares)
 
 
     def __setstate__(self, state):
-        self.creator_id, self.parents, self.txs, self.signature, serialized_coin_shares = state
+        self.creator_id, self.parents, self.txs, self.n_txs, self.signature, serialized_coin_shares = state
         self.coin_shares = _deserialize_coin_shares(serialized_coin_shares)
         self.level = None
         self.hash_value = None
