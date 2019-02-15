@@ -9,10 +9,10 @@ import aleph.const as consts
 
 
 async def main():
-    n_processes = 16
+    n_processes = 20
     n_forkers = 0
     use_tcoin = False
-    consts.UNITS_LIMIT = 50
+    consts.UNITS_LIMIT = 100
 
     processes = []
     host_ports = [8900+i for i in range(n_processes)]

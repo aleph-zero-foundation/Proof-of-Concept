@@ -9,4 +9,9 @@ def xor(bytes1, bytes2):
         if len(bytes1) < len(bytes2):
             bytes1, bytes2 = bytes2, bytes1
 
-        return bytes(a ^ b for (a, b) in zip(bytes1, cycle(bytes2)))
+        s = list(bytes1[:])
+        len_bytes2 = len(bytes2)
+        for i in range(len(bytes1)):
+        	s[i] ^= bytes2[i%len_bytes2]
+
+        return bytes(s)
