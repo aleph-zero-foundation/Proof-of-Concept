@@ -30,8 +30,8 @@ def is_byzantine(id):
 
 
 def byzantine_process_builder(n_processes, process_id, sk, pk, addresses,
-                             public_keys, recv_address, userDB=None,
-                             validation_method='LINEAR_ORDERING'):
+                              public_keys, recv_address, userDB=None,
+                              validation_method='LINEAR_ORDERING'):
     builder = Process
     if is_byzantine(process_id):
         builder = ByzantineProcess
@@ -108,7 +108,7 @@ def execute_byzantine_test(process_builder=Process):
                 logger.debug(f'number of units after update: {len(other_process.poset.units)}')
                 if len(other_process.poset.units) != len(process.poset.units):
                     raise Exception('incorrect number of nodes after update:'
-                                     '{len(other_process.poset.units) != len(process.poset.units)}')
+                                    '{len(other_process.poset.units) != len(process.poset.units)}')
 
             break
 
