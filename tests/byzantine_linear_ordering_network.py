@@ -188,13 +188,13 @@ def process_builder(byzantine_builder):
 
 if __name__ == '__main__':
     print('executing the ByzantineProcess test')
-    asyncio.run(execute_test(process_builder(ByzantineProcess), 8900, 9100))
+    asyncio.run(execute_test(process_builder(ByzantineProcess), 7000, 7500))
     print('success')
 
     print('executing the ForkDivideAndStayAliveProcess test')
-    asyncio.run(execute_test(process_builder(ForkDivideAndStayAliveProcess), 9300, 9500))
+    asyncio.run(execute_test(process_builder(ForkDivideAndStayAliveProcess), 8000, 8500))
     print('success')
 
     print('executing the ForkDivideAndDieProcess test')
-    asyncio.run(execute_test(process_builder(ForkDivideAndDieProcess), 9700, 9900))
+    asyncio.run(execute_test(process_builder(ForkDivideAndDieProcess), 9000, 9500))
     print('success')
