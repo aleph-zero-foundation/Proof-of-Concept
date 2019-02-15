@@ -5,7 +5,7 @@ import socket
 
 from aleph.crypto.keys import SigningKey, VerifyKey
 from aleph.data_structures import Unit, UserDB
-from aleph.network import tx_generator, Network
+from aleph.network import tx_generator
 from aleph.process import Process
 from byzantine_process import ByzantineProcess
 import aleph.const as consts
@@ -15,9 +15,8 @@ async def execute_test(node_builder=Process, start_port=8900, tx_receiver_addres
     n_processes = 4
     txps = 50
     n_light_nodes = 100
-    consts.LEVEL_LIMIT = 5
+    consts.LEVEL_LIMIT = 10
 
-    processes = []
     host_ports = [start_port+i for i in range(n_processes)]
     local_ip = socket.gethostbyname(socket.gethostname())
     addresses = [(local_ip, port) for port in host_ports]
@@ -27,6 +26,7 @@ async def execute_test(node_builder=Process, start_port=8900, tx_receiver_addres
     public_keys = [VerifyKey.from_SigningKey(sk) for sk in signing_keys]
 
     tasks = []
+    byzantine_tasks = []
 
     initial_balances_and_indices = []
     ln_signing_keys = [SigningKey() for _ in range(n_light_nodes)]
@@ -45,8 +45,10 @@ async def execute_test(node_builder=Process, start_port=8900, tx_receiver_addres
                                    public_keys, recv_address, userDB,
                                    'LINEAR_ORDERING',
                                    gossip_strategy = 'non_recent_random')
-        processes.append(new_process)
-        tasks.append(asyncio.create_task(new_process.run()))
+        if is_process_byzantine(new_process):
+            byzantine_tasks.append(asyncio.create_task(new_process.run()))
+        else:
+            tasks.append(asyncio.create_task(new_process.run()))
 
     await asyncio.sleep(1)
 
@@ -55,6 +57,8 @@ async def execute_test(node_builder=Process, start_port=8900, tx_receiver_addres
 
     await asyncio.gather(*tasks)
     p.kill()
+    for byzantine_task in byzantine_tasks:
+        byzantine_task.cancel()
 
 
 class ForkDivideAndDieProcess(ByzantineProcess):
@@ -93,7 +97,7 @@ class ForkDivideAndDieProcess(ByzantineProcess):
     def handle_byzantine_state(self, unit, forking_unit):
         ByzantineProcess.handle_byzantine_state(self, unit, forking_unit)
 
-        self.stop_adding()
+        self.stop_adding_and_syncing()
         sync_candidates = list(range(self.n_processes))
         sync_candidates.remove(self.process_id)
         sync_candidates = sync_candidates * 2 if len(sync_candidates) < 2 else sync_candidates
@@ -103,29 +107,28 @@ class ForkDivideAndDieProcess(ByzantineProcess):
         target_ids = random.sample(sync_candidates, 2)
 
         async def sync_wrapper():
-            async def sync_1_fun():
-                self.logger.debug('syncing the first local view of the poset')
-                await self.network.sync(target_ids[0])
-                self.logger.debug('first forking view of the poset was synced succesfully')
+            self.logger.debug('syncing the first local view of the poset')
+            await self.network.sync(target_ids[0])
+            self.logger.debug('first forking view of the poset was synced succesfully')
 
-            sync_1 = asyncio.create_task(sync_1_fun())
+            # NOTE: this is some king of a dirty hack. We tried creating a new instance of Network using the second process, but
+            # due to how channels are handled we were not able to use it - peers were rejecting new channels from already
+            # connected nodes.
 
-            async def sync_2_fun():
-                self.logger.debug('syncing the second local view of the poset')
-                tmp_network = Network(self.process_copy, self.addresses, self.public_key_list, self.logger)
-                await tmp_network.sync(target_ids[1])
-                self.logger.debug('second forking view of the poset was synced succesfully')
+            # switch the instance of the process used by the network instance
+            self.logger.debug('syncing the second local view of the poset')
+            self.network.process = self.process_copy
+            await self.network.sync(target_ids[1])
+            self.logger.debug('second forking view of the poset was synced succesfully')
 
-            sync_2 = asyncio.create_task(sync_2_fun())
-
-            await asyncio.gather(sync_1, sync_2)
-
+            self.network.process = self
             self.disable()
 
         asyncio.create_task(sync_wrapper())
 
-    def stop_adding(self):
+    def stop_adding_and_syncing(self):
         self.has_stopped_adding = True
+        self.keep_syncing = False
 
     def can_add(self):
         return not self.has_stopped_adding
@@ -149,6 +152,20 @@ class ForkDivideAndDieProcess(ByzantineProcess):
         return False
 
 
+class ForkDivideAndStayAliveProcess(ForkDivideAndDieProcess):
+
+    def disable(self):
+        pass
+
+
+def is_byzantine(process_id):
+    return process_id == 0
+
+
+def is_process_byzantine(process):
+    return is_byzantine(process.process_id)
+
+
 def process_builder(byzantine_builder):
     def byzantine_process_builder(n_processes,
                                   process_id,
@@ -160,7 +177,7 @@ def process_builder(byzantine_builder):
                                   validation_method='LINEAR_ORDERING',
                                   gossip_strategy='non_recent_random'):
         creator = Process
-        if process_id == 0:
+        if is_byzantine(process_id):
             creator = byzantine_builder
 
         return creator(n_processes, process_id, sk, pk, addresses, public_keys, recv_address, userDB,
@@ -174,6 +191,10 @@ if __name__ == '__main__':
     asyncio.run(execute_test(process_builder(ByzantineProcess), 8900, 9100))
     print('success')
 
+    print('executing the ForkDivideAndStayAliveProcess test')
+    asyncio.run(execute_test(process_builder(ForkDivideAndStayAliveProcess), 9300, 9500))
+    print('success')
+
     print('executing the ForkDivideAndDieProcess test')
-    asyncio.run(execute_test(process_builder(ForkDivideAndDieProcess), 9300, 9500))
+    asyncio.run(execute_test(process_builder(ForkDivideAndDieProcess), 9700, 9900))
     print('success')
