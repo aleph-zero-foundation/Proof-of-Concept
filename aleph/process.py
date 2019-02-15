@@ -64,8 +64,8 @@ class Process:
         self.keep_syncing = True
         self.tx_source = tx_source
 
-        # hashes of units that have not yet been linearly ordered
-        self.unordered_units = set()
+        # units that have not yet been linearly ordered
+        self.unordered_units = []
 
         # hashes of units in linear order
         self.linear_order = []
@@ -107,8 +107,10 @@ class Process:
         '''
         Add a (compliant) unit to the poset, try to find a new timing unit and if succeded, extend the linear order.
         '''
+        #NOTE: it is assumed at this point that U is not yet in the poset
+        assert U.hash() not in self.poset.units, "A duplicate unit is being added to the poset."
         self.poset.add_unit(U)
-        self.unordered_units.add(U.hash())
+        self.unordered_units.append(U)
         if self.poset.is_prime(U):
 
             with timer(self.process_id, 'attempt_timing'):
@@ -123,14 +125,16 @@ class Process:
             for U_timing in new_timing_units:
                 with timer(self.process_id, f'linear_order_{U_timing.level}'):
                     units_to_order = []
-                    for V_hash in self.unordered_units:
-                        V = self.poset.unit_by_hash(V_hash)
+                    updated_unordered_units = []
+                    for V in self.unordered_units:
                         if self.poset.below(V, U_timing):
                             units_to_order.append(V)
+                        else:
+                            updated_unordered_units.append(V)
+
                     ordered_units = self.poset.break_ties(units_to_order)
-                    ordered_units_hashes = [W.hash() for W in ordered_units]
-                    self.linear_order += ordered_units_hashes
-                    self.unordered_units = self.unordered_units.difference(ordered_units_hashes)
+                    self.linear_order += [W.hash() for W in ordered_units]
+                    self.unordered_units = updated_unordered_units
 
                     printable_unit_hashes = ''.join([' '+W.short_name() for W in ordered_units])
                     n_txs = self.process_txs_in_unit_list(ordered_units)
@@ -276,6 +280,7 @@ class Process:
         syncing_task = asyncio.create_task(self.dispatch_syncs(server_started))
 
         await asyncio.gather(syncing_task, creator_task)
+
         self.logger.info(f'listener_done {self.process_id} | Gathered results; canceling server and listeners')
         server_task.cancel()
         listener_task.cancel()

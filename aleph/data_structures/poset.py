@@ -4,6 +4,7 @@ from itertools import product
 from functools import reduce
 import random
 import logging
+import hashlib
 
 
 from aleph.crypto.signatures.threshold_signatures import generate_keys, SecretKey, VerificationKey
@@ -1387,15 +1388,20 @@ class Poset:
     def break_ties(self, units_list):
         '''
         Produce a linear ordering on the provided units.
+        It is a slightly different implementation than in the arxiv paper to avoid using xor which turns out to be very slow in python.
+        Essentially a sha3 hash is used in place of xor.
         :param list units_list: the units to be sorted, should be all units with a given timing round
         :returns: the same set of units in a list ordered linearly
         '''
-        R = reduce(xor, map(lambda x: x.hash(), units_list))
-        #TODO: might be a good idea to precalculate those?
-        tiebraker = lambda U: xor(R, U.hash())
+        sha3_hash = lambda x: hashlib.sha3_256(x).digest()
+        # R is a value that depends on all the units in units_list and does not depend on the order of units in units_list
+
+        R = sha3_hash(b''.join(sorted(U.hash() for U in units_list)))
 
         children = {U:[] for U in units_list} #lists of children
         parents  = {U:0  for U in units_list} #number of parents
+        # instead of xor(U.hash(), R) we hash the pair using sha3
+        tiebreaker = {U: sha3_hash(U.hash() + R) for U in units_list}
         orphans  = set(units_list)
         for U in units_list:
             for P in U.parents:
@@ -1407,7 +1413,7 @@ class Poset:
         ret = []
 
         while orphans:
-            ret += sorted(orphans, key=tiebraker)
+            ret += sorted(orphans, key= lambda x: tiebreaker[x])
 
             out = list(orphans)
             orphans = set()

@@ -52,12 +52,12 @@ class Unit(object):
 
     def short_name(self):
         '''
-        Returns a 16 character string (surrounded by '< >' brackets) -- a shorter hash of the unit. To be used for printing units in logs.
-        NOTE: this has collision resistance as long there are roughly <= 10^12 units considered simultaneusly.
+        Returns a 12 character string (surrounded by '< >' brackets) -- a shorter hash of the unit. To be used for printing units in logs.
+        NOTE: this has collision resistance as long there are roughly <= 10^9 units considered simultaneusly.
         NOTE: this uses only characters in the set A-Z, 2-7 (base32 encoding)
         '''
-        base32_hash = base64.b32encode(self.hash()[:10]).decode()
-        return '<'+base32_hash[:16]+'>'
+        base32_hash = base64.b32encode(self.hash()[:8]).decode()
+        return '<'+base32_hash[:12]+'>'
 
 
     def __getstate__(self):
