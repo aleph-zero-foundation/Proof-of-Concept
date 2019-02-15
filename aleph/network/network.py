@@ -10,7 +10,7 @@ import aleph.const as consts
 
 class Network:
 
-    def __init__(self, process, addresses, public_key_list, logger, protocol='old', keep_connection=True):
+    def __init__(self, process, addresses, public_key_list, logger, protocol=None, keep_connection=True):
         '''Class that takes care of handling network connections with other processes.
 
         :param Process process: process who uses this network to communicate with others
@@ -20,6 +20,7 @@ class Network:
         :param str protocol: which sync protocol to use. Methods sync and listener are redirected to, respectively {protocol}_sync and {protocol}_listener
         :param bool keep_connection: Don't close network connection after every sync
         '''
+
         self.process = process
         self.addresses = addresses
         self.public_key_list = public_key_list
@@ -31,10 +32,15 @@ class Network:
         self.sync_channels = {i: Channel(pid, i, addr) for i, addr in enumerate(addresses) if i != pid}
         self.listen_channels = {i: Channel(pid, i, addr) for i, addr in enumerate(addresses) if i != pid}
 
-        self.sync = self.__getattribute__(protocol + '_sync')
-        self.listener = self.__getattribute__(protocol + '_listener')
+        if protocol is None:
+            protocol = consts.SYNC_PROTOCOL
+        if hasattr(self, protocol + '_sync') and hasattr(self, protocol + '_listener'):
+            self.sync = self.__getattribute__(protocol + '_sync')
+            self.listener = self.__getattribute__(protocol + '_listener')
+            self.logger.info(f'network_init {self.process.process_id} | Using {protocol} protocol')
+        else:
+            raise NotImplementedError(f'Sync protocol {protocol} not implemented in Network')
 
-        self.logger.info(f'network_init {self.process.process_id} | Using {protocol} protocol')
 
 
     async def start_server(self, server_started):

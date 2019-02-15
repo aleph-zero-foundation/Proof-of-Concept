@@ -12,7 +12,7 @@ class FastPoset(Poset):
     '''
     An alternative instantiation of Poset -- with different consensus rules.
     '''
-    def __init__(self, n_processes, process_id = None, crp = None, use_tcoin = consts.USE_TCOIN,
+    def __init__(self, n_processes, process_id = None, crp = None, use_tcoin = None,
                 compliance_rules = None, memo_height = 10, consensus_params = None):
         '''
         :param int n_processes: the committee size
@@ -21,7 +21,7 @@ class FastPoset(Poset):
         self.n_processes = n_processes
         self.default_compliance_rules = {'forker_muting': True, 'parent_diversity': False, 'growth': False, 'expand_primes': True, 'threshold_coin': use_tcoin}
         self.compliance_rules = compliance_rules
-        self.use_tcoin = use_tcoin
+        self.use_tcoin = use_tcoin if use_tcoin is not None else consts.USE_TCOIN
         # process_id is used only to support tcoin (i.e. in case use_tcoin = True), to know which shares to add and which tcoin to pick from dealing units
         self.process_id = process_id
 
