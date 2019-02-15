@@ -17,7 +17,7 @@ class ByzantineProcess(Process):
                  userDB=None,
                  validation_method='SNAP',
                  gossip_strategy='unif_random',
-                 level_limit=3):
+                 level_limit=2):
 
         Process.__init__(self,
                          n_processes,
@@ -154,6 +154,7 @@ class ByzantineProcess(Process):
             try:
                 U = Process.create_unit(self, txs, prefer_maximal)
                 if U is None:
+                    self.logger.debug('"Process.create_unit" returned None')
                     continue
                 self.poset.prepare_unit(U)
                 if (
