@@ -276,19 +276,21 @@ class Process:
         self.logger.info(f'start_process {self.process_id} | Starting a new process in committee of size {self.n_processes}')
         txs_queue = multiprocessing.Queue(1000)
         p = multiprocessing.Process(target=self.tx_source, args=(self.tx_receiver_address, txs_queue))
-        p.start()
+        try:
+            p.start()
 
-        server_started = asyncio.Event()
-        server_task = asyncio.create_task(self.network.start_server(server_started))
-        listener_task = asyncio.create_task(self.start_listeners(server_started))
-        creator_task = asyncio.create_task(self.create_add(txs_queue, server_started))
-        syncing_task = asyncio.create_task(self.dispatch_syncs(server_started))
+            server_started = asyncio.Event()
+            server_task = asyncio.create_task(self.network.start_server(server_started))
+            listener_task = asyncio.create_task(self.start_listeners(server_started))
+            creator_task = asyncio.create_task(self.create_add(txs_queue, server_started))
+            syncing_task = asyncio.create_task(self.dispatch_syncs(server_started))
 
-        await asyncio.gather(syncing_task, creator_task)
+            await asyncio.gather(syncing_task, creator_task)
 
-        self.logger.info(f'listener_done {self.process_id} | Gathered results; canceling server and listeners')
-        server_task.cancel()
-        listener_task.cancel()
+            self.logger.info(f'listener_done {self.process_id} | Gathered results; canceling server and listeners')
+            server_task.cancel()
+            listener_task.cancel()
+        finally:
+            p.kill()
 
-        p.kill()
         self.logger.info(f'process_done {self.process_id} | Exiting program')
