@@ -1,6 +1,5 @@
 import asyncio
 import pickle
-import zlib
 import socket
 
 from .channel import Channel, RejectException
@@ -83,8 +82,6 @@ class Network:
         self.logger.info(f'send_poset_{mode} {ids} | sending info about heights to {channel.peer_id}')
         to_send = poset_info(self.process.poset)
         data = pickle.dumps(to_send)
-        if consts.SEND_COMPRESSED:
-            data = zlib.compress(data)
         await channel.write(data)
         self.logger.info(f'send_poset_{mode} {ids} | sent heights {to_send} to {channel.peer_id}')
 
@@ -94,8 +91,6 @@ class Network:
         if ids is None:
             ids = self._new_sync_id(channel.peer_id)
         self.logger.info(f'receive_poset_{mode} {ids} | Receiving info about heights from {channel.peer_id}')
-        if consts.SEND_COMPRESSED:
-            data = zlib.decompress(data)
         info = pickle.loads(data)
         self.logger.info(f'receive_poset_{mode} {ids} | Got heights {info} from {channel.peer_id}')
         return info, ids
@@ -104,8 +99,6 @@ class Network:
     async def _send_requests(self, to_send, channel, mode, ids):
         self.logger.info(f'send_requests_start_{mode} {ids} | Sending requests to {channel.peer_id}')
         data = pickle.dumps(to_send)
-        if consts.SEND_COMPRESSED:
-            data = zlib.compress(data)
         await channel.write(data)
         self.logger.info(f'send_requests_done_{mode} {ids} | sent requests {to_send} to {channel.peer_id}')
 
@@ -113,8 +106,6 @@ class Network:
     async def _receive_requests(self, channel, mode, ids):
         self.logger.info(f'receive_requests_start_{mode} {ids} | receiving requests from {channel.peer_id}')
         data = await channel.read()
-        if consts.SEND_COMPRESSED:
-            data = zlib.decompress(data)
         requests_received = pickle.loads(data)
         self.logger.info(f'receive_requests_done_{mode} {ids} | received requests {requests_received} from {channel.peer_id}')
         return requests_received
@@ -122,18 +113,8 @@ class Network:
 
     async def _send_units(self, to_send, channel, mode, ids):
         self.logger.info(f'send_units_start_{mode} {ids} | Sending units to {channel.peer_id}')
-
         with timer(ids, 'pickle_units'):
             data = pickle.dumps(to_send)
-
-        if consts.SEND_COMPRESSED:
-            initial_len = len(data)
-            with timer(ids, 'compress_units'):
-                data = zlib.compress(data)
-            compressed_len = len(data)
-            gained = 1.0 - compressed_len/initial_len
-            self.logger.info(f'compression_rate {ids} | Compressed {initial_len} to {compressed_len}, gained {gained:.4f} of size.')
-
         self.logger.info(f'send_units_wait_{mode} {ids} | Sending {len(to_send)} units and {len(data)} bytes to {channel.peer_id}')
         await channel.write(data)
         self.logger.info(f'send_units_sent_{mode} {ids} | Sent {len(to_send)} units and {len(data)} bytes to {channel.peer_id}')
@@ -145,14 +126,8 @@ class Network:
         data = await channel.read()
         n_bytes = len(data)
         self.logger.info(f'receive_units_bytes_{mode} {ids} | Received {n_bytes} bytes from {channel.peer_id}')
-
-        if consts.SEND_COMPRESSED:
-            with timer(ids, 'decompress_units'):
-                data = zlib.decompress(data)
-
         with timer(ids, 'unpickle_units'):
             units_received = pickle.loads(data)
-
         self.logger.info(f'receive_units_done_{mode} {ids} | Received {n_bytes} bytes and {len(units_received)} units')
         return units_received
 
