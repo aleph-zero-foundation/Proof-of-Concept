@@ -5,6 +5,7 @@ import socket
 
 from .channel import Channel, RejectException
 from aleph.utils import timer
+from aleph.actions import poset_info, units_to_send, empty_requests
 import aleph.const as consts
 
 
@@ -92,12 +93,12 @@ class Network:
 
     async def _send_poset_info(self, channel, mode, ids):
         self.logger.info(f'send_poset_{mode} {ids} | sending info about heights to {channel.peer_id}')
-        poset_info = self.process.poset.get_heights()
-        data = pickle.dumps(poset_info)
+        to_send = poset_info(self.process.poset)
+        data = pickle.dumps(to_send)
         if consts.SEND_COMPRESSED:
             data = zlib.compress(data)
         await channel.write(data)
-        self.logger.info(f'send_poset_{mode} {ids} | sent heights {poset_info} to {channel.peer_id}')
+        self.logger.info(f'send_poset_{mode} {ids} | sent heights {to_send} to {channel.peer_id}')
 
 
     async def _receive_poset_info(self, channel, mode, ids):
@@ -107,19 +108,35 @@ class Network:
         self.logger.info(f'receive_poset_{mode} {ids} | Receiving info about heights from {channel.peer_id}')
         if consts.SEND_COMPRESSED:
             data = zlib.decompress(data)
-        poset_info = pickle.loads(data)
-        self.logger.info(f'receive_poset_{mode} {ids} | Got heights {poset_info} from {channel.peer_id}')
-        return poset_info, ids
+        info = pickle.loads(data)
+        self.logger.info(f'receive_poset_{mode} {ids} | Got heights {info} from {channel.peer_id}')
+        return info, ids
 
 
-    async def _send_units(self, their_poset_info, channel, mode, ids):
+    async def _send_requests(self, to_send, channel, mode, ids):
+        self.logger.info(f'send_requests_start_{mode} {ids} | Sending requests to {channel.peer_id}')
+        data = pickle.dumps(to_send)
+        if consts.SEND_COMPRESSED:
+            data = zlib.compress(data)
+        await channel.write(data)
+        self.logger.info(f'send_requests_done_{mode} {ids} | sent requests {to_send} to {channel.peer_id}')
+
+
+    async def _receive_requests(self, channel, mode, ids):
+        self.logger.info(f'receive_requests_start_{mode} {ids} | receiving requests from {channel.peer_id}')
+        data = await channel.read()
+        if consts.SEND_COMPRESSED:
+            data = zlib.decompress(data)
+        requests_received = pickle.loads(data)
+        self.logger.info(f'receive_requests_done_{mode} {ids} | received requests {requests_received} from {channel.peer_id}')
+        return requests_received
+
+
+    async def _send_units(self, to_send, channel, mode, ids):
         self.logger.info(f'send_units_start_{mode} {ids} | Sending units to {channel.peer_id}')
 
-        with timer(ids, 'prepare_units'):
-            units_to_send = self.process.poset.units_to_send(their_poset_info)
-
         with timer(ids, 'pickle_units'):
-            data = pickle.dumps(units_to_send)
+            data = pickle.dumps(to_send)
 
         if consts.SEND_COMPRESSED:
             initial_len = len(data)
@@ -129,9 +146,9 @@ class Network:
             gained = 1.0 - compressed_len/initial_len
             self.logger.info(f'compression_rate {ids} | Compressed {initial_len} to {compressed_len}, gained {gained:.4f} of size.')
 
-        self.logger.info(f'send_units_wait_{mode} {ids} | Sending {len(units_to_send)} units and {len(data)} bytes to {channel.peer_id}')
+        self.logger.info(f'send_units_wait_{mode} {ids} | Sending {len(to_send)} units and {len(data)} bytes to {channel.peer_id}')
         await channel.write(data)
-        self.logger.info(f'send_units_sent_{mode} {ids} | Sent {len(units_to_send)} units and {len(data)} bytes to {channel.peer_id}')
+        self.logger.info(f'send_units_sent_{mode} {ids} | Sent {len(to_send)} units and {len(data)} bytes to {channel.peer_id}')
         self.logger.info(f'send_units_done_{mode} {ids} | Units sent {channel.peer_id}')
 
 
@@ -197,80 +214,11 @@ class Network:
 # SYNCING PROTOCOLS
 #===============================================================================================================================
 
-
-    async def pull_sync(self, peer_id):
-        '''
-        Sync with process peer_id.
-        This version uses 2-exchange "pull" protocol: send heights, receive units.
-        '''
-        channel = self.sync_channels[peer_id]
-        if channel.in_use.locked():
-            self.logger.info(f'sync_canceled {self.process.process_id} | Previous sync with {peer_id} still in progress')
-            return
-
-        async with channel.in_use:
-            ids = self._new_sync_id(peer_id)
-            self.logger.info(f'sync_establish_try {ids} | Establishing connection to {peer_id}')
-            self.logger.info(f'sync_establish {ids} | Established connection to {peer_id}')
-
-            #step 1
-            await self._send_poset_info(channel, 'sync', ids)
-
-            #step 2
-            try:
-                units_received = await self._receive_units(channel, 'sync', ids)
-            except RejectException:
-                self.logger.info(f'sync_rejected {ids} | Process {peer_id} rejected sync attempt')
-                await self.maybe_close(channel)
-                return
-
-        await self.maybe_close(channel)
-
-        if self._verify_signatures_and_add_units(units_received, peer_id, 'sync', ids):
-            self.logger.info(f'sync_done {ids} | Syncing with {peer_id} successful')
-            timer.write_summary(where=self.logger, groups=[ids])
-
-
-    async def pull_listener(self, peer_id):
-        '''
-        Listen indefinitely for incoming syncs from process peer_id.
-        This version is a counterpart for pull_sync, follows the same 2-exchange protocol.
-        '''
-        channel = self.listen_channels[peer_id]
-        while True:
-            #step 1
-            their_poset_info, ids = await self._receive_poset_info(channel, 'listener', None)
-
-            self.n_recv_syncs += 1
-            self.logger.info(f'listener_sync_no {ids} | Number of syncs is {self.n_recv_syncs}')
-
-            if self.n_recv_syncs > consts.N_RECV_SYNC:
-                self.logger.info(f'listener_too_many_syncs {ids} | Too many syncs, rejecting {peer_id}')
-                await channel.reject()
-                await self.maybe_close(channel)
-                self.n_recv_syncs -= 1
-                continue
-
-            self.logger.info(f'listener_establish {ids} | Connection established with {peer_id}')
-
-            #step 2
-            await self._send_units(their_poset_info, channel, 'listener', ids)
-
-            self.logger.info(f'listener_succ {ids} | Syncing with {peer_id} successful')
-            timer.write_summary(where=self.logger, groups=[ids])
-
-            await self.maybe_close(channel)
-            self.n_recv_syncs -= 1
-
-
-
-#===============================================================================================================================
-
-
     async def pullpush_sync(self, peer_id):
         '''
         Sync with process peer_id.
-        This version uses 3-exchange "pullpush" protocol: send heights, receive heights and units, send units.
+        This version uses 3-exchange "pullpush" protocol: send heights, receive heights, units and requests, send units and requests.
+        If we sent some requests there is a 4th exchange where we once again get units. This should only happen due to forks.
         '''
         channel = self.sync_channels[peer_id]
         if channel.in_use.locked():
@@ -289,13 +237,24 @@ class Network:
             try:
                 their_poset_info, _ = await self._receive_poset_info(channel, 'sync', ids)
                 units_received = await self._receive_units(channel, 'sync', ids)
+                their_requests = await self._receive_requests(channel, 'sync', ids)
             except RejectException:
                 self.logger.info(f'sync_rejected {ids} | Process {peer_id} rejected sync attempt')
                 await self.maybe_close(channel)
                 return
 
             #step 3
-            await self._send_units(their_poset_info, channel, 'sync', ids)
+            with timer(ids, 'prepare_units'):
+                to_send, to_request = units_to_send(self.process.poset, their_poset_info, their_requests)
+            await self._send_units(to_send, channel, 'sync', ids)
+            received_hashes = [U.hash() for U in units_received]
+            to_request = [[r for r in reqs if r not in received_hashes] for reqs in to_request]
+            await self._send_requests(to_request, channel, 'sync', ids)
+
+            #step 4 (only if we requested something)
+            if not empty_requests(to_request):
+                self.logger.info(f'sync_extended {ids} | Sync with {peer_id} extended due to forks')
+                units_received = await self._receive_units(channel, 'sync', ids)
 
         await self.maybe_close(channel)
 
@@ -328,10 +287,21 @@ class Network:
 
             #step 2
             await self._send_poset_info(channel, 'listener', ids)
-            await self._send_units(their_poset_info, channel, 'listener', ids)
+            with timer(ids, 'prepare_units'):
+                to_send, to_request = units_to_send(self.process.poset, their_poset_info)
+            await self._send_units(to_send, channel, 'listener', ids)
+            await self._send_requests(to_request, channel, 'listener', ids)
 
             #step 3
             units_received = await self._receive_units(channel, 'listener', ids)
+            their_requests = await self._receive_requests(channel, 'listener', ids)
+
+            #step 4 (only if they requested something)
+            if not empty_requests(their_requests):
+                self.logger.info(f'listener_extended {ids} | Sync with {peer_id} extended due to forks')
+                with timer(ids, 'prepare_units'):
+                    to_send, _ = units_to_send(self.process.poset, their_poset_info, their_requests)
+                await self._send_units(to_send, channel, 'listener', ids)
 
             if self._verify_signatures_and_add_units(units_received, peer_id, 'listener', ids):
                 self.logger.info(f'listener_succ {ids} | Syncing with {peer_id} successful')
@@ -339,97 +309,3 @@ class Network:
 
             await self.maybe_close(channel)
             self.n_recv_syncs -= 1
-
-
-#===============================================================================================================================
-
-
-    async def old_sync(self, peer_id):
-        '''
-        Sync with process peer_id.
-        This version uses the old "symmetric" 4-exchange protocol: send heights, receive heights, send units, receive units.
-        '''
-        channel = self.sync_channels[peer_id]
-        if channel.in_use.locked():
-            self.logger.info(f'sync_canceled {self.process.process_id} | Previous sync with {peer_id} still in progress')
-            return
-
-        async with channel.in_use:
-            ids = self._new_sync_id(peer_id)
-            self.logger.info(f'sync_establish_try {ids} | Establishing connection to {peer_id}')
-            self.logger.info(f'sync_establish {ids} | Established connection to {peer_id}')
-
-            #step 1
-            await self._send_poset_info(channel, 'sync', ids)
-
-            #step 2
-            try:
-                their_poset_info, _ = await self._receive_poset_info(channel, 'sync', ids)
-            except RejectException:
-                self.logger.info(f'sync_rejected_early {ids} | Process {peer_id} rejected sync attempt')
-                await self.maybe_close(channel)
-                return
-
-            #step 3
-            await self._send_units(their_poset_info, channel, 'sync', ids)
-
-            #step 4
-            try:
-                units_received = await self._receive_units(channel, 'sync', ids)
-            except RejectException:
-                self.logger.info(f'sync_rejected_late {ids} | Process {peer_id} rejected units sent to him')
-                await self.maybe_close(channel)
-                return
-
-
-        await self.maybe_close(channel)
-
-        if self._verify_signatures_and_add_units(units_received, peer_id, 'sync', ids):
-            self.logger.info(f'sync_done {ids} | Syncing with {peer_id} successful')
-            timer.write_summary(where=self.logger, groups=[ids])
-
-
-    async def old_listener(self, peer_id):
-        '''
-        Listen indefinitely for incoming syncs from process peer_id.
-        This version is a counterpart for old_sync, follows the same 4-exchange protocol.
-        '''
-        channel = self.listen_channels[peer_id]
-        while True:
-            #step 1
-            their_poset_info, ids = await self._receive_poset_info(channel, 'listener', None)
-
-            self.n_recv_syncs += 1
-            self.logger.info(f'listener_sync_no {ids} | Number of syncs is {self.n_recv_syncs}')
-
-            if self.n_recv_syncs > consts.N_RECV_SYNC:
-                self.logger.info(f'listener_too_many_syncs {ids} | Too many syncs, rejecting {peer_id}')
-                await channel.reject()
-                await self.maybe_close(channel)
-                self.n_recv_syncs -= 1
-                continue
-
-            self.logger.info(f'listener_establish {ids} | Connection established with {peer_id}')
-
-            #step 2
-            await self._send_poset_info(channel, 'listener', ids)
-
-            #step 3
-            units_received = await self._receive_units(channel, 'listener', ids)
-
-            if not self._verify_signatures_and_add_units(units_received, peer_id, 'listener', ids):
-                self.logger.info(f'listener_verify_failed {ids} | Received incorrect units, interrupting sync with {peer_id}')
-                await channel.reject()
-                await self.maybe_close(channel)
-                self.n_recv_syncs -= 1
-                continue
-
-            #step 4
-            await self._send_units(their_poset_info, channel, 'listener', ids)
-
-            await self.maybe_close(channel)
-            self.n_recv_syncs -= 1
-
-            self.logger.info(f'listener_succ {ids} | Syncing with {peer_id} successful')
-            timer.write_summary(where=self.logger, groups=[ids])
-
