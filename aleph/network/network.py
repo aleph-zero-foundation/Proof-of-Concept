@@ -11,14 +11,13 @@ import aleph.const as consts
 
 class Network:
 
-    def __init__(self, process, addresses, public_key_list, logger, protocol=None, keep_connection=True):
+    def __init__(self, process, addresses, public_key_list, logger, keep_connection=True):
         '''Class that takes care of handling network connections with other processes.
 
         :param Process process: process who uses this network to communicate with others
         :param list addresses: list of addresses of all committee members, ordered by their process_id. Each address is a pair (IP, port)
         :param list public_key_list: the list of public keys of all committee members
         :param Logger logger: where to write all the log messages
-        :param str protocol: which sync protocol to use. Methods sync and listener are redirected to, respectively {protocol}_sync and {protocol}_listener
         :param bool keep_connection: Don't close network connection after every sync
         '''
 
@@ -32,17 +31,6 @@ class Network:
         pid = self.process.process_id
         self.sync_channels = {i: Channel(pid, i, addr) for i, addr in enumerate(addresses) if i != pid}
         self.listen_channels = {i: Channel(pid, i, addr) for i, addr in enumerate(addresses) if i != pid}
-
-        if protocol is None:
-            protocol = consts.SYNC_PROTOCOL
-        if hasattr(self, protocol + '_sync') and hasattr(self, protocol + '_listener'):
-            self.sync = self.__getattribute__(protocol + '_sync')
-            self.listener = self.__getattribute__(protocol + '_listener')
-            self.logger.info(f'network_init {self.process.process_id} | Using {protocol} protocol')
-        else:
-            raise NotImplementedError(f'Sync protocol {protocol} not implemented in Network')
-
-
 
     async def start_server(self, server_started):
         '''
@@ -214,7 +202,7 @@ class Network:
 # SYNCING PROTOCOLS
 #===============================================================================================================================
 
-    async def pullpush_sync(self, peer_id):
+    async def sync(self, peer_id):
         '''
         Sync with process peer_id.
         This version uses 3-exchange "pullpush" protocol: send heights, receive heights, units and requests, send units and requests.
@@ -263,10 +251,10 @@ class Network:
             timer.write_summary(where=self.logger, groups=[ids])
 
 
-    async def pullpush_listener(self, peer_id):
+    async def listener(self, peer_id):
         '''
         Listen indefinitely for incoming syncs from process peer_id.
-        This version is a counterpart for pullpush_sync, follows the same 3-exchange protocol.
+        This version is a counterpart for sync, follows the same 3-exchange protocol.
         '''
         channel = self.listen_channels[peer_id]
         while True:

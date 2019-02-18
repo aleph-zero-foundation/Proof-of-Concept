@@ -20,8 +20,6 @@ HOST_PORT       = 8888         # default port of incoming syncs
 
 LOGGER_NAME     = 'aleph'
 
-SYNC_PROTOCOL   = 'pullpush'   # version of sync protocol used by the network (currently possible: old, pullpush, pull)
-
 SEND_COMPRESSED = 0            # use zlib compressing/decompressing when sending data over the network
 
 USE_FAST_POSET  = 1            # use fast poset in place of poset when using Processes
