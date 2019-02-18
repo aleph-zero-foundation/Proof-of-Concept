@@ -4,14 +4,41 @@ import random
 import socket
 
 from aleph.crypto.keys import SigningKey, VerifyKey
-from aleph.data_structures import Unit, UserDB
+from aleph.data_structures import UserDB
 from aleph.network import tx_generator
 from aleph.process import Process
 from byzantine_process import ByzantineProcess
 import aleph.const as consts
 
 
-async def execute_test(node_builder=Process, start_port=8900, tx_receiver_address_start_port=9100):
+def process_builder(byzantine_builder):
+    def byzantine_process_builder(n_processes,
+                                  process_id,
+                                  sk, pk,
+                                  addresses,
+                                  public_keys,
+                                  recv_address,
+                                  userDB=None,
+                                  validation_method='LINEAR_ORDERING',
+                                  gossip_strategy='non_recent_random'):
+        creator = Process
+        if is_byzantine(process_id):
+            creator = byzantine_builder
+
+        return creator(n_processes, process_id, sk, pk, addresses, public_keys, recv_address, userDB,
+                       validation_method, gossip_strategy=gossip_strategy)
+
+    return byzantine_process_builder
+
+
+async def execute_test(node_builder=process_builder(ByzantineProcess), start_port=8900, tx_receiver_address_start_port=9100):
+    '''
+    Executes a test consisting of spawning a given number of instances of the Process class, including instances that are
+    byzantine, generating some number of transactions and syncing all of the nodes until they reach some given level.
+    :param node_builder: a factory method producing instances of the class Process
+    :param start_port: start of the port range used by the created instances of the Process class for syncing
+    :param tx_receiver_address_start_port: start of the port range used by created Process instances for receiving transactions
+    '''
     n_processes = 4
     txps = 50
     n_light_nodes = 100
@@ -44,7 +71,7 @@ async def execute_test(node_builder=Process, start_port=8900, tx_receiver_addres
         new_process = node_builder(n_processes, process_id, sk, pk, addresses,
                                    public_keys, recv_address, userDB,
                                    'LINEAR_ORDERING',
-                                   gossip_strategy = 'non_recent_random')
+                                   gossip_strategy='unif_random')
         if is_process_byzantine(new_process):
             byzantine_tasks.append(asyncio.create_task(new_process.run()))
         else:
@@ -54,7 +81,6 @@ async def execute_test(node_builder=Process, start_port=8900, tx_receiver_addres
 
     p = multiprocessing.Process(target=tx_generator, args=(recv_addresses, ln_signing_keys, txps))
     p.start()
-
     await asyncio.gather(*tasks)
     p.kill()
     for byzantine_task in byzantine_tasks:
@@ -62,6 +88,10 @@ async def execute_test(node_builder=Process, start_port=8900, tx_receiver_addres
 
 
 class ForkDivideAndDieProcess(ByzantineProcess):
+    '''
+    Implementation of the byzantine process which after some given number of levels creates a fork, syncs two different versions
+    of its poset with two random peers and immediately dies.
+    '''
 
     def __init__(self,
                  n_processes,
@@ -71,7 +101,7 @@ class ForkDivideAndDieProcess(ByzantineProcess):
                  public_key_list,
                  tx_receiver_address,
                  userDB=None,
-                 validation_method='SNAP',
+                 validation_method='LINEAR_ORDERING',
                  gossip_strategy='unif_random'):
         ByzantineProcess.__init__(self,
                                   n_processes,
@@ -83,21 +113,21 @@ class ForkDivideAndDieProcess(ByzantineProcess):
                                   userDB,
                                   validation_method,
                                   gossip_strategy=gossip_strategy)
-        self.process_copy = Process(n_processes,
-                                    process_id,
-                                    secret_key, public_key,
-                                    address_list,
-                                    public_key_list,
-                                    tx_receiver_address,
-                                    userDB,
-                                    validation_method,
-                                    gossip_strategy=gossip_strategy)
-        self.has_stopped_adding = False
+        self._process_copy = Process(n_processes,
+                                     process_id,
+                                     secret_key, public_key,
+                                     address_list,
+                                     public_key_list,
+                                     tx_receiver_address,
+                                     userDB,
+                                     validation_method,
+                                     gossip_strategy=gossip_strategy)
+        self._has_stopped_adding = False
 
-    def handle_byzantine_state(self, unit, forking_unit):
-        ByzantineProcess.handle_byzantine_state(self, unit, forking_unit)
+    def _handle_byzantine_state(self, unit, forking_unit):
+        ByzantineProcess._handle_byzantine_state(self, unit, forking_unit)
 
-        self.stop_adding_and_syncing()
+        self._stop_adding_and_syncing()
         sync_candidates = list(range(self.n_processes))
         sync_candidates.remove(self.process_id)
         sync_candidates = sync_candidates * 2 if len(sync_candidates) < 2 else sync_candidates
@@ -107,54 +137,53 @@ class ForkDivideAndDieProcess(ByzantineProcess):
         target_ids = random.sample(sync_candidates, 2)
 
         async def sync_wrapper():
-            self.logger.debug('syncing the first local view of the poset')
+            self._logger.debug('syncing the first local view of the poset')
             await self.network.sync(target_ids[0])
-            self.logger.debug('first forking view of the poset was synced succesfully')
+            self._logger.debug('first forking view of the poset was synced succesfully')
 
             # NOTE: this is some king of a dirty hack. We tried creating a new instance of Network using the second process, but
             # due to how channels are handled we were not able to use it - peers were rejecting new channels from already
             # connected nodes.
 
-            # switch the instance of the process used by the network instance
-            self.logger.debug('syncing the second local view of the poset')
+            # switch the instance of the Process class used by the network instance
+            self._logger.debug('syncing the second local view of the poset')
             self.network.process = self.process_copy
             await self.network.sync(target_ids[1])
-            self.logger.debug('second forking view of the poset was synced succesfully')
+            self._logger.debug('second forking view of the poset was synced succesfully')
 
             self.network.process = self
             self.disable()
 
         asyncio.create_task(sync_wrapper())
 
-    def stop_adding_and_syncing(self):
-        self.has_stopped_adding = True
-        self.keep_syncing = False
+    def _stop_adding_and_syncing(self):
+        self._has_stopped_adding = True
+        self._keep_syncing = False
 
-    def can_add(self):
-        return not self.has_stopped_adding
+    def _can_add(self):
+        return not self._has_stopped_adding
 
-    def add_byzantine_unit(self, process, unit):
-        return ByzantineProcess.add_byzantine_unit(self, self.process_copy, unit)
-
-    def translate_unit(self, U, process):
-        parent_hashes = [V.hash() for V in U.parents]
-        parents = [process.poset.units[V] for V in parent_hashes]
-        U_new = Unit(U.creator_id, parents, U.transactions(), U.coin_shares)
-        process.sign_unit(U_new)
-        return U_new
+    def _add_byzantine_unit(self, process, unit):
+        return ByzantineProcess._add_byzantine_unit(self, self._process_copy, unit)
 
     def add_unit_to_poset(self, U):
-        if not self.can_add():
+        if not self._can_add():
             return False
         if ByzantineProcess.add_unit_to_poset(self, U):
-            U_new = self.translate_unit(U, self.process_copy)
-            return self.process_copy.add_unit_to_poset(U_new)
+            U_new = self.translate_unit(U, self._process_copy)
+            return self._process_copy.add_unit_to_poset(U_new)
         return False
 
 
 class ForkDivideAndStayAliveProcess(ForkDivideAndDieProcess):
+    '''
+    Type of a byzantine Process that keeps syncing after creating a forking unit.
+    '''
 
     def disable(self):
+        '''
+        Overrides the method from the ByzantineProcess class to avoid disabling an instance after it created a fork.
+        '''
         pass
 
 
@@ -164,26 +193,6 @@ def is_byzantine(process_id):
 
 def is_process_byzantine(process):
     return is_byzantine(process.process_id)
-
-
-def process_builder(byzantine_builder):
-    def byzantine_process_builder(n_processes,
-                                  process_id,
-                                  sk, pk,
-                                  addresses,
-                                  public_keys,
-                                  recv_address,
-                                  userDB=None,
-                                  validation_method='LINEAR_ORDERING',
-                                  gossip_strategy='non_recent_random'):
-        creator = Process
-        if is_byzantine(process_id):
-            creator = byzantine_builder
-
-        return creator(n_processes, process_id, sk, pk, addresses, public_keys, recv_address, userDB,
-                       validation_method, gossip_strategy=gossip_strategy)
-
-    return byzantine_process_builder
 
 
 if __name__ == '__main__':

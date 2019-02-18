@@ -4,25 +4,8 @@ import socket
 
 from aleph.const import LOGGER_NAME
 from aleph.crypto.keys import SigningKey, VerifyKey
-from aleph.data_structures import Unit
 from aleph.process import Process
 from byzantine_process import ByzantineProcess
-
-
-def get_last_forking_units(last_position, process):
-    return process.forking_units[last_position:]
-
-
-def translate_parents_and_copy(U, hashes_to_units):
-    '''
-    Takes a unit from the poset of a process A and the mapping hashes->Units for the poset for process B. Returns a new unit
-    (with correct references to corresponding parent units in B) to be added to B's poset. The new unit has all the data in the
-    floor/ceil/level/... fields erased.
-    '''
-    parent_hashes = [V.hash() for V in U.parents]
-    parents = [hashes_to_units[V] for V in parent_hashes]
-    U_new = Unit(U.creator_id, parents, U.transactions(), U.signature, U.coin_shares)
-    return U_new
 
 
 def is_byzantine(id):
@@ -39,7 +22,12 @@ def byzantine_process_builder(n_processes, process_id, sk, pk, addresses,
     return builder(n_processes, process_id, sk, pk, addresses, public_keys, recv_address, userDB, validation_method)
 
 
-def execute_byzantine_test(process_builder=Process):
+def execute_byzantine_test(process_builder=byzantine_process_builder):
+    '''
+    Executes a simple test consisting of creation of a given number of units and manual addition of each of them to every
+    instance of the Process class. Some of the processes are of the byzantine type (i.e. creating forks).
+    :param function process_builder: factory method for the instances of the class Process.
+    '''
     logger = logging.getLogger(LOGGER_NAME)
     n_processes = 16
     n_units = 1000
@@ -85,7 +73,7 @@ def execute_byzantine_test(process_builder=Process):
                 raise Exception("a newly created unit can't be added to its creator node")
             new_units = [new_unit]
             if is_byzantine(creator_id):
-                forking_units = get_last_forking_units(number_of_forking_units, process)
+                forking_units = process.forking_units[number_of_forking_units:]
                 new_units = new_units + forking_units
                 number_of_forking_units += len(forking_units)
 
@@ -102,7 +90,7 @@ def execute_byzantine_test(process_builder=Process):
                                     (units_count, len(other_process.poset.units)))
                 logger.debug('number of units before update: %d' % len(other_process.poset.units))
                 for U in new_units:
-                    U = translate_parents_and_copy(U, other_process.poset.units)
+                    U = ByzantineProcess.translate_unit(U, other_process)
                     if not other_process.add_unit_to_poset(U):
                         raise Exception("a newly created unit can't be added to some other node")
                 logger.debug(f'number of units after update: {len(other_process.poset.units)}')
@@ -114,9 +102,6 @@ def execute_byzantine_test(process_builder=Process):
 
         if unit_no % 50 == 0:
             print(f"Adding unit no {unit_no} out of {n_units}.")
-
-        # dag, translation = dag_utils.dag_from_poset(process.poset)
-        # plot_dag(dag)
 
 
 if __name__ == "__main__":

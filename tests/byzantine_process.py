@@ -1,7 +1,8 @@
 import logging
 
-from aleph.const import LOGGER_NAME, USE_MAX_PARENTS
+from aleph.data_structures import Unit
 from aleph.process import Process
+import aleph.const as consts
 
 
 class ByzantineProcess(Process):
@@ -15,7 +16,7 @@ class ByzantineProcess(Process):
                  public_key_list,
                  tx_receiver_address,
                  userDB=None,
-                 validation_method='SNAP',
+                 validation_method='LINEAR_ORDERING',
                  gossip_strategy='unif_random',
                  level_limit=2):
 
@@ -30,48 +31,55 @@ class ByzantineProcess(Process):
                          userDB,
                          validation_method,
                          gossip_strategy=gossip_strategy)
-        self.logger = logging.getLogger(LOGGER_NAME)
-        self.memo_1 = None
-        self.memo_2 = None
-        self.level_limit = level_limit
-        self.level = 0
-        self.create_limit = 100
+        self._logger = logging.getLogger(consts.LOGGER_NAME)
+        self._first_forking_unit = None
+        self._second_forking_unit = None
+        # level after which this instance should create some forking unit
+        self._level_limit = level_limit
+        # current level of the poset
+        self._level = 0
+        # maximal number of tries of invocations of the create_unit method
+        self._create_limit = 100
+        # used by byzantine_linear_ordering.py
         self.forking_units = []
 
-    def is_byzantine_criteria_satisfied(self, unit):
-        logger = self.logger
-        logger.debug(f"checking byzantine node's criteria for level {self.level}.")
+    def _is_byzantine_criteria_satisfied(self, unit):
+        logger = self._logger
+        logger.debug(f"checking byzantine node's criteria for level {self._level}.")
         if unit.creator_id != self.process_id:
             logger.debug(f'unit was not created by this process')
             return False
-        if self.memo_1 is not None:
-            logger.debug(f'forking node already created - called at level ({self.level})')
+        if self._first_forking_unit is not None:
+            logger.debug(f'forking node already created - called at level ({self._level})')
             return False
-        if self.level < self.level_limit:
-            logger.debug(f'byzantine criteria: level is to small ({self.level})')
+        if self._level < self._level_limit:
+            logger.debug(f'byzantine criteria: level is to small ({self._level})')
             return False
-        logger.debug(f'byzantine criteria met for level {self.level}')
+        logger.debug(f'byzantine criteria met for level {self._level}')
         return True
 
     def disable(self):
         # disable the dispatch_syncs task
-        self.keep_syncing = False
-        self.keep_adding = False
+        self._keep_syncing = False
+        self._keep_adding = False
 
-    def handle_byzantine_state(self, unit, forking_unit):
-        self.memo_1 = unit
-        self.memo_2 = forking_unit
+    def _handle_byzantine_state(self, unit, forking_unit):
+        '''
+        Method executed after a forking unit was created. It allows derived types to override the default behavior.
+        '''
+        self._first_forking_unit = unit
+        self._second_forking_unit = forking_unit
         self.forking_units.append(forking_unit)
 
-    def add_byzantine_unit(self, process, unit):
+    def _add_byzantine_unit(self, process, unit):
         # NOTE: if you create two units and then change the first parent of one of them, then they can be on different levels
         # and that change might make the value of the level attribute inadequate
 
-        logger = self.logger
+        logger = self._logger
         logger.debug('adding forking units')
 
         # double spend all transactions from the previously created unit
-        forking_unit = process.create_unit(unit.transactions(), prefer_maximal = USE_MAX_PARENTS)
+        forking_unit = process.create_unit(unit.transactions(), prefer_maximal=consts.USE_MAX_PARENTS)
         if forking_unit is None:
             logger.debug("can't create a forking unit")
             return None
@@ -86,83 +94,99 @@ class ByzantineProcess(Process):
             logger.debug("can't add a forking unit to the poset")
             return None
 
-        self.handle_byzantine_state(unit, forking_unit)
+        self._handle_byzantine_state(unit, forking_unit)
         return forking_unit
 
-    def log_new_unit(self, new_unit, memo_1, memo_2, poset):
-        logger = self.logger
-        if not self.check_for_self_diamond(new_unit, memo_1, memo_2, poset):
+    def _log_new_unit(self, new_unit, first_forking_unit, second_forking_unit, poset):
+        logger = self._logger
+        if not self._check_for_self_diamond(new_unit, first_forking_unit, second_forking_unit, poset):
             logger.debug(
                 'newly created unit is above the both forking units')
             logger.debug(f'''diamond unit creator: {new_unit.creator_id}
                          first parent: {self.poset.units[new_unit.parents[1]]}''')
             logger.debug(f'diamond unit parents: {new_unit.parents}')
         else:
-            if memo_1 is not None:
-                above_first = poset.below(memo_1, new_unit)
+            if first_forking_unit is not None:
+                above_first = poset.below(first_forking_unit, new_unit)
                 if above_first:
                     logger.debug(
                         'newly created unit is above the first forking unit')
 
-            if memo_2 is not None:
-                above_second = poset.below(memo_2, new_unit)
+            if second_forking_unit is not None:
+                above_second = poset.below(second_forking_unit, new_unit)
                 if above_second:
                     logger.debug(
                         'newly created unit is above the second forking unit')
 
-    def update_state(self, poset, new_unit):
-        if self.memo_1 is not None:
+    def _update_state(self, poset, new_unit):
+        if self._first_forking_unit is not None:
             return
-        self.level = max(self.level, poset.level(new_unit))
+        self._level = max(self._level, poset.level(new_unit))
 
     def add_unit_to_poset(self, U):
-        logger = self.logger
-        logger.debug(f'called at level {self.level}')
+        logger = self._logger
+        logger.debug(f'called at level {self._level}')
         already_in_poset = U.hash() in self.poset.units.keys()
         if not Process.add_unit_to_poset(self, U):
             logger.debug("can't add a unit to the poset")
             return False
         if already_in_poset:
             return True
-        self.update_state(self.poset, U)
-        if self.is_byzantine_criteria_satisfied(U):
-            if self.add_byzantine_unit(self, U) is None:
+        self._update_state(self.poset, U)
+        if self._is_byzantine_criteria_satisfied(U):
+            if self._add_byzantine_unit(self, U) is None:
                 logger.debug('failed to add a forking unit')
                 return False
             else:
                 logger.debug('successfully added a forking unit')
                 return True
         else:
-            self.log_new_unit(U, self.memo_1, self.memo_2, self.poset)
+            self._log_new_unit(U, self._first_forking_unit, self._second_forking_unit, self.poset)
             logger.debug('added a new unit to the poset')
             return True
 
-    def check_for_self_diamond(self, U, memo_1, memo_2, poset):
-        if memo_1 is None or memo_2 is None:
+    def _check_for_self_diamond(self, U, first_forking_unit, second_forking_unit, poset):
+        if first_forking_unit is None or second_forking_unit is None:
             return True
         if (
-                poset.below(memo_1, U) and
-                poset.below(memo_2, U)
+                poset.below(first_forking_unit, U) and
+                poset.below(second_forking_unit, U)
         ):
             return False
         return True
 
-    def create_unit(self, txs, prefer_maximal = USE_MAX_PARENTS):
+    def create_unit(self, txs, prefer_maximal=consts.USE_MAX_PARENTS):
+        '''
+        Tries to creates a "correct" unit.
+        '''
         counter = 0
-        while counter < self.create_limit:
+        while counter < self._create_limit:
             counter += 1
             try:
                 U = Process.create_unit(self, txs, prefer_maximal)
                 if U is None:
-                    self.logger.debug('"Process.create_unit" returned None')
+                    self._logger.debug('"Process.create_unit" returned None')
                     continue
                 self.poset.prepare_unit(U)
                 if (
                         self.poset.check_compliance(U) and
-                        self.check_for_self_diamond(U, self.memo_1, self.memo_2, self.poset)
+                        self._check_for_self_diamond(U, self._first_forking_unit, self._second_forking_unit, self.poset)
                 ):
                     return U
             except Exception as ex:
-                self.logger.debug(ex)
+                self._logger.debug(ex)
 
         return None
+
+    @staticmethod
+    def translate_unit(U, process):
+        '''
+        Takes a unit from the poset of a process A and the mapping hashes->Units for the poset for process B. Returns a new unit
+        (with correct references to corresponding parent units in B) to be added to B's poset. The new unit has all the data in
+        the floor/ceil/level/... fields erased.
+        '''
+        parent_hashes = [V.hash() for V in U.parents]
+        parents = [process.poset.units[V] for V in parent_hashes]
+        U_new = Unit(U.creator_id, parents, U.transactions(), U.coin_shares)
+        process.sign_unit(U_new)
+        return U_new
