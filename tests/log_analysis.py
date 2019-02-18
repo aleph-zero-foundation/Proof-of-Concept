@@ -63,7 +63,7 @@ if len(sys.argv) == 4 and sys.argv[1] == 'ALL':
 
         path = os.path.join(log_dir, log_name)
         print(f'Analyzing {path}...')
-        if ind == 0:
+        if ind >= 0:
             generate_plots = True
             print('Will generate plots only for this log.')
         else:
