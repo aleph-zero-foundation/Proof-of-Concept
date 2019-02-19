@@ -33,10 +33,10 @@ def process_builder(byzantine_builder):
 
 async def execute_test(node_builder=process_builder(ByzantineProcess), start_port=8900, tx_receiver_address_start_port=9100):
     '''
-    Executes a test consisting of spawning a given number of instances of the Process class, including instances that are
-    byzantine, generating some number of transactions and syncing all of the nodes until they reach some given level.
+    Executes a test consisting of spawning some number of instances of the Process class, including instances that are
+    byzantine, generating some number of transactions and syncing all of the nodes until they reach some level of their posets.
     :param node_builder: a factory method producing instances of the class Process
-    :param start_port: start of the port range used by the created instances of the Process class for syncing
+    :param start_port: start of the port range used by created instances of the Process class for syncing
     :param tx_receiver_address_start_port: start of the port range used by created Process instances for receiving transactions
     '''
     n_processes = 4

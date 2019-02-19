@@ -40,8 +40,6 @@ class ByzantineProcess(Process):
         self._level = 0
         # maximal number of tries of invocations of the create_unit method
         self._create_limit = 100
-        # used by byzantine_linear_ordering.py
-        self.forking_units = []
 
     def _is_byzantine_criteria_satisfied(self, unit):
         logger = self._logger
@@ -69,7 +67,6 @@ class ByzantineProcess(Process):
         '''
         self._first_forking_unit = unit
         self._second_forking_unit = forking_unit
-        self.forking_units.append(forking_unit)
 
     def _add_byzantine_unit(self, process, unit):
         # NOTE: if you create two units and then change the first parent of one of them, then they can be on different levels
@@ -157,7 +154,7 @@ class ByzantineProcess(Process):
 
     def create_unit(self, txs, prefer_maximal=consts.USE_MAX_PARENTS):
         '''
-        Tries to creates a "correct" unit.
+        Tries to creates a "correct" unit - useful after we create a forking unit.
         '''
         counter = 0
         while counter < self._create_limit:
