@@ -69,7 +69,6 @@ def execute_byzantine_test(process_builder=byzantine_process_builder):
                 raise Exception('a unit created by a process is not passing the compliance test')
             process.sign_unit(new_unit)
             if not process.add_unit_to_poset(new_unit):
-                process.add_unit_to_poset(new_unit)
                 raise Exception("a newly created unit can't be added to its creator node")
             new_units = [new_unit]
             if is_byzantine(creator_id):
