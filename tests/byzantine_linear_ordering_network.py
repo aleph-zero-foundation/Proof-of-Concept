@@ -177,7 +177,8 @@ class ForkDivideAndDieProcess(ByzantineProcess):
 
 class ForkDivideAndStayAliveProcess(ForkDivideAndDieProcess):
     '''
-    Type of a byzantine Process that keeps syncing after creating a forking unit.
+    Type of a byzantine Process that keeps functioning after it creates a forking unit. It tries to use only one version of its
+    forked poset.
     '''
 
     def disable(self):

@@ -6,6 +6,10 @@ import aleph.const as consts
 
 
 class ByzantineProcess(Process):
+    '''
+    Implementation of a byzantine process, that after some number of levels creates a fork in its poset and tries to continue to
+    function properly after it.
+    '''
 
     def __init__(self,
                  n_processes,
