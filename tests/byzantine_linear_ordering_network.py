@@ -147,7 +147,7 @@ class ForkDivideAndDieProcess(ByzantineProcess):
 
             # switch the instance of the Process class used by the network instance
             self._logger.debug('syncing the second local view of the poset')
-            self.network.process = self.process_copy
+            self.network.process = self._process_copy
             await self.network.sync(target_ids[1])
             self._logger.debug('second forking view of the poset was synced succesfully')
 
