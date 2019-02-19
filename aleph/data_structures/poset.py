@@ -180,8 +180,10 @@ class Poset:
 
         for process_id in range(self.n_processes):
             Vs = self.prime_units_by_level[m][process_id]
-            if any(self.high_below(V, U) for V in Vs):
-                processes_high_below += 1
+            for V in Vs:
+                if self.high_below(V, U):
+                    processes_high_below += 1
+                    break
 
             # For efficiency: break the loop if there is no way to collect supermajority
             if 3*(processes_high_below + self.n_processes - 1 - process_id) < 2*self.n_processes:
@@ -958,8 +960,9 @@ class Poset:
         for dealer_id in permutation:
             if self.has_forking_evidence(V, dealer_id):
                 continue
-            if any(self.below(U,V) for U in self.dealing_units[dealer_id]):
-                return dealer_id
+            for U in self.dealing_units[dealer_id]:
+                if self.below(U,V):
+                    return dealer_id
 
         #This is clearly a problem... Should not happen
         assert False, "No index available for first_available_index."

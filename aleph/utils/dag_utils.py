@@ -14,8 +14,9 @@ def check_parent_diversity(dag, pid, parents, threshold):
         ancestor_processes.update(new_processes)
         if len(ancestor_processes) >= threshold:
             return True
-        if any((pid in proposed_parents_processes) for pid in new_processes):
-            return False
+        for new_pid in new_processes:
+            if new_pid in proposed_parents_processes:
+                return False
         W = dag.self_predecessor(pid, dag.parents(W))
     return True
 

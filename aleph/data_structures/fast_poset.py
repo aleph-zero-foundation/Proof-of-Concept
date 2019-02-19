@@ -150,8 +150,10 @@ class FastPoset(Poset):
 
         for process_id in range(self.n_processes):
             Vs = self.prime_units_by_level[m][process_id]
-            if any(self.below(V, U) for V in Vs):
-                processes_below += 1
+            for V in Vs:
+                if self.below(V, U):
+                    processes_below += 1
+                    break
 
             # For efficiency:
             if 3*(processes_below + self.n_processes - 1 - process_id) < 2*self.n_processes:

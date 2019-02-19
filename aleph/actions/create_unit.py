@@ -73,7 +73,12 @@ def expand_primes_restricted(poset, W, parent_processes):
             unseen_primes.update(primes)
     for Vs in poset.max_units_per_process:
         for V in Vs:
-            if not any(poset.below(W, V) for W in unseen_primes):
+            extends_primes = False
+            for W in unseen_primes:
+                if poset.below(W, V):
+                    extends_primes = True
+                    break
+            if not extends_primes:
                 not_extending_primes.add(V.creator_id)
     return not_extending_primes
 
