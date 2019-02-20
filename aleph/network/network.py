@@ -27,6 +27,7 @@ class Network:
         self.keep_connection = keep_connection
 
         self.n_recv_syncs = 0
+        self.n_init_syncs = 0
         pid = self.process.process_id
         self.sync_channels = {i: Channel(pid, i, addr) for i, addr in enumerate(addresses) if i != pid}
         self.listen_channels = {i: Channel(pid, i, addr) for i, addr in enumerate(addresses) if i != pid}
@@ -183,9 +184,16 @@ class Network:
         This version uses 3-exchange "pullpush" protocol: send heights, receive heights, units and requests, send units and requests.
         If we sent some requests there is a 4th exchange where we once again get units. This should only happen due to forks.
         '''
+        self.n_init_syncs += 1
+        self.logger.info(f'sync_sync_no | Number of syncs is {self.n_recv_syncs}')
+        if self.n_init_syncs > consts.N_INIT_SYNC:
+            self.logger.info(f'sync_too_many_syncs | Too many syncs, not initiating a new one with {peer_id}')
+            self.n_init_syncs -= 1
+            return
         channel = self.sync_channels[peer_id]
         if channel.in_use.locked():
             self.logger.info(f'sync_canceled {self.process.process_id} | Previous sync with {peer_id} still in progress')
+            self.n_init_syncs -= 1
             return
 
         async with channel.in_use:
@@ -203,6 +211,7 @@ class Network:
                 their_requests = await self._receive_requests(channel, 'sync', ids)
             except RejectException:
                 self.logger.info(f'sync_rejected {ids} | Process {peer_id} rejected sync attempt')
+                self.n_init_syncs -= 1
                 await self.maybe_close(channel)
                 return
 
@@ -226,6 +235,7 @@ class Network:
             timer.write_summary(where=self.logger, groups=[ids])
         else:
             self.logger.info(f'sync_fail {ids} | Syncing with {peer_id} failed')
+        self.n_init_syncs -= 1
 
 
     async def listener(self, peer_id):
