@@ -193,18 +193,22 @@ class Process:
 
         return random.choice(sync_candidates)
 
+    def create_unit(self, txs, prefer_maximal=consts.USE_MAX_PARENTS):
+        prefer_maximal_value = prefer_maximal if prefer_maximal is not None else consts.USE_MAX_PARENTS
+        return create_unit(self.poset, self.process_id, txs, prefer_maximal=prefer_maximal_value)
 
     async def create_add(self, txs_queue, server_started):
         await server_started.wait()
         created_count, max_level_reached = 0, False
         while created_count != consts.UNITS_LIMIT and not max_level_reached:
+
             # log current memory consumption
             memory_usage_in_mib = (psutil.Process(os.getpid()).memory_info().rss)/(2**20)
             self.logger.info(f'memory_usage {self.process_id} | {memory_usage_in_mib:.4f} MiB')
 
             txs = self.prepared_txs
             with timer(self.process_id, 'create_unit'):
-                new_unit = create_unit(self.poset, self.process_id, txs, prefer_maximal = consts.USE_MAX_PARENTS)
+                new_unit = self.create_unit(txs, prefer_maximal = consts.USE_MAX_PARENTS)
             created_count += 1
 
             if new_unit is not None:
@@ -272,19 +276,21 @@ class Process:
         self.logger.info(f'start_process {self.process_id} | Starting a new process in committee of size {self.n_processes}')
         txs_queue = multiprocessing.Queue(1000)
         p = multiprocessing.Process(target=self.tx_source, args=(self.tx_receiver_address, txs_queue))
-        p.start()
+        try:
+            p.start()
 
-        server_started = asyncio.Event()
-        server_task = asyncio.create_task(self.network.start_server(server_started))
-        listener_task = asyncio.create_task(self.start_listeners(server_started))
-        creator_task = asyncio.create_task(self.create_add(txs_queue, server_started))
-        syncing_task = asyncio.create_task(self.dispatch_syncs(server_started))
+            server_started = asyncio.Event()
+            server_task = asyncio.create_task(self.network.start_server(server_started))
+            listener_task = asyncio.create_task(self.start_listeners(server_started))
+            creator_task = asyncio.create_task(self.create_add(txs_queue, server_started))
+            syncing_task = asyncio.create_task(self.dispatch_syncs(server_started))
 
-        await asyncio.gather(syncing_task, creator_task)
+            await asyncio.gather(syncing_task, creator_task)
 
-        self.logger.info(f'listener_done {self.process_id} | Gathered results; canceling server and listeners')
-        server_task.cancel()
-        listener_task.cancel()
+            self.logger.info(f'listener_done {self.process_id} | Gathered results; canceling server and listeners')
+            server_task.cancel()
+            listener_task.cancel()
+        finally:
+            p.kill()
 
-        p.kill()
         self.logger.info(f'process_done {self.process_id} | Exiting program')
