@@ -58,7 +58,7 @@ class FastPoset(Poset):
         self.timing_partial_results = {}
 
 
-        default_consensus_params = {'t_first_vote' : 3, 't_switch_to_pi_delta' : 123456789}
+        default_consensus_params = {'t_first_vote' : consts.VOTING_LEVEL, 't_switch_to_pi_delta' : 123456789}
         self.consensus_params = default_consensus_params if consensus_params is None else consensus_params
 
     def add_unit(self, U):
@@ -195,7 +195,7 @@ class FastPoset(Poset):
         # also, we make sure that no unit is put on stack more than once
         while stack != [] and len(seen_processes) < threshold:
             W = stack.pop()
-            if W.level <= level_V - 2 or (W.level == level_V - 1 and self.poset.is_prime(W)):
+            if W.level <= level_V - 2 or (W.level == level_V - 1 and self.is_prime(W)):
                 # if W is of level >= level_V - 1 and is not prime then it is not clear if W can be used for this proof
                 seen_processes.add(W.creator_id)
             for W_parent in W.parents:
