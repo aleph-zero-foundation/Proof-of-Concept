@@ -74,7 +74,7 @@ class LogAnalyzer:
             'decide_timing' : self.parse_decide_timing,
             'sync_establish' : self.parse_establish,
             'listener_establish' : self.parse_establish,
-            'sync_done' : self.parse_listener_succ,
+            'sync_succ' : self.parse_listener_succ,
             'listener_succ' : self.parse_listener_succ,
             'receive_units_done_listener' : self.parse_receive_units_done,
             'receive_units_done_sync' : self.parse_receive_units_done,

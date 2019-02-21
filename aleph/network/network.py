@@ -222,8 +222,10 @@ class Network:
         await self.maybe_close(channel)
 
         if self._verify_signatures_and_add_units(units_received, peer_id, 'sync', ids):
-            self.logger.info(f'sync_done {ids} | Syncing with {peer_id} successful')
+            self.logger.info(f'sync_succ {ids} | Syncing with {peer_id} successful')
             timer.write_summary(where=self.logger, groups=[ids])
+        else:
+            self.logger.info(f'sync_fail {ids} | Syncing with {peer_id} failed')
 
 
     async def listener(self, peer_id):
@@ -269,6 +271,8 @@ class Network:
             if self._verify_signatures_and_add_units(units_received, peer_id, 'listener', ids):
                 self.logger.info(f'listener_succ {ids} | Syncing with {peer_id} successful')
                 timer.write_summary(where=self.logger, groups=[ids])
+            else:
+                self.logger.info(f'listener_fail {ids} | Syncing with {peer_id} failed')
 
             await self.maybe_close(channel)
             self.n_recv_syncs -= 1
