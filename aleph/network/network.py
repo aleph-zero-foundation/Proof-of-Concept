@@ -4,7 +4,7 @@ import socket
 
 from .channel import Channel, RejectException
 from aleph.utils import timer
-from aleph.actions import poset_info, units_to_send, empty_requests
+from aleph.actions import poset_info, units_to_send
 import aleph.const as consts
 
 
@@ -215,7 +215,7 @@ class Network:
             await self._send_requests(to_request, channel, 'sync', ids)
 
             #step 4 (only if we requested something)
-            if not empty_requests(to_request):
+            if any(to_request):
                 self.logger.info(f'sync_extended {ids} | Sync with {peer_id} extended due to forks')
                 units_received = await self._receive_units(channel, 'sync', ids)
 
@@ -260,7 +260,7 @@ class Network:
             their_requests = await self._receive_requests(channel, 'listener', ids)
 
             #step 4 (only if they requested something)
-            if not empty_requests(their_requests):
+            if any(their_requests):
                 self.logger.info(f'listener_extended {ids} | Sync with {peer_id} extended due to forks')
                 with timer(ids, 'prepare_units'):
                     to_send, _ = units_to_send(self.process.poset, their_poset_info, their_requests)
