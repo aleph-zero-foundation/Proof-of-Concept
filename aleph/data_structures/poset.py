@@ -1273,44 +1273,10 @@ class Poset:
         return None
 
 
-    def order_units_topologically(self, units_list):
-        '''
-        Outputs a topological order of units_list.
-        More formally it outputs a list top_list such that:
-            whenever U, V are in units_list and V is a parent of U then V appears before U in top_list.
-        Note: this does not necessarily preserve the ordering in the poset!
-        :param int process_id: the identification number of a process
-        :returns: list top_list: a topologically sorted list units_list
-        '''
-        # NOTE: this might be potentially slow, as it uses a dictionaries of Units
-        # implements a DFS on a custom stack
-        state = {U: 0 for U in units_list}
-        top_list = []
-        unit_stack = []
-        for U in units_list:
-            if state[U] == 0:
-                unit_stack.append(U)
-
-            while unit_stack:
-                V = unit_stack.pop()
-                if state[V] == 0:
-                    state[V] = 1
-                    unit_stack.append(V)
-                    for W in V.parents:
-                        if W in state and state[W] == 0:
-                            unit_stack.append(W)
-                elif state[V] == 1:
-                    top_list.append(V)
-                    state[V] = 2
-
-        return top_list
-
 
     def units_by_height(self, process_id, height):
         '''
         Returns list of units created by a given process of a given height.
-        NOTE: this implementation is inefficient.
-        In the future one could improve it by memoizing every k-th height of units, for some constant k, like k=100.
         '''
         if height < 0 or self.max_units_per_process[process_id] == []:
             return []
@@ -1349,7 +1315,6 @@ class Poset:
     def get_self_children(self, U):
         '''
         Returns the set of all units V in the poset such that V.self_predecessor == U
-        NOTE: inefficient because units_by_height is inefficient.
         '''
         return self.units_by_height(U.creator_id, U.height + 1)
 
@@ -1370,17 +1335,6 @@ class Poset:
             assert False
         U.parents = [self.units[p] for p in U.parents]
         U.height = U.parents[0].height+1 if len(U.parents) > 0 else 0
-
-
-    def units_to_send(self, ex_heights):
-        '''Return a topologically sorted list of units that are in this poset, but not in a local view represented by *ex_heights*.'''
-        int_heights = self.get_heights()
-        to_send = []
-        for i, (int_height, ex_height) in enumerate(zip(int_heights, ex_heights)):
-            if int_height > ex_height:
-                units = self.units_by_height_interval(creator_id=i, min_height=ex_height+1, max_height=int_height)
-                to_send.extend(units)
-        return self.order_units_topologically(to_send)
 
 
 #===============================================================================================================================
