@@ -1,5 +1,6 @@
 from .crp import CommonRandomPermutation
-from .xor import xor
+from .byte_utils import xor
+from .byte_utils import sha3_hash
 from .keys import SigningKey, VerifyKey
 from .threshold_coin import ThresholdCoin
 

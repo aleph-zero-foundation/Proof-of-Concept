@@ -4,6 +4,7 @@ import logging
 
 from aleph.data_structures import Poset
 import aleph.const as consts
+from aleph.crypto.byte_utils import extract_bit
 
 
 
@@ -204,6 +205,13 @@ class FastPoset(Poset):
         return memo[('proof', V_hash)]
 
 
+    def _simple_coin(self, U, level):
+        # Needs to be a deterministic function of (U, level).
+        # We choose it to be the l'th bit of U where l = level % (n_bits_in_U)
+        l = level % (8 * len(U.hash()))
+        return extract_bit(U.hash(), l)
+
+
     def default_vote(self, U, U_c):
         '''
         Default vote of U on popularity of U_c, as in the fast consensus algorithm.
@@ -276,6 +284,7 @@ class FastPoset(Poset):
             return memo['decision']
 
         t = consts.VOTING_LEVEL
+        t_p_d = consts.PI_DELTA_LEVEL
 
         # At levels +2, +3,..., +(t-1) it might be possible to prove that the consensus will be "1"
         # This is being tried in the loop below -- as Lemma 2.3.(1) in "Lewelewele" allows us to do:
@@ -290,7 +299,7 @@ class FastPoset(Poset):
 
 
         # Attempt to make a decision using "The fast algorithm" from Def. 2.4 in "Lewelewele".
-        for level in range(U_c.level + t + 1, self.level_reached + 1):
+        for level in range(U_c.level + t + 1, min(U_c.level + t_p_d, self.level_reached + 1)):
             for U in self.get_all_prime_units_by_level(level):
                 decision = self.compute_vote(U, U_c)
                 # this is the crucial line: if the (supermajority) vote agrees with the default one -- we have reached consensus
@@ -302,6 +311,26 @@ class FastPoset(Poset):
                         logger.info(f'decide_timing {process_id} | Timing unit for lvl {U_c.level} decided at lvl + {level - U_c.level}')
 
                     return decision
+
+        # Switch to the pi-delta algorithm if consensus could not be reached using the "fast algorithm".
+        # It guarantees termination after a finite number of levels with probability 1.
+        # Note that this piece of code will only execute if there is still no decision on U_c and level_reached is >= U_c.level + t_p_d,
+        #   which we consider rather unlikely to happen since under normal circumstances (no malicious adversary) the fast algorithm
+        #   will likely decide at level <= +5. The default value of t_p_d is 15, thus after reaching level +6 and assuming that default_vote
+        #   is a random function of level, the probability of reaching level 15 is <= 2^{-10} <= 10^{-3}.
+        for level in range(U_c.level + t_p_d + 1, self.level_reached + 1, 2):
+            # Note that we always jump by two levels because of the specifics of this consensus protocol.
+            # Note that we start at U_c.level + t_p_d + 1 because U_c.level + t_p_d we consider as an "odd" round
+            #    and only the next one is the first "even" round where delta is supposed to be computed.
+            for U in self.get_all_prime_units_by_level(level):
+                decision = self.compute_delta(U_c, U)
+                if decision != -1:
+                    memo['decision'] = decision
+                    if decision == 1:
+                        process_id = (-1) if (self.process_id is None) else self.process_id
+                        logger.info(f'decide_timing {process_id} | Timing unit for lvl {U_c.level} decided at lvl + {level - U_c.level}')
+                    return decision
+
         return -1
 
 
@@ -311,9 +340,8 @@ class FastPoset(Poset):
         '''
 
         if self.level_reached < level + consts.VOTING_LEVEL:
-            # we cannot decide on a timing unit yet since there might be units that we don't see
-            # after reaching lvl level + consts.VOTING_LEVEL, if we do not see some unit
-            # it will necessarily be decided 0
+            # We cannot decide on a timing unit yet since there might be units that we don't see.
+            # After reaching lvl level + consts.VOTING_LEVEL, if we do not see some unit it will necessarily be decided 0.
             return -1
 
         sigma = self.crp[level]
@@ -331,3 +359,90 @@ class FastPoset(Poset):
                     return -1
 
         assert False, f"Something terrible happened: no timing unit was chosen at level {level}."
+
+
+    def exists_tc(self, list_vals, U_c, tossing_unit):
+        if 1 in list_vals:
+            return 1
+        if 0 in list_vals:
+            return 0
+        return self.toss_coin(U_c, tossing_unit)
+
+
+    def super_majority(self, list_vals):
+        treshold_majority = (2*self.n_processes + 2)//3
+        if list_vals.count(1) >= treshold_majority:
+            return 1
+        if list_vals.count(0) >= treshold_majority:
+            return 0
+
+        return -1
+
+
+    def compute_pi(self, U_c, U):
+        '''
+        Computes the value of the Pi function from the paper. The value -1 is equivalent to bottom (undefined).
+        '''
+        # "r" is the number of level of the pi_delta protocol.
+        # Note that level U_c.level + consts.consts.PI_DELTA_LEVEL has number 1 because we want it to execute an "odd" round
+        r = U.level - (U_c.level + consts.consts.PI_DELTA_LEVEL) + 1
+        assert r >= 1, "The pi_delta protocol is attempted on a too low of a level."
+        U_c_hash = U_c.hash()
+        U_hash = U.hash()
+        memo = self.timing_partial_results[U_c_hash]
+
+        pi_value = memo.get(('pi', U_hash), None)
+        if pi_value is not None:
+            return pi_value
+
+        r_value = self.r_function(U_c, U)
+
+        votes_level_below = []
+
+        for V in self.get_all_prime_units_by_level(U.level-1):
+            if self.below(V, U):
+                if r == 1:
+                    # we use the votes of the last round of the "fast algorithm"
+                    vote_V = self.compute_vote(V, U_c)
+                    vote = vote_V if vote_V != -1 else self.default_vote(V, U_c)
+                    votes_level_below.append(vote)
+                else:
+                    # we use the pi-values of the last round
+                    votes_level_below.append(self.compute_pi(U_c, V))
+
+        if r % 2 == 0:
+            # the "exists" round
+            pi_value = self.exists_tc(votes_level_below, U_c, U)
+        elif r % 2 == 1:
+            # the "super-majority" round
+            pi_value = self.super_majority(votes_level_below)
+
+        memo[('pi', U_hash)] = pi_value
+        return pi_value
+
+
+    def compute_delta(self, U_c, U):
+        '''
+        Computes the value of the Delta function from the paper. The value -1 is equivalent to bottom (undefined).
+        '''
+        U_c_hash = U_c.hash()
+        U_hash = U.hash()
+        memo = self.timing_partial_results[U_c_hash]
+
+        delta_value = memo.get(('delta', U_hash), None)
+        if delta_value is not None:
+            return delta_value
+
+        # "r" is the number of level of the pi_delta protocol (see also the comment in compute_pi)
+        r = U.level - (U_c.level + consts.consts.PI_DELTA_LEVEL) + 1
+
+        assert r % 2 == 0, "Delta is attempted to be evaluated at an odd level."
+
+        pi_values_level_below = []
+        for V in self.get_all_prime_units_by_level(U.level-1):
+            if self.high_below(V, U):
+                pi_values_level_below.append(self.compute_pi(U_c, V))
+
+        delta_value = self.super_majority(pi_values_level_below)
+        memo[('delta', U_hash)] = delta_value
+        return delta_value

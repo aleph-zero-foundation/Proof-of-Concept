@@ -1,6 +1,5 @@
-from .xor import xor
-
-import hashlib
+from .byte_utils import xor
+from .byte_utils import sha3_hash
 
 
 class CommonRandomPermutation:
@@ -9,7 +8,7 @@ class CommonRandomPermutation:
         """
         :param public_keys: list of all public keys in hex format
         :param hashing_function: hashing function used for generating common random permutations -- assumed to input and output a bytestring
-        if None hashing_function is provided then it uses hashlib.sha512
+        if None hashing_function is provided then it uses sha3_hash i.e. hashlib.sha512
         """
         self.public_keys_hex = public_keys_hex
         self.hashing_function = hashing_function
@@ -19,7 +18,7 @@ class CommonRandomPermutation:
 
     def _hash(self, bytestring):
         if self.hashing_function is None:
-            return hashlib.sha512(bytestring).digest()
+            return sha3_hash(bytestring)
         else:
             return self.hashing_function(bytestring)
 

@@ -4,14 +4,13 @@ from itertools import product
 from functools import reduce
 import random
 import logging
-import hashlib
 
 
 from aleph.crypto.signatures.threshold_signatures import generate_keys, SecretKey, VerificationKey
 from aleph.crypto.threshold_coin import ThresholdCoin
+from aleph.crypto import sha3_hash
 
 from aleph.data_structures.unit import Unit
-from aleph.crypto import xor
 
 import aleph.const as consts
 
@@ -1350,7 +1349,7 @@ class Poset:
         :param list units_list: the units to be sorted, should be all units with a given timing round
         :returns: the same set of units in a list ordered linearly
         '''
-        sha3_hash = lambda x: hashlib.sha3_256(x).digest()
+
         # R is a value that depends on all the units in units_list and does not depend on the order of units in units_list
 
         R = sha3_hash(b''.join(sorted(U.hash() for U in units_list)))
