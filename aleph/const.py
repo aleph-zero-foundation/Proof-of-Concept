@@ -7,7 +7,8 @@ ADD_SHARES      = 4            # level at which start to adding coin shares to u
 
 CREATE_FREQ     = 1.0          # frequency of creating new units
 SYNC_INIT_FREQ  = 0.5          # frequency of initianing syncs with other processes
-N_RECV_SYNC     = 10           # number of allowed parallel syncs
+N_RECV_SYNC     = 10           # number of allowed parallel received syncs
+N_INIT_SYNC     = 5            # number of allowed parallel initiated syncs
 
 TXPU            = 2000         # number of transactions per unit
 TX_LIMIT        = 1000000
