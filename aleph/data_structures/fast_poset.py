@@ -111,6 +111,10 @@ class FastPoset(Poset):
             if U.level not in self.prime_units_by_level:
                 self.prime_units_by_level[U.level] = [[] for _ in range(self.n_processes)]
             self.prime_units_by_level[U.level][U.creator_id].append(U)
+            # NOTE: we need to make sure that there is a deterministic order of units on the self.prime_units_by_level[U.level][U.creator_id] list
+            #       in case of forks there is more than one unit on this list and for consensus reason it becomes important to traverse
+            #       units on this list in exactly the same order by every process
+            self.prime_units_by_level[U.level][U.creator_id].sort(key = lambda U_x: U_x.hash())
 
         # 6. Update memoized_units
         if U.height % self.memo_height == 0:
@@ -203,13 +207,6 @@ class FastPoset(Poset):
 
         memo[('proof', V_hash)] = len(seen_processes) >= threshold
         return memo[('proof', V_hash)]
-
-
-    def _simple_coin(self, U, level):
-        # Needs to be a deterministic function of (U, level).
-        # We choose it to be the l'th bit of U where l = level % (n_bits_in_U)
-        l = level % (8 * len(U.hash()))
-        return extract_bit(U.hash(), l)
 
 
     def default_vote(self, U, U_c):
@@ -361,12 +358,12 @@ class FastPoset(Poset):
         assert False, f"Something terrible happened: no timing unit was chosen at level {level}."
 
 
-    def exists_tc(self, list_vals, U_c, tossing_unit):
+    def exists_tc(self, list_vals, U_c, U_tossing):
         if 1 in list_vals:
             return 1
         if 0 in list_vals:
             return 0
-        return self.toss_coin(U_c, tossing_unit)
+        return self.toss_coin(U_c, U_tossing)
 
 
     def super_majority(self, list_vals):
@@ -412,7 +409,7 @@ class FastPoset(Poset):
 
         if r % 2 == 0:
             # the "exists" round
-            pi_value = self.exists_tc(votes_level_below, U_c, U)
+            pi_value = self.exists_tc(votes_level_below, U)
         elif r % 2 == 1:
             # the "super-majority" round
             pi_value = self.super_majority(votes_level_below)
@@ -440,9 +437,143 @@ class FastPoset(Poset):
 
         pi_values_level_below = []
         for V in self.get_all_prime_units_by_level(U.level-1):
-            if self.high_below(V, U):
+            if self.below(V, U):
                 pi_values_level_below.append(self.compute_pi(U_c, V))
 
         delta_value = self.super_majority(pi_values_level_below)
         memo[('delta', U_hash)] = delta_value
         return delta_value
+
+
+    def _simple_coin(self, U, level):
+        # Needs to be a deterministic function of (U, level).
+        # We choose it to be the l'th bit of the hash of U where l := level % (n_bits_in_U_hash)
+        l = level % (8 * len(U.hash()))
+        return extract_bit(U.hash(), l)
+
+
+    def first_available_index(self, V, level):
+        permutation = self.crp[level]
+
+        for dealer_id in permutation:
+            if self.has_forking_evidence(V, dealer_id):
+                continue
+            for U in self.dealing_units[dealer_id]:
+                if self.below(U,V):
+                    return dealer_id
+
+        #This is clearly a problem... Should not happen
+        assert False, "No index available for first_available_index."
+        return None
+
+
+    def validate_share(self, U, dealer_id):
+        '''
+        Checks whether the coin share of U agrees with the dealt public key.
+        Note that even if it does not, it does not follow that U.creator_id is adversary -- it could be that dealer_id is the cheater.
+        '''
+        ind = self.index_dealing_unit_below(dealer_id, U)
+        assert ind is not None
+        coin_share = U.coin_shares[0]
+        return self.threshold_coins[dealer_id][ind].verify_coin_share(coin_share, U.creator_id, U.level)
+
+
+    def toss_coin(self, U_c, U_tossing):
+        # The coin toss at unit U_tossing (necessarily at level >= consts.ADD_SHARES + 1)
+        # With low probability the toss may fail -- typically because of adversarial behavior of some process(es).
+        # :param unit U_c: the unit whose popularity decision is being considered by tossing a coin
+        #                  this param is used only in case when the _simple_coin is used, otherwise
+        #                  the result of coin toss is meant to be a function of U_tossing.level only
+        # :param unit U_tossing: the unit what is cossing a toin
+        # :returns: One of {0, 1} -- a (pseudo)random bit, impossible to predict before (U_tossing.level - 1) was reached
+
+        logger = logging.getLogger(consts.LOGGER_NAME)
+        logger.info(f'toss_coin_start | Tossing at lvl {tossing_unit.level} for unit {U_tossing.short_name()} at lvl {U_tossing.level}.')
+
+        if self.use_tcoin == False:
+            return self._simple_coin(U_tossing, U_tossing.level)
+
+        level = U_tossing.level-1
+
+        coin_shares = {}
+
+        # the coin dealer is the (hopefully) uniquely defined FAI of prime ancestors of U_tossing
+        coin_dealer = None
+
+        # run through all prime ancestors of U_tossing
+        for V in self.get_all_prime_units_by_level(level):
+            # we gathered enough coin shares -- ceil(n_processes/3)
+            if len(coin_shares) == self.n_processes//3 + 1:
+                break
+
+            # can use only shares from units visible from the tossing unit (so that every process arrives at the same result)
+            if not self.below(V, tossing_unit):
+                continue
+
+            # check if V is a fork and we have added coin share corresponding to its creator
+            # Note that at this point we know that fai has not forked its dealing Unit (at least not below tossing_unit)
+            # and the shares in V are validated hence even if V.creator_id forked, the share should be identical
+            if V.creator_id in coin_shares:
+                continue
+
+            fai_V = self.first_available_index(V, level)
+            if coin_dealer is None:
+                coin_dealer = fai_V
+                if self.has_forking_evidence(U_tossing, coin_dealer):
+                    # the coin dealer is a forker, no point in collecting the shares -- we will use _simple_coin instead
+                    break
+
+            if coin_dealer != fai_V:
+                # two prime ancestors of U_tossing have different fai's, this might cause a coin toss fail
+                # we do not abort yet, hoping that there will be enough coin shares by coin_dealer to toss anyway
+                continue
+
+            if V.coin_shares != []:
+                # it is now guaranteed that V.coin_shares = [cs], because this list contains at most one element
+                # check if the share is correct, it might be incorrect even if V.creator_id is not a cheater
+                if self.validate_share(V, dealer_id):
+                    coin_shares[V.creator_id] = V.coin_shares[0]
+                    break
+
+        ind_dealer = self.index_dealing_unit_below(coin_dealer, U_c)
+        # At this point (after coin_dealer was determined) it must be the case that there is exactly one dealing unit by coin_dealer below U_c.
+        # Note that there might still be multiple dealing of units of coin_dealer in the poset, but the evidence came earlier than U_tossing.
+        assert ind_dealer is not None
+
+        # this is the threshold coin we shall use
+        t_coin_box = self.threshold_coins[coin_dealer][ind_dealer]
+
+        # check whether we have enough valid coin shares to toss a coin
+        n_collected = len(coin_shares)
+        n_required = self.n_processes//3 + 1
+        if len(coin_shares) == n_required:
+            coin, correct = t_coin_box.combine_coin_shares(coin_shares, str(level))
+            if correct:
+                logger.info(f'toss_coin_succ {self.process_id} | Succeded - {n_collected} out of required {n_required} shares collected')
+                return coin
+            else:
+                logger.warning(f'toss_coin_fail {self.process_id} | Failed - {n_collected} out of required {n_required} shares collected, but combine unsuccesful')
+                return self._simple_coin(U_c, level)
+
+        else:
+            logger.warning(f'toss_coin_fail {self.process_id} | Failed - {n_collected} out of required {n_required} shares were collected')
+            return self._simple_coin(U_c, level)
+
+
+    def add_coin_shares(self, U):
+        '''
+        Adds coin shares to the prime unit U using the simplified strategy: add the coin_share determined by FAI(U, U.level) to U
+        :param unit U: prime unit to which coin shares are added
+        '''
+
+        coin_shares = []
+        indices = self.determine_coin_shares(U)
+        if U.level >= consts.ADD_SHARES:
+            assert indices != [] and indices is not None
+
+        dealer_id = self.first_available_index(U, U.level)
+        # there might be multiple dealing units by dealer_id (if he forks), but only one below U
+        ind = self.index_dealing_unit_below(dealer_id, U)
+        coin_shares = [ self.threshold_coins[dealer_id][ind].create_coin_share(U.level) ]
+        # the coin shares are a one-element list (except when something goes wrong with deciphering the t_coin, but it cannot in this version)
+        U.coin_shares = coin_shares
