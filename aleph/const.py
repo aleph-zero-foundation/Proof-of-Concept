@@ -1,6 +1,7 @@
 N_PARENTS       = 2            # maximal number of parents a unit can have
 USE_MAX_PARENTS = 1            # prefer maximal units (globally maximal in poset) when choosing parents
 
+VOTING_LEVEL    = 3            # level at which the first voting round occurs, this is "t" from the write-up
 USE_TCOIN       = 0            # whether to use threshold coin
 ADD_SHARES      = 4            # level at which start to adding coin shares to units
 

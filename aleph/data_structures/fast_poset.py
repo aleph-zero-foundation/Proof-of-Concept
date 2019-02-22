@@ -13,7 +13,7 @@ class FastPoset(Poset):
     An alternative instantiation of Poset -- with different consensus rules.
     '''
     def __init__(self, n_processes, process_id = None, crp = None, use_tcoin = None,
-                compliance_rules = None, memo_height = 10, consensus_params = None):
+                compliance_rules = None, memo_height = 10):
         '''
         :param int n_processes: the committee size
         :param list compliance_rules: dictionary string -> bool
@@ -57,9 +57,6 @@ class FastPoset(Poset):
         # whose value is the memoized value of computing fun(U_c, U) where fun in {pi, delta}
         self.timing_partial_results = {}
 
-
-        default_consensus_params = {'t_first_vote' : 4, 't_switch_to_pi_delta' : 123456789}
-        self.consensus_params = default_consensus_params if consensus_params is None else consensus_params
 
     def add_unit(self, U):
         '''
@@ -165,9 +162,11 @@ class FastPoset(Poset):
 
     def proves_popularity(self, V, U_c):
         '''
-        Checks whether V proves that U_c is popular on V's level, i.e. whether there exist
-            >=2/3 N units W on level L(V)-1 such that: (1) W <= V and (2) U_c <= W.
-        This corresponds to V >>> U_c in the paper.
+        Checks whether V proves that U_c is popular on V's level (i.e. everyone sees U on this level).
+        More specifically we check whether there are >=2/3 N units W (created by distinct processes) such that
+            (1) W <= V,
+            (2) W has level <=level(V) - 2, or W is a prime unit at level(V)-1,
+            (3) U_c <= W.
         :param unit V: the "prover" unit
         :param unit U_c: the unit tested for popularity
         :returns: True or False: does V prove that U_c is popular?
@@ -179,9 +178,10 @@ class FastPoset(Poset):
 
         level_V = self.level(V)
         if level_V <= U_c.level or not self.below(U_c, V):
+            memo[('proof', V_hash)] = False
             return False
 
-        # implementation of a simple DFS from V down until we hit units of level (level_V - 2)
+        # implementation of a simple DFS from V down until we hit units that do not see U
         threshold = (2*self.n_processes + 2)//3
         seen_units = set([V])
         seen_processes = set()
@@ -189,15 +189,14 @@ class FastPoset(Poset):
         # the invariants here are that all elements W on stack:
         #    (1) are also in seen_units
         #    (2) are above U_c
-        #    (3) have level_V - 1 <= level_W <= level_V
         # also, we make sure that no unit is put on stack more than once
         while stack != [] and len(seen_processes) < threshold:
             W = stack.pop()
-            # this check is necessary since W might be of level == level_V (but cannot be of level < level_V - 1)
-            if W.level == level_V - 1:
+            if W.level <= level_V - 2 or (W.level == level_V - 1 and self.is_prime(W)):
+                # if W is of level >= level_V - 1 and is not prime then it cannot be used for this proof
                 seen_processes.add(W.creator_id)
             for W_parent in W.parents:
-                if W_parent.level >= level_V - 1 and self.below(U_c, W_parent) and W_parent not in seen_units:
+                if W_parent not in seen_units and self.below(U_c, W_parent):
                     stack.append(W_parent)
                     seen_units.add(W_parent)
 
@@ -209,7 +208,7 @@ class FastPoset(Poset):
         '''
         Default vote of U on popularity of U_c, as in the fast consensus algorithm.
         '''
-        r = U.level - U_c.level - self.consensus_params['t_first_vote']
+        r = U.level - U_c.level - consts.VOTING_LEVEL
         assert r >= 1, "Default vote is asked on too low unit level."
 
         if r == 1:
@@ -232,7 +231,7 @@ class FastPoset(Poset):
             - etc.
         '''
 
-        r = U.level - U_c.level - self.consensus_params['t_first_vote']
+        r = U.level - U_c.level - consts.VOTING_LEVEL
         assert r >= 0, "Vote is asked on too low unit level."
         U_c_hash, U_hash = U_c.hash(), U.hash()
         memo = self.timing_partial_results[U_c_hash]
@@ -276,7 +275,7 @@ class FastPoset(Poset):
         if 'decision' in memo.keys():
             return memo['decision']
 
-        t = self.consensus_params['t_first_vote']
+        t = consts.VOTING_LEVEL
 
         # At levels +2, +3,..., +(t-1) it might be possible to prove that the consensus will be "1"
         # This is being tried in the loop below -- as Lemma 2.3.(1) in "Lewelewele" allows us to do:
@@ -310,22 +309,18 @@ class FastPoset(Poset):
         '''
         Returns either a timing unit at this level or (-1) in case when no unit can be chosen yet.
         '''
+
+        if self.level_reached < level + consts.VOTING_LEVEL:
+            # we cannot decide on a timing unit yet since there might be units that we don't see
+            # after reaching lvl level + consts.VOTING_LEVEL, if we do not see some unit
+            # it will necessarily be decided 0
+            return -1
+
         sigma = self.crp[level]
 
         for process_id in sigma:
             #In case there are multiple (more than one) units to consider (forking) we sort them by hashes (to break ties)
             prime_units_by_curr_process = sorted(self.prime_units_by_level[level][process_id], key = lambda U: U.hash())
-
-            if len(prime_units_by_curr_process) == 0:
-                # we have not seen any prime unit of this process at that level
-                # there might still come one, so we need to wait, but no longer than till the level grows >= level + t
-                # in which case a negative decision is guaranteed
-                if self.level_reached >= level + self.consensus_params['t_first_vote']:
-                    #we can safely skip this process as it will be decided 0 anyway
-                    continue
-                else:
-                    #no decision can be made, need to wait
-                    return -1
 
             for U_c in prime_units_by_curr_process:
                 decision = self.decide_unit_is_popular(U_c)
