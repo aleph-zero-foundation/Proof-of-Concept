@@ -1322,7 +1322,7 @@ class Poset:
         if not all(p in self.units for p in U.parents):
             import base64
             logger = logging.getLogger(consts.LOGGER_NAME)
-            logger.info(f"{U.short_name()}")
+            logger.error(f"dehash_parents | Parents not found in the poset for {U.short_name()}")
             for pa in U.parents:
                 pa = base64.b32encode(pa).decode()[:16]
                 logger.info(f"{pa}")

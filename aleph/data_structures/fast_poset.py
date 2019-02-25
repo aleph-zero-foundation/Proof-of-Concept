@@ -535,19 +535,19 @@ class FastPoset(Poset):
                     coin_shares[V.creator_id] = V.coin_shares[0]
                     break
 
-        ind_dealer = self.index_dealing_unit_below(coin_dealer, U_c)
+        ind_dealing_unit = self.index_dealing_unit_below(coin_dealer, U_c)
         # At this point (after coin_dealer was determined) it must be the case that there is exactly one dealing unit by coin_dealer below U_c.
         # Note that there might still be multiple dealing of units of coin_dealer in the poset, but the evidence came earlier than U_tossing.
-        assert ind_dealer is not None
+        assert ind_dealing_unit is not None
 
         # this is the threshold coin we shall use
-        t_coin_box = self.threshold_coins[coin_dealer][ind_dealer]
+        t_coin = self.threshold_coins[coin_dealer][ind_dealing_unit]
 
         # check whether we have enough valid coin shares to toss a coin
         n_collected = len(coin_shares)
         n_required = self.n_processes//3 + 1
         if len(coin_shares) == n_required:
-            coin, correct = t_coin_box.combine_coin_shares(coin_shares, str(level))
+            coin, correct = t_coin.combine_coin_shares(coin_shares, str(level))
             if correct:
                 logger.info(f'toss_coin_succ {self.process_id} | Succeded - {n_collected} out of required {n_required} shares collected')
                 return coin
@@ -575,5 +575,6 @@ class FastPoset(Poset):
         # there might be multiple dealing units by dealer_id (if he forks), but only one below U
         ind = self.index_dealing_unit_below(dealer_id, U)
         coin_shares = [ self.threshold_coins[dealer_id][ind].create_coin_share(U.level) ]
-        # the coin shares are a one-element list (except when something goes wrong with deciphering the t_coin, but it cannot in this version)
+        # The coin_shares are in fact a one-element list, except when something goes wrong with decrypting the tcoin
+        #   in the dealing unit. In the current version it cannot happen, as the tcoins are not encrypted.
         U.coin_shares = coin_shares
