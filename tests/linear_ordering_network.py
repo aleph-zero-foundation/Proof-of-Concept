@@ -12,7 +12,7 @@ async def main():
     n_processes = 20
     n_forkers = 0
     use_tcoin = False
-    consts.UNITS_LIMIT = 100
+    consts.UNITS_LIMIT = 20
 
     processes = []
     host_ports = [8900+i for i in range(n_processes)]

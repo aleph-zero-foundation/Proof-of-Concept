@@ -291,7 +291,8 @@ class FastPoset(Poset):
                 if self.proves_popularity(U, U_c):
                     memo['decision'] = 1
                     process_id = (-1) if (self.process_id is None) else self.process_id
-                    logger.info(f'decide_timing {process_id} | Timing unit for lvl {U_c.level} decided at lvl + {level - U_c.level}')
+                    logger.info(f'decide_timing {process_id} | Timing unit for lvl {U_c.level} decided at lvl + {level - U_c.level}'
+                                f', poset lvl + {self.level_reached - U_c.level}')
                     return 1
 
 
@@ -305,7 +306,8 @@ class FastPoset(Poset):
 
                     if decision == 1:
                         process_id = (-1) if (self.process_id is None) else self.process_id
-                        logger.info(f'decide_timing {process_id} | Timing unit for lvl {U_c.level} decided at lvl + {level - U_c.level}')
+                        logger.info(f'decide_timing {process_id} | Timing unit for lvl {U_c.level} decided at lvl + {level - U_c.level}'
+                                    f', poset lvl + {self.level_reached - U_c.level}')
 
                     return decision
 
@@ -313,8 +315,8 @@ class FastPoset(Poset):
         # It guarantees termination after a finite number of levels with probability 1.
         # Note that this piece of code will only execute if there is still no decision on U_c and level_reached is >= U_c.level + t_p_d,
         #   which we consider rather unlikely to happen since under normal circumstances (no malicious adversary) the fast algorithm
-        #   will likely decide at level <= +5. The default value of t_p_d is 15, thus after reaching level +6 and assuming that default_vote
-        #   is a random function of level, the probability of reaching level 15 is <= 2^{-10} <= 10^{-3}.
+        #   will likely decide at level <= +5. The default value of t_p_d is 12, thus after reaching level +6 and assuming that default_vote
+        #   is a random function of level, the probability of reaching level 12 is <= 2^{-7} <= 10^{-2}.
         for level in range(U_c.level + t_p_d + 1, self.level_reached + 1, 2):
             # Note that we always jump by two levels because of the specifics of this consensus protocol.
             # Note that we start at U_c.level + t_p_d + 1 because U_c.level + t_p_d we consider as an "odd" round
@@ -325,7 +327,8 @@ class FastPoset(Poset):
                     memo['decision'] = decision
                     if decision == 1:
                         process_id = (-1) if (self.process_id is None) else self.process_id
-                        logger.info(f'decide_timing {process_id} | Timing unit for lvl {U_c.level} decided at lvl + {level - U_c.level}')
+                        logger.info(f'decide_timing {process_id} | Timing unit for lvl {U_c.level} decided at lvl + {level - U_c.level}'
+                                    f', poset lvl + {self.level_reached - U_c.level}')
                     return decision
 
         return -1
@@ -381,8 +384,8 @@ class FastPoset(Poset):
         Computes the value of the Pi function from the paper. The value -1 is equivalent to bottom (undefined).
         '''
         # "r" is the number of level of the pi_delta protocol.
-        # Note that level U_c.level + consts.consts.PI_DELTA_LEVEL has number 1 because we want it to execute an "odd" round
-        r = U.level - (U_c.level + consts.consts.PI_DELTA_LEVEL) + 1
+        # Note that level U_c.level + consts.PI_DELTA_LEVEL has number 1 because we want it to execute an "odd" round
+        r = U.level - (U_c.level + consts.PI_DELTA_LEVEL) + 1
         assert r >= 1, "The pi_delta protocol is attempted on a too low of a level."
         U_c_hash = U_c.hash()
         U_hash = U.hash()
@@ -431,7 +434,7 @@ class FastPoset(Poset):
             return delta_value
 
         # "r" is the number of level of the pi_delta protocol (see also the comment in compute_pi)
-        r = U.level - (U_c.level + consts.consts.PI_DELTA_LEVEL) + 1
+        r = U.level - (U_c.level + consts.PI_DELTA_LEVEL) + 1
 
         assert r % 2 == 0, "Delta is attempted to be evaluated at an odd level."
 
@@ -488,9 +491,9 @@ class FastPoset(Poset):
         # :returns: One of {0, 1} -- a (pseudo)random bit, impossible to predict before (U_tossing.level - 1) was reached
 
         logger = logging.getLogger(consts.LOGGER_NAME)
-        logger.info(f'toss_coin_start | Tossing at lvl {tossing_unit.level} for unit {U_tossing.short_name()} at lvl {U_tossing.level}.')
+        logger.info(f'toss_coin_start | Tossing at lvl {U_tossing.level} for unit {U_c.short_name()} at lvl {U_c.level}.')
 
-        if self.use_tcoin == False:
+        if self.use_tcoin == False or consts.ADD_SHARES >= U_tossing.level:
             return self._simple_coin(U_tossing, U_tossing.level)
 
         level = U_tossing.level-1
@@ -500,18 +503,18 @@ class FastPoset(Poset):
         # the coin dealer is the (hopefully) uniquely defined FAI of prime ancestors of U_tossing
         coin_dealer = None
 
-        # run through all prime ancestors of U_tossing
+        # run through all prime ancestors of U_tossing to gather coin shares
         for V in self.get_all_prime_units_by_level(level):
             # we gathered enough coin shares -- ceil(n_processes/3)
             if len(coin_shares) == self.n_processes//3 + 1:
                 break
 
             # can use only shares from units visible from the tossing unit (so that every process arrives at the same result)
-            if not self.below(V, tossing_unit):
+            if not self.below(V, U_tossing):
                 continue
 
             # check if V is a fork and we have added coin share corresponding to its creator
-            # Note that at this point we know that fai has not forked its dealing Unit (at least not below tossing_unit)
+            # Note that at this point we know that fai has not forked its dealing unit (at least not below U_tossing)
             # and the shares in V are validated hence even if V.creator_id forked, the share should be identical
             if V.creator_id in coin_shares:
                 continue
@@ -519,25 +522,22 @@ class FastPoset(Poset):
             fai_V = self.first_available_index(V, level)
             if coin_dealer is None:
                 coin_dealer = fai_V
-                if self.has_forking_evidence(U_tossing, coin_dealer):
-                    # the coin dealer is a forker, no point in collecting the shares -- we will use _simple_coin instead
-                    break
 
             if coin_dealer != fai_V:
-                # two prime ancestors of U_tossing have different fai's, this might cause a coin toss fail
+                # two prime ancestors of U_tossing have different fai's, this might cause a coin toss to fail
                 # we do not abort yet, hoping that there will be enough coin shares by coin_dealer to toss anyway
                 continue
 
             if V.coin_shares != []:
                 # it is now guaranteed that V.coin_shares = [cs], because this list contains at most one element
                 # check if the share is correct, it might be incorrect even if V.creator_id is not a cheater
-                if self.validate_share(V, dealer_id):
+                if self.validate_share(V, coin_dealer):
                     coin_shares[V.creator_id] = V.coin_shares[0]
-                    break
 
         ind_dealing_unit = self.index_dealing_unit_below(coin_dealer, U_c)
         # At this point (after coin_dealer was determined) it must be the case that there is exactly one dealing unit by coin_dealer below U_c.
-        # Note that there might still be multiple dealing of units of coin_dealer in the poset, but the evidence came earlier than U_tossing.
+        # Note that there might still be multiple dealing units by coin_dealer in the poset,
+        #    but the evidence that coin_dealer is a forker came earlier than U_tossing.
         assert ind_dealing_unit is not None
 
         # this is the threshold coin we shall use
@@ -567,9 +567,6 @@ class FastPoset(Poset):
         '''
 
         coin_shares = []
-        indices = self.determine_coin_shares(U)
-        if U.level >= consts.ADD_SHARES:
-            assert indices != [] and indices is not None
 
         dealer_id = self.first_available_index(U, U.level)
         # there might be multiple dealing units by dealer_id (if he forks), but only one below U
