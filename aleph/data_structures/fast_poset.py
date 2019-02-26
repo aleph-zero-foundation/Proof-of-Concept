@@ -397,8 +397,6 @@ class FastPoset(Poset):
         if pi_value is not None:
             return pi_value
 
-        r_value = self.r_function(U_c, U)
-
         votes_level_below = []
 
         for V in self.get_all_prime_units_by_level(U.level-1):
@@ -540,7 +538,7 @@ class FastPoset(Poset):
         # check whether we have enough valid coin shares to toss a coin
         n_collected = len(coin_shares)
         n_required = self.n_processes//3 + 1
-        if len(coin_shares) == n_required:
+        if n_collected == n_required:
             # this is the threshold coin we shall use
             t_coin = self.threshold_coins[U_dealing.hash()]
             coin, correct = t_coin.combine_coin_shares(coin_shares, str(level))
