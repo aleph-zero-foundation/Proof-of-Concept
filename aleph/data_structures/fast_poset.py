@@ -4,6 +4,9 @@ import logging
 
 from aleph.data_structures import Poset
 import aleph.const as consts
+from aleph.crypto.byte_utils import extract_bit
+from aleph.crypto.signatures.threshold_signatures import SecretKey, VerificationKey
+from aleph.crypto.threshold_coin import ThresholdCoin
 
 
 
@@ -36,8 +39,8 @@ class FastPoset(Poset):
 
         self.level_reached = 0
         self.level_timing_established = 0
-        # threshold coins dealt by each process; initialized from dealing units
-        self.threshold_coins = [[] for _ in range(n_processes)]
+        # threshold coins dealt, this is a dictionary {Unit_hash -> ThresholdCoin} where keys are hashes of dealing units
+        self.threshold_coins = {}
 
         self.prime_units_by_level = {}
 
@@ -84,10 +87,10 @@ class FastPoset(Poset):
             # extract the corresponding tcoin black box (this requires knowing the process_id)
             if self.use_tcoin:
                 assert self.process_id is not None, "Usage of tcoin enable but process_id not set."
-                self.extract_tcoin_from_dealing_unit(U, self.process_id)
+                self.extract_tcoin_from_dealing_unit(U)
 
 
-        # 2. updates the lists of maximal elements in the poset and forkinf height
+        # 2. updates the lists of maximal elements in the poset and forking height
         if len(U.parents) == 0:
             assert self.max_units_per_process[U.creator_id] == [], "A second dealing unit is attempted to be added to the poset"
             self.max_units_per_process[U.creator_id] = [U]
@@ -110,6 +113,10 @@ class FastPoset(Poset):
             if U.level not in self.prime_units_by_level:
                 self.prime_units_by_level[U.level] = [[] for _ in range(self.n_processes)]
             self.prime_units_by_level[U.level][U.creator_id].append(U)
+            # NOTE: we need to make sure that there is a deterministic order of units on the self.prime_units_by_level[U.level][U.creator_id] list
+            #       in case of forks there is more than one unit on this list and for consensus reason it becomes important to traverse
+            #       units on this list in exactly the same order by every process
+            self.prime_units_by_level[U.level][U.creator_id].sort(key = lambda U_x: U_x.hash())
 
         # 6. Update memoized_units
         if U.height % self.memo_height == 0:
@@ -276,6 +283,7 @@ class FastPoset(Poset):
             return memo['decision']
 
         t = consts.VOTING_LEVEL
+        t_p_d = consts.PI_DELTA_LEVEL
 
         # At levels +2, +3,..., +(t-1) it might be possible to prove that the consensus will be "1"
         # This is being tried in the loop below -- as Lemma 2.3.(1) in "Lewelewele" allows us to do:
@@ -285,12 +293,13 @@ class FastPoset(Poset):
                 if self.proves_popularity(U, U_c):
                     memo['decision'] = 1
                     process_id = (-1) if (self.process_id is None) else self.process_id
-                    logger.info(f'decide_timing {process_id} | Timing unit for lvl {U_c.level} decided at lvl + {level - U_c.level}')
+                    logger.info(f'decide_timing {process_id} | Timing unit for lvl {U_c.level} decided at lvl + {level - U_c.level}'
+                                f', poset lvl + {self.level_reached - U_c.level}')
                     return 1
 
 
         # Attempt to make a decision using "The fast algorithm" from Def. 2.4 in "Lewelewele".
-        for level in range(U_c.level + t + 1, self.level_reached + 1):
+        for level in range(U_c.level + t + 1, min(U_c.level + t_p_d, self.level_reached + 1)):
             for U in self.get_all_prime_units_by_level(level):
                 decision = self.compute_vote(U, U_c)
                 # this is the crucial line: if the (supermajority) vote agrees with the default one -- we have reached consensus
@@ -299,9 +308,31 @@ class FastPoset(Poset):
 
                     if decision == 1:
                         process_id = (-1) if (self.process_id is None) else self.process_id
-                        logger.info(f'decide_timing {process_id} | Timing unit for lvl {U_c.level} decided at lvl + {level - U_c.level}')
+                        logger.info(f'decide_timing {process_id} | Timing unit for lvl {U_c.level} decided at lvl + {level - U_c.level}'
+                                    f', poset lvl + {self.level_reached - U_c.level}')
 
                     return decision
+
+        # Switch to the pi-delta algorithm if consensus could not be reached using the "fast algorithm".
+        # It guarantees termination after a finite number of levels with probability 1.
+        # Note that this piece of code will only execute if there is still no decision on U_c and level_reached is >= U_c.level + t_p_d,
+        #   which we consider rather unlikely to happen since under normal circumstances (no malicious adversary) the fast algorithm
+        #   will likely decide at level <= +5. The default value of t_p_d is 12, thus after reaching level +6 and assuming that default_vote
+        #   is a random function of level, the probability of reaching level 12 is <= 2^{-7} <= 10^{-2}.
+        for level in range(U_c.level + t_p_d + 1, self.level_reached + 1, 2):
+            # Note that we always jump by two levels because of the specifics of this consensus protocol.
+            # Note that we start at U_c.level + t_p_d + 1 because U_c.level + t_p_d we consider as an "odd" round
+            #    and only the next one is the first "even" round where delta is supposed to be computed.
+            for U in self.get_all_prime_units_by_level(level):
+                decision = self.compute_delta(U_c, U)
+                if decision != -1:
+                    memo['decision'] = decision
+                    if decision == 1:
+                        process_id = (-1) if (self.process_id is None) else self.process_id
+                        logger.info(f'decide_timing {process_id} | Timing unit for lvl {U_c.level} decided at lvl + {level - U_c.level}'
+                                    f', poset lvl + {self.level_reached - U_c.level}')
+                    return decision
+
         return -1
 
 
@@ -311,9 +342,8 @@ class FastPoset(Poset):
         '''
 
         if self.level_reached < level + consts.VOTING_LEVEL:
-            # we cannot decide on a timing unit yet since there might be units that we don't see
-            # after reaching lvl level + consts.VOTING_LEVEL, if we do not see some unit
-            # it will necessarily be decided 0
+            # We cannot decide on a timing unit yet since there might be units that we don't see.
+            # After reaching lvl level + consts.VOTING_LEVEL, if we do not see some unit it will necessarily be decided 0.
             return -1
 
         sigma = self.crp[level]
@@ -331,3 +361,231 @@ class FastPoset(Poset):
                     return -1
 
         assert False, f"Something terrible happened: no timing unit was chosen at level {level}."
+
+
+    def exists_tc(self, list_vals, U_c, U_tossing):
+        if 1 in list_vals:
+            return 1
+        if 0 in list_vals:
+            return 0
+        return self.toss_coin(U_c, U_tossing)
+
+
+    def super_majority(self, list_vals):
+        treshold_majority = (2*self.n_processes + 2)//3
+        if list_vals.count(1) >= treshold_majority:
+            return 1
+        if list_vals.count(0) >= treshold_majority:
+            return 0
+
+        return -1
+
+
+    def compute_pi(self, U_c, U):
+        '''
+        Computes the value of the Pi function from the paper. The value -1 is equivalent to bottom (undefined).
+        '''
+        # "r" is the number of level of the pi_delta protocol.
+        # Note that level U_c.level + consts.PI_DELTA_LEVEL has number 1 because we want it to execute an "odd" round
+        r = U.level - (U_c.level + consts.PI_DELTA_LEVEL) + 1
+        assert r >= 1, "The pi_delta protocol is attempted on a too low of a level."
+        U_c_hash = U_c.hash()
+        U_hash = U.hash()
+        memo = self.timing_partial_results[U_c_hash]
+
+        pi_value = memo.get(('pi', U_hash), None)
+        if pi_value is not None:
+            return pi_value
+
+        votes_level_below = []
+
+        for V in self.get_all_prime_units_by_level(U.level-1):
+            if self.below(V, U):
+                if r == 1:
+                    # we use the votes of the last round of the "fast algorithm"
+                    vote_V = self.compute_vote(V, U_c)
+                    vote = vote_V if vote_V != -1 else self.default_vote(V, U_c)
+                    votes_level_below.append(vote)
+                else:
+                    # we use the pi-values of the last round
+                    votes_level_below.append(self.compute_pi(U_c, V))
+
+        if r % 2 == 0:
+            # the "exists" round
+            pi_value = self.exists_tc(votes_level_below, U)
+        elif r % 2 == 1:
+            # the "super-majority" round
+            pi_value = self.super_majority(votes_level_below)
+
+        memo[('pi', U_hash)] = pi_value
+        return pi_value
+
+
+    def compute_delta(self, U_c, U):
+        '''
+        Computes the value of the Delta function from the paper. The value -1 is equivalent to bottom (undefined).
+        '''
+        U_c_hash = U_c.hash()
+        U_hash = U.hash()
+        memo = self.timing_partial_results[U_c_hash]
+
+        delta_value = memo.get(('delta', U_hash), None)
+        if delta_value is not None:
+            return delta_value
+
+        # "r" is the number of level of the pi_delta protocol (see also the comment in compute_pi)
+        r = U.level - (U_c.level + consts.PI_DELTA_LEVEL) + 1
+
+        assert r % 2 == 0, "Delta is attempted to be evaluated at an odd level."
+
+        pi_values_level_below = []
+        for V in self.get_all_prime_units_by_level(U.level-1):
+            if self.below(V, U):
+                pi_values_level_below.append(self.compute_pi(U_c, V))
+
+        delta_value = self.super_majority(pi_values_level_below)
+        memo[('delta', U_hash)] = delta_value
+        return delta_value
+
+
+    def _simple_coin(self, U, level):
+        # Needs to be a deterministic function of (U, level).
+        # We choose it to be the l'th bit of the hash of U where l := level % (n_bits_in_U_hash)
+        l = level % (8 * len(U.hash()))
+        return extract_bit(U.hash(), l)
+
+
+    def first_dealing_unit(self, V):
+        '''
+        Returns the first dealing unit (sorted w.r.t. crp at level level(V)) that is below V.
+        '''
+        permutation = self.crp[self.level(V)]
+
+        for dealer_id in permutation:
+            if self.has_forking_evidence(V, dealer_id):
+                continue
+            for U in self.dealing_units[dealer_id]:
+                if self.below(U,V):
+                    return U
+
+        #This is clearly a problem... Should not happen
+        assert False, "No unit available for first_dealing_unit."
+        return None
+
+
+    def validate_share(self, U):
+        '''
+        Checks whether the coin share of U agrees with the dealt public key.
+        Note that even if it does not, it does not follow that U.creator_id is adversary -- it could be that dealer_id is the cheater.
+        '''
+        U_dealing = self.first_dealing_unit(U)
+        coin_share = U.coin_shares[0]
+        return self.threshold_coins[U_dealing.hash()].verify_coin_share(coin_share, U.creator_id, U.level)
+
+
+    def toss_coin(self, U_c, U_tossing):
+        # The coin toss at unit U_tossing (necessarily at level >= consts.ADD_SHARES + 1)
+        # With low probability the toss may fail -- typically because of adversarial behavior of some process(es).
+        # :param unit U_c: the unit whose popularity decision is being considered by tossing a coin
+        #                  this param is used only in case when the _simple_coin is used, otherwise
+        #                  the result of coin toss is meant to be a function of U_tossing.level only
+        # :param unit U_tossing: the unit what is cossing a toin
+        # :returns: One of {0, 1} -- a (pseudo)random bit, impossible to predict before (U_tossing.level - 1) was reached
+
+        logger = logging.getLogger(consts.LOGGER_NAME)
+        logger.info(f'toss_coin_start | Tossing at lvl {U_tossing.level} for unit {U_c.short_name()} at lvl {U_c.level}.')
+
+        if self.use_tcoin == False or consts.ADD_SHARES >= U_tossing.level:
+            return self._simple_coin(U_tossing, U_tossing.level)
+
+        level = U_tossing.level-1
+
+        coin_shares = {}
+
+        # the dealing unit is (hopefully) uniquely defined FDU of prime ancestors of U_tossing
+        U_dealing = None
+
+        # run through all prime ancestors of U_tossing to gather coin shares
+        for V in self.get_all_prime_units_by_level(level):
+            # we gathered enough coin shares -- ceil(n_processes/3)
+            if len(coin_shares) == self.n_processes//3 + 1:
+                break
+
+            # can use only shares from units visible from the tossing unit (so that every process arrives at the same result)
+            if not self.below(V, U_tossing):
+                continue
+
+            # the below check is necessary if V.creator_id is a forker -- we do not want to collect the same share twice
+            if V.creator_id in coin_shares:
+                continue
+
+            fdu_V = self.first_dealing_unit(V)
+            if U_dealing is None:
+                U_dealing = fdu_V
+
+            if U_dealing is not fdu_V:
+                # two prime ancestors of U_tossing have different fdu's, this might cause a coin toss to fail
+                # we do not abort yet, hoping that there will be enough coin shares by coin_dealer to toss anyway
+                continue
+
+            if V.coin_shares != []:
+                # it is now guaranteed that V.coin_shares = [cs], because this list contains at most one element
+                # check if the share is correct, it might be incorrect even if V.creator_id is not a cheater
+                if self.validate_share(V):
+                    coin_shares[V.creator_id] = V.coin_shares[0]
+
+
+        # check whether we have enough valid coin shares to toss a coin
+        n_collected = len(coin_shares)
+        n_required = self.n_processes//3 + 1
+        if n_collected == n_required:
+            # this is the threshold coin we shall use
+            t_coin = self.threshold_coins[U_dealing.hash()]
+            coin, correct = t_coin.combine_coin_shares(coin_shares, str(level))
+            if correct:
+                logger.info(f'toss_coin_succ {self.process_id} | Succeded - {n_collected} out of required {n_required} shares collected')
+                return coin
+            else:
+                logger.warning(f'toss_coin_fail {self.process_id} | Failed - {n_collected} out of required {n_required} shares collected, but combine unsuccesful')
+                return self._simple_coin(U_c, level)
+
+        else:
+            logger.warning(f'toss_coin_fail {self.process_id} | Failed - {n_collected} out of required {n_required} shares were collected')
+            return self._simple_coin(U_c, level)
+
+
+    def add_coin_shares(self, U):
+        '''
+        Adds coin shares to the prime unit U using the simplified strategy: add the coin_share determined by FAI(U, U.level) to U
+        :param unit U: prime unit to which coin shares are added
+        '''
+
+        coin_shares = []
+
+        U_dealing = self.first_dealing_unit(U)
+        coin_shares = [ self.threshold_coins[U_dealing.hash()].create_coin_share(U.level) ]
+        # The coin_shares are in fact a one-element list, except when something goes wrong with decrypting the tcoin
+        #   in the dealing unit. In the current version it cannot happen, as the tcoins are not encrypted.
+        U.coin_shares = coin_shares
+
+
+    def extract_tcoin_from_dealing_unit(self, U):
+        assert U.parents == [], "Trying to extract tcoin from a non-dealing unit."
+        threshold = self.n_processes//3+1
+        sk = SecretKey(U.coin_shares['sks'][self.process_id])
+        vk = VerificationKey(threshold, U.coin_shares['vk'], U.coin_shares['vks'])
+        self.threshold_coins[U.hash()] = ThresholdCoin(U.creator_id, self.process_id, self.n_processes, threshold, sk, vk)
+
+
+    def check_coin_shares(self, U):
+        '''
+        Checks coin shares of a prime unit that is not a dealing unit.
+        This boils down to checking if U has exactly one share if its level is >= consts.ADD_SHARES and zero shares otherwise.
+        At this point there is no point checking whether the share is correct, because that might be because of an dishonest dealer.
+        '''
+        assert self.is_prime(U), "Trying to check shares of a non-prime unit."
+        assert len(U.parents) > 0, "Trying to check shares of a dealing unit."
+        if self.level(U) < consts.ADD_SHARES:
+            return len(U.coin_shares) == 0
+        else:
+            return len(U.coin_shares) == 1

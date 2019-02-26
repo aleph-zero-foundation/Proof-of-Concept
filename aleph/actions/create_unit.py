@@ -167,7 +167,6 @@ def create_unit(poset, creator_id, txs, num_parents = None, restrictions=[expand
     if poset.use_tcoin:
         poset.prepare_unit(U)
         if poset.is_prime(U) and U.level >= consts.ADD_SHARES:
-
             poset.add_coin_shares(U)
 
 

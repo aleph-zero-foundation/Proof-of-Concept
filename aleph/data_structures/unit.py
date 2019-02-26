@@ -1,5 +1,5 @@
 '''This module implements unit - a basic building block of Aleph protocol.'''
-import hashlib
+from aleph.crypto import sha3_hash
 import pickle
 import zlib
 import base64
@@ -77,7 +77,7 @@ class Unit(object):
         '''Return the value of hash of this unit.'''
         if self.hash_value is not None:
             return self.hash_value
-        self.hash_value = hashlib.sha3_256(self.bytestring()).digest()
+        self.hash_value = sha3_hash(self.bytestring())
         return self.hash_value
 
 

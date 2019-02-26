@@ -4,14 +4,13 @@ from itertools import product
 from functools import reduce
 import random
 import logging
-import hashlib
 
 
 from aleph.crypto.signatures.threshold_signatures import generate_keys, SecretKey, VerificationKey
 from aleph.crypto.threshold_coin import ThresholdCoin
+from aleph.crypto import sha3_hash
 
 from aleph.data_structures.unit import Unit
-from aleph.crypto import xor
 
 import aleph.const as consts
 
@@ -211,13 +210,8 @@ class Poset:
         :returns: list of pairs of indices such that for (i,j) in the list the coin share TC^j_i(L(U)) should be added to U
         '''
 
-        # NOTE there is a problem with lemma 3.16 (there could be no such W), i.e. there could be not enough coin shares to toss a coin.
-        # as a solution on level +4: if there is enough shares it succeeds, otherwise just toss a hash of U,
-        # and on level +6 we know there are enough shares
-
-        # don't add coin shares for prime units of level lower than 6
-        # this is due to the fact that we want to build transversal for a family
-        # of sets of dealing units in lower cones of prime units of level 3
+        # We start adding coin shares only at levels >= consts.ADD_SHARES, this implies
+        #    that with rather high probability there will be no more than a (small) constant (likely = 1) number of shares per unit
         if U.level < consts.ADD_SHARES:
             return []
 
@@ -232,7 +226,7 @@ class Poset:
 
         # starting from level 3 there is negligible probability that the transversal will have more than 1 element
         # as we start adding coin shares to units of level 6, everything is just fine
-        level = 3
+        level = consts.ADD_SHARES
 
         # construct the list of all prime units below U at level 3 (or higher, if no unit at level=3 for a given process)
         # it can be proved that these are enough instead of *all* prime units at levels 3 <= ... <= U.level - 1
@@ -1328,7 +1322,7 @@ class Poset:
         if not all(p in self.units for p in U.parents):
             import base64
             logger = logging.getLogger(consts.LOGGER_NAME)
-            logger.info(f"{U.short_name()}")
+            logger.error(f"dehash_parents {self.process_id} | Parents not found in the poset for {U.short_name()}")
             for pa in U.parents:
                 pa = base64.b32encode(pa).decode()[:16]
                 logger.info(f"{pa}")
@@ -1350,7 +1344,7 @@ class Poset:
         :param list units_list: the units to be sorted, should be all units with a given timing round
         :returns: the same set of units in a list ordered linearly
         '''
-        sha3_hash = lambda x: hashlib.sha3_256(x).digest()
+
         # R is a value that depends on all the units in units_list and does not depend on the order of units in units_list
 
         R = sha3_hash(b''.join(sorted(U.hash() for U in units_list)))
