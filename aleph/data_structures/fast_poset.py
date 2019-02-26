@@ -5,6 +5,8 @@ import logging
 from aleph.data_structures import Poset
 import aleph.const as consts
 from aleph.crypto.byte_utils import extract_bit
+from aleph.crypto.signatures.threshold_signatures import SecretKey, VerificationKey
+from aleph.crypto.threshold_coin import ThresholdCoin
 
 
 
@@ -37,8 +39,8 @@ class FastPoset(Poset):
 
         self.level_reached = 0
         self.level_timing_established = 0
-        # threshold coins dealt by each process; initialized from dealing units
-        self.threshold_coins = [[] for _ in range(n_processes)]
+        # threshold coins dealt, this is a dictionary {Unit_hash -> ThresholdCoin} where keys are hashes of dealing units
+        self.threshold_coins = {}
 
         self.prime_units_by_level = {}
 
@@ -85,10 +87,10 @@ class FastPoset(Poset):
             # extract the corresponding tcoin black box (this requires knowing the process_id)
             if self.use_tcoin:
                 assert self.process_id is not None, "Usage of tcoin enable but process_id not set."
-                self.extract_tcoin_from_dealing_unit(U, self.process_id)
+                self.extract_tcoin_from_dealing_unit(U)
 
 
-        # 2. updates the lists of maximal elements in the poset and forkinf height
+        # 2. updates the lists of maximal elements in the poset and forking height
         if len(U.parents) == 0:
             assert self.max_units_per_process[U.creator_id] == [], "A second dealing unit is attempted to be added to the poset"
             self.max_units_per_process[U.creator_id] = [U]
@@ -455,30 +457,32 @@ class FastPoset(Poset):
         return extract_bit(U.hash(), l)
 
 
-    def first_available_index(self, V, level):
-        permutation = self.crp[level]
+    def first_dealing_unit(self, V):
+        '''
+        Returns the first dealing unit (sorted w.r.t. crp at level level(V)) that is below V.
+        '''
+        permutation = self.crp[self.level(V)]
 
         for dealer_id in permutation:
             if self.has_forking_evidence(V, dealer_id):
                 continue
             for U in self.dealing_units[dealer_id]:
                 if self.below(U,V):
-                    return dealer_id
+                    return U
 
         #This is clearly a problem... Should not happen
-        assert False, "No index available for first_available_index."
+        assert False, "No unit available for first_dealing_unit."
         return None
 
 
-    def validate_share(self, U, dealer_id):
+    def validate_share(self, U):
         '''
         Checks whether the coin share of U agrees with the dealt public key.
         Note that even if it does not, it does not follow that U.creator_id is adversary -- it could be that dealer_id is the cheater.
         '''
-        ind = self.index_dealing_unit_below(dealer_id, U)
-        assert ind is not None
+        U_dealing = self.first_dealing_unit(U)
         coin_share = U.coin_shares[0]
-        return self.threshold_coins[dealer_id][ind].verify_coin_share(coin_share, U.creator_id, U.level)
+        return self.threshold_coins[U_dealing.hash()].verify_coin_share(coin_share, U.creator_id, U.level)
 
 
     def toss_coin(self, U_c, U_tossing):
@@ -500,8 +504,8 @@ class FastPoset(Poset):
 
         coin_shares = {}
 
-        # the coin dealer is the (hopefully) uniquely defined FAI of prime ancestors of U_tossing
-        coin_dealer = None
+        # the dealing unit is (hopefully) uniquely defined FDU of prime ancestors of U_tossing
+        U_dealing = None
 
         # run through all prime ancestors of U_tossing to gather coin shares
         for V in self.get_all_prime_units_by_level(level):
@@ -513,40 +517,32 @@ class FastPoset(Poset):
             if not self.below(V, U_tossing):
                 continue
 
-            # check if V is a fork and we have added coin share corresponding to its creator
-            # Note that at this point we know that fai has not forked its dealing unit (at least not below U_tossing)
-            # and the shares in V are validated hence even if V.creator_id forked, the share should be identical
+            # the below check is necessary if V.creator_id is a forker -- we do not want to collect the same share twice
             if V.creator_id in coin_shares:
                 continue
 
-            fai_V = self.first_available_index(V, level)
-            if coin_dealer is None:
-                coin_dealer = fai_V
+            fdu_V = self.first_dealing_unit(V)
+            if U_dealing is None:
+                U_dealing = fdu_V
 
-            if coin_dealer != fai_V:
-                # two prime ancestors of U_tossing have different fai's, this might cause a coin toss to fail
+            if U_dealing is not fdu_V:
+                # two prime ancestors of U_tossing have different fdu's, this might cause a coin toss to fail
                 # we do not abort yet, hoping that there will be enough coin shares by coin_dealer to toss anyway
                 continue
 
             if V.coin_shares != []:
                 # it is now guaranteed that V.coin_shares = [cs], because this list contains at most one element
                 # check if the share is correct, it might be incorrect even if V.creator_id is not a cheater
-                if self.validate_share(V, coin_dealer):
+                if self.validate_share(V):
                     coin_shares[V.creator_id] = V.coin_shares[0]
 
-        ind_dealing_unit = self.index_dealing_unit_below(coin_dealer, U_c)
-        # At this point (after coin_dealer was determined) it must be the case that there is exactly one dealing unit by coin_dealer below U_c.
-        # Note that there might still be multiple dealing units by coin_dealer in the poset,
-        #    but the evidence that coin_dealer is a forker came earlier than U_tossing.
-        assert ind_dealing_unit is not None
-
-        # this is the threshold coin we shall use
-        t_coin = self.threshold_coins[coin_dealer][ind_dealing_unit]
 
         # check whether we have enough valid coin shares to toss a coin
         n_collected = len(coin_shares)
         n_required = self.n_processes//3 + 1
         if len(coin_shares) == n_required:
+            # this is the threshold coin we shall use
+            t_coin = self.threshold_coins[U_dealing.hash()]
             coin, correct = t_coin.combine_coin_shares(coin_shares, str(level))
             if correct:
                 logger.info(f'toss_coin_succ {self.process_id} | Succeded - {n_collected} out of required {n_required} shares collected')
@@ -568,10 +564,30 @@ class FastPoset(Poset):
 
         coin_shares = []
 
-        dealer_id = self.first_available_index(U, U.level)
-        # there might be multiple dealing units by dealer_id (if he forks), but only one below U
-        ind = self.index_dealing_unit_below(dealer_id, U)
-        coin_shares = [ self.threshold_coins[dealer_id][ind].create_coin_share(U.level) ]
+        U_dealing = self.first_dealing_unit(U)
+        coin_shares = [ self.threshold_coins[U_dealing.hash()].create_coin_share(U.level) ]
         # The coin_shares are in fact a one-element list, except when something goes wrong with decrypting the tcoin
         #   in the dealing unit. In the current version it cannot happen, as the tcoins are not encrypted.
         U.coin_shares = coin_shares
+
+
+    def extract_tcoin_from_dealing_unit(self, U):
+        assert U.parents == [], "Trying to extract tcoin from a non-dealing unit."
+        threshold = self.n_processes//3+1
+        sk = SecretKey(U.coin_shares['sks'][self.process_id])
+        vk = VerificationKey(threshold, U.coin_shares['vk'], U.coin_shares['vks'])
+        self.threshold_coins[U.hash()] = ThresholdCoin(U.creator_id, self.process_id, self.n_processes, threshold, sk, vk)
+
+
+    def check_coin_shares(self, U):
+        '''
+        Checks coin shares of a prime unit that is not a dealing unit.
+        This boils down to checking if U has exactly one share if its level is >= consts.ADD_SHARES and zero shares otherwise.
+        At this point there is no point checking whether the share is correct, because that might be because of an dishonest dealer.
+        '''
+        assert self.is_prime(U), "Trying to check shares of a non-prime unit."
+        assert len(U.parents) > 0, "Trying to check shares of a dealing unit."
+        if self.level(U) < consts.ADD_SHARES:
+            return len(U.coin_shares) == 0
+        else:
+            return len(U.coin_shares) == 1
