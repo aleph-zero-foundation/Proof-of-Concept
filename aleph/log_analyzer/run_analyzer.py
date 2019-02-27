@@ -31,76 +31,84 @@ def prepare_common_stats(process_stats, rep_dir):
             rep_file.write(line + '\n')
 
 
-def parse_args_and_run():
+def print_help():
+    print(  "Use one of:\n"
+            "1) python run_analyzer.py ALL logs_dir reports_dir\n"
+            "       Analyzes all logs in logs_dir and writes report to reports_dir\n"
+            "2) python run_analyzer.py log_file [process_id]\n"
+            "       Analyzes the log_file using process_id (optional)\n"
+            "       Providing process_id is mandatory if the log is shared by multiple processes\n"
+        )
 
-    if len(sys.argv) < 2:
-        print("Need to provide arguments. Try one of:")
-        print("1) Log_file_path     (In case the log file contains data from one process only)")
-        print("   Ex: python run_analyzer.py aleph.log")
-        print("2) Log_file_path process_id           (In case the log file contains data from multiple processes)")
-        print("   Ex: python run_analyzer.py aleph.log 0")
-        print("3) ALL Dir_with_multiple_logs Destination_dir")
-        print("   Ex: python run_analyzer.py ALL logs reports")
+
+def analyze_one_log():
+    path = sys.argv[1]
+    if len(sys.argv) == 3:
+        process_id = int(sys.argv[2])
+    else:
+        print('No process id provided -- assuming that the log comes from one process only.')
+        process_id = None
+
+    analyzer = LogAnalyzer(path, process_id, generate_plots = True)
+    if not analyzer.analyze():
+        print('Failed because the log does not even contain the Process start message.')
+        sys.exit(0)
+    process_id = analyzer.process_id
+    analyzer.prepare_basic_report('.')
+    analyzer.prepare_report_per_process('.')
+
+
+def analyze_all_dir():
+    log_dir = sys.argv[2]
+    rep_dir = sys.argv[3]
+
+    if not os.path.isdir(log_dir):
+        print(f"No such directory {log_dir}.")
         sys.exit(0)
 
-    if len(sys.argv) == 4 and sys.argv[1] == 'ALL':
+    if not os.path.isdir(rep_dir):
+        print(f"No such directory {rep_dir}. Creating.")
+        os.makedirs(rep_dir, exist_ok=True)
 
-        log_dir = sys.argv[2]
-        rep_dir = sys.argv[3]
+    list_logs = os.listdir(log_dir)
+    # do not parse other.log etc.
+    list_logs = sorted([log_file for log_file in list_logs if os.path.basename(log_file).find("aleph") != -1])
+    process_stats = []
+    for ind, log_name in enumerate(list_logs):
 
-        if not os.path.isdir(log_dir):
-            print(f"No such directory {log_dir}.")
-            sys.exit(0)
-
-        if not os.path.isdir(rep_dir):
-            print(f"No such directory {rep_dir}. Creating.")
-            os.mkdir(rep_dir)
-
-        list_logs = os.listdir(log_dir)
-        # do not parse other.log etc.
-        list_logs = sorted([log_file for log_file in list_logs if os.path.basename(log_file).find("aleph") != -1])
-        process_stats = []
-        for ind, log_name in enumerate(list_logs):
-
-            path = os.path.join(log_dir, log_name)
-            print(f'Analyzing {path}...')
-            if ind == 0:
-                generate_plots = True
-                print('Will generate plots only for this log.')
-            else:
-                generate_plots = False
-
-            analyzer = LogAnalyzer(path, generate_plots = generate_plots)
-            if not analyzer.analyze():
-                print('Failed because the log does not even contain the Process start message.')
-                continue
-            process_id = analyzer.process_id
-            print(f"{ind}: Process' {process_id} log analyzed.\n")
-            analyzer.prepare_basic_report(rep_dir)
-            analyzer.prepare_report_per_process(rep_dir)
-
-            stats = {'process_id' : process_id}
-            stats['latency'] = analyzer.get_unit_latency()
-            stats['txps'] = analyzer.get_txps_till_last_timing_unit()
-            process_stats.append(stats)
-
-        prepare_common_stats(process_stats, rep_dir)
-
-
-    if len(sys.argv) in [2,3]:
-        path = sys.argv[1]
-        if len(sys.argv) == 3:
-            process_id = int(sys.argv[2])
+        path = os.path.join(log_dir, log_name)
+        print(f'Analyzing {path}...')
+        if ind == 0:
+            generate_plots = True
+            print('Will generate plots only for this log file.')
         else:
-            process_id = None
+            generate_plots = False
 
-        analyzer = LogAnalyzer(path, process_id, generate_plots = True)
+        analyzer = LogAnalyzer(path, generate_plots = generate_plots)
         if not analyzer.analyze():
             print('Failed because the log does not even contain the Process start message.')
-            sys.exit(0)
+            continue
         process_id = analyzer.process_id
-        analyzer.prepare_basic_report('.')
-        analyzer.prepare_report_per_process('.')
+        print(f"{ind}: Process' {process_id} log analyzed.\n")
+        analyzer.prepare_basic_report(rep_dir)
+        analyzer.prepare_report_per_process(rep_dir)
+
+        stats = {'process_id' : process_id}
+        stats['latency'] = analyzer.get_unit_latency()
+        stats['txps'] = analyzer.get_txps_till_last_timing_unit()
+        process_stats.append(stats)
+
+    prepare_common_stats(process_stats, rep_dir)
+
+
+
+def parse_args_and_run():
+    if len(sys.argv) in [2,3]:
+        analyze_one_log()
+    elif len(sys.argv) == 4 and sys.argv[1] == 'ALL':
+        analyze_all_dir()
+    else:
+        print_help()
 
 
 if __name__ == '__main__':
