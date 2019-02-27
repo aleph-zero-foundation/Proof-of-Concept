@@ -59,15 +59,12 @@ def check_growth(dag, node_self_predecessor, node_parents):
 def check_expand_primes(dag, node_self_predecessor, node_parents):
     level = dag.levels[node_self_predecessor]
     prime_units = dag.prime_units_by_level[level]
-    predecessor_visible_prime_units = set()
-    for prime_unit in prime_units:
-        if dag.is_reachable(prime_unit, node_self_predecessor):
-            predecessor_visible_prime_units.add(prime_unit)
-    # we already see enough, cannot require more while using 'high above' for levels
-    if 3*len(predecessor_visible_prime_units) >= 2*dag.n_processes:
-        return check_growth(dag, node_self_predecessor, node_parents) and check_parent_diversity(dag, dag.pids[node_self_predecessor], node_parents, (dag.n_processes + 2)//3)
     visible_prime_units = set()
     for parent in node_parents:
+        if dag.levels[parent] > level:
+            level = dag.levels[parent]
+            prime_units = dag.prime_units_by_level[level]
+            visible_prime_units = set()
         new_visible_prime_units = set()
         for prime_unit in prime_units:
             if dag.is_reachable(prime_unit, parent):
@@ -420,13 +417,3 @@ def dag_from_file(file_name):
     with open(file_name, mode="rb") as poset_file:
         dag = dag_from_stream(poset_file)
     return dag
-
-
-
-
-
-
-
-
-
-

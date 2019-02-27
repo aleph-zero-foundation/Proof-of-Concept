@@ -6,7 +6,7 @@ import os
 
 import psutil
 
-from aleph.data_structures import Poset, FastPoset, UserDB
+from aleph.data_structures import Poset, UserDB
 from aleph.crypto import CommonRandomPermutation
 from aleph.network import Network, tx_listener
 from aleph.actions import create_unit
@@ -18,7 +18,7 @@ class Process:
     '''This class is the main component of the Aleph protocol.'''
 
     def __init__(self, n_processes, process_id, secret_key, public_key, addresses, public_key_list, tx_receiver_address, userDB=None,
-                validation_method='LINEAR_ORDERING', tx_source=tx_listener, gossip_strategy='unif_random', use_fast_poset=None):
+                validation_method='LINEAR_ORDERING', tx_source=tx_listener, gossip_strategy='unif_random'):
         '''
         :param int n_processes: the committee size
         :param int process_id: the id of the current process
@@ -52,12 +52,7 @@ class Process:
 
         self.crp = CommonRandomPermutation([pk.to_hex() for pk in public_key_list])
 
-        use_fast_poset = consts.USE_FAST_POSET if use_fast_poset is None else use_fast_poset
-
-        if use_fast_poset:
-            self.poset = FastPoset(self.n_processes, self.process_id, self.crp, use_tcoin = consts.USE_TCOIN)
-        else:
-            self.poset = Poset(self.n_processes, self.process_id, self.crp, use_tcoin = consts.USE_TCOIN)
+        self.poset = Poset(self.n_processes, self.process_id, self.crp, use_tcoin = consts.USE_TCOIN)
 
         self.userDB = userDB
         if self.userDB is None:

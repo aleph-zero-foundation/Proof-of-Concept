@@ -48,23 +48,16 @@ def growth_restricted(poset, W, parent_processes):
 
 def expand_primes_restricted(poset, W, parent_processes):
     '''
-    Compute ids of processes whose highest unit is only above prime units of level W.level that W,
-    or one of the already chosen parents, is also above.
-    If W is above at least 2/3 of prime units at level W.level
-    then falls back to recent parents + growth restrictions.
+    Compute ids of processes whose top units are both of level not higher than parent_processes[-1].level
+    and not above more prime units of level parent_processes[-1].level than all parent_processes together.
     :param poset poset: the poset in which the unit lives
     :param unit W: the unit that defines the set of prime units to inspect
     :param list parent_processes: processes already chosen as parents for the new unit
     :returns: the set of ids satisfying the conditionss above
     '''
     not_extending_primes = set()
-    level = W.level
+    level = max(poset.max_units_per_process[pid][0].level for pid in parent_processes)
     prime_below_parents = set()
-    # we already saw enough prime units, cannot require more while using 'high above' for levels
-    if 3*len(poset.get_prime_units_at_level_below_unit(level, W)) >= 2*poset.n_processes:
-        fallback_restricted = recent_parents_restricted(poset, W, parent_processes)
-        fallback_restricted.update(growth_restricted(poset, W, parent_processes))
-        return fallback_restricted
     for process_id in parent_processes:
         prime_below_parents.update(poset.get_prime_units_at_level_below_unit(level, poset.max_units_per_process[process_id][0]))
     unseen_primes = set()
@@ -72,6 +65,9 @@ def expand_primes_restricted(poset, W, parent_processes):
         if all(prime not in prime_below_parents for prime in primes):
             unseen_primes.update(primes)
     for Vs in poset.max_units_per_process:
+        # always allow higher level units; only checking level of Vs[0], since we pick it anyways
+        if len(Vs) > 0 and Vs[0].level > level:
+            continue
         for V in Vs:
             extends_primes = False
             for W in unseen_primes:

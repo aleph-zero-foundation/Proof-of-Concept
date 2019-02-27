@@ -131,3 +131,20 @@ def units_to_send(poset, info, requests = None):
         unfulfilled_requests = [h for h in requests[pid] if h not in hashes_to_send]
         to_send.extend(requested_units_to_send(poset, info[pid], unfulfilled_requests))
     return order_units_topologically(to_send), my_requests
+
+def dehash_parents(poset, U):
+    '''
+    Substitute units from the poset for hashes in U's parent list and set the height field. To be called on units received from the network.
+    :param Poset poset: the poset where U is supposed to end up in
+    :param Unit U: the unit with hashes instead of parents
+    '''
+    if not all(p in poset.units for p in U.parents):
+        import base64
+        logger = logging.getLogger(consts.LOGGER_NAME)
+        logger.error(f"dehash_parents {poset.process_id} | Parents not found in the poset for {U.short_name()}")
+        for pa in U.parents:
+            pa = base64.b32encode(pa).decode()[:16]
+            logger.info(f"{pa}")
+        assert False, 'Attempting to fix parents but parents not present in poset'
+    U.parents = [poset.units[p] for p in U.parents]
+    U.height = U.parents[0].height+1 if len(U.parents) > 0 else 0

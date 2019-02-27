@@ -4,7 +4,7 @@ import socket
 
 from .channel import Channel, RejectException
 from aleph.utils import timer
-from aleph.actions import poset_info, units_to_send
+from aleph.actions import poset_info, units_to_send, dehash_parents
 import aleph.const as consts
 
 
@@ -149,7 +149,7 @@ class Network:
         printable_unit_hashes = ''
 
         for unit in units_received:
-            self.process.poset.dehash_parents(unit)
+            dehash_parents(self.process.poset, unit)
             printable_unit_hashes += (' ' + unit.short_name())
             if not self.process.add_unit_to_poset(unit):
                 self.logger.error(f'add_received_fail_{mode} {ids} | unit {unit.short_name()} from {peer_id} was rejected')

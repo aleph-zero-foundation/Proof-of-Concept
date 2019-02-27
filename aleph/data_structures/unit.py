@@ -9,8 +9,8 @@ from aleph.config import PAIRING_GROUP
 class Unit(object):
     '''This class is the building block for the poset'''
 
-    __slots__ = ['creator_id', 'parents', 'txs', 'signature', 'coin_shares',
-                 'level', 'floor', 'ceil', 'height', 'hash_value', 'n_txs']
+    __slots__ = ['creator_id', 'parents', 'txs', 'signature', '_coin_shares',
+                 'level', 'floor', 'height', 'hash_value', 'n_txs']
 
     def __init__(self, creator_id, parents, txs, signature=None, coin_shares=None):
         '''
@@ -23,7 +23,7 @@ class Unit(object):
         self.creator_id = creator_id
         self.parents = parents
         self.signature = signature
-        self.coin_shares = coin_shares or []
+        self._coin_shares = coin_shares or []
         self.level = None
         self.hash_value = None
         self.txs = zlib.compress(pickle.dumps(txs), level=4)
@@ -34,6 +34,15 @@ class Unit(object):
     @property
     def self_predecessor(self):
         return self.parents[0] if len(self.parents) > 0 else None
+
+    @property
+    def coin_shares(self):
+        return self._coin_shares
+
+    @coin_shares.setter
+    def coin_shares(self, value):
+        self._coin_shares = value
+        self.hash_value = None
 
     def transactions(self):
         '''Iterate over transactions (instances of Tx class) belonging to this unit.'''

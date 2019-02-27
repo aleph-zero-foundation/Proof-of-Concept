@@ -21,14 +21,6 @@ def generate_and_check_dag(checks, n_processes, n_units, forking = None, repetit
 
 
 # Unit creation for tests
-def generate_threshold_coins(posets):
-    n_processes = len(posets)
-    for dealer_id in range(n_processes):
-        vk, sks = generate_keys(n_processes, n_processes//3+1)
-        for process_id in range(n_processes):
-            threshold_coin = ThresholdCoin(dealer_id, process_id, n_processes, n_processes//3+1, sks[process_id], vk)
-            posets[process_id].add_threshold_coin(threshold_coin)
-
 def generate_unit(dag, posets, creator_id, unit_to_name, forking, only_maximal_parents):
     n_processes = len(posets)
     if forking:

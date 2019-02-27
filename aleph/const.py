@@ -24,6 +24,4 @@ HOST_PORT       = 8888         # default port of incoming syncs
 
 LOGGER_NAME     = 'aleph'
 
-USE_FAST_POSET  = 1            # use fast poset in place of poset when using Processes
-
 TX_SOURCE       = 'tx_source_gen'

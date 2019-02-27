@@ -452,7 +452,7 @@ def run_protocol(n_processes, regions, restricted, instance_type):
     run_task('run-protocol', regions, parallel)
 
 
-def get_logs(n_processes, regions, n_parents, use_tcoin, create_freq, sync_init_freq, n_recv_sync, txpu, use_fast_poset):
+def get_logs(n_processes, regions, n_parents, use_tcoin, create_freq, sync_init_freq, n_recv_sync, txpu):
     '''Retrieves all logs from instances.'''
 
     if not os.path.exists('../results'):
@@ -504,7 +504,7 @@ def get_logs(n_processes, regions, n_parents, use_tcoin, create_freq, sync_init_
         pid = ip_addresses.index(fp.split(f'-{name}.log')[0].replace('-', '.'))
         os.rename(f'../results/{fp}', f'../results/{pid}.{name}.log.zip')
 
-    result_path = f'../{n_processes}_{n_parents}_{use_tcoin}_{create_freq}_{sync_init_freq}_{n_recv_sync}_{txpu}_{use_fast_poset}'
+    result_path = f'../{n_processes}_{n_parents}_{use_tcoin}_{create_freq}_{sync_init_freq}_{n_recv_sync}_{txpu}'
 
     print('rename dir')
     os.rename('../results', result_path)
