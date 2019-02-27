@@ -1405,8 +1405,19 @@ class Poset:
 # DUMPING POSET TO FILE
 #===============================================================================================================================
 
+
     def dump_to_file(self, file_name):
+        '''
+        Dumps the poset to file in a rather simple format. Units are listed in the same order as the were added to the poset.
+        Except from parents and creator_id we also include info about the level of each unit and a bit 0/1 whether the unit was a timing unit.
+        '''
+        set_timing_units = set(self.timing_units)
         with open(file_name, 'w') as f:
-            f.write(f'{self.process_id}')
+            f.write(f'process_id {self.process_id}\n')
+            f.write(f'n_units {self.process_id}\n')
             for U in self.units_as_added:
-                # CONTINUE HERE...
+                f.write(f'{U.short_name()} {U.creator_id}\n')
+                f.write('parents '+' '.join(V.short_name() for V in U.parents) + '\n')
+                is_timing = (self.is_prime(U)) and (U in set_timing_units)
+                f.write(f'level {self.level(U)}\n')
+                f.write(f'timing {int(is_timing)}\n')
