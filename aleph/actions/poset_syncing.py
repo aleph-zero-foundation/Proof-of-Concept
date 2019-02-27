@@ -63,17 +63,15 @@ def units_to_send_with_pid(poset, tops, pid):
     local_max.sort(key=lambda U: U.height)
     min_remote_height = min([t[0] for t in tops]) if len(tops) > 0 else -1
     remote_hashes = [t[1] for t in tops]
+
     for U in local_max:
         possibly_send = []
-        while U.height >= min_remote_height:
-            if U.hash() in remote_hashes:
-                to_send.extend(possibly_send)
-                break
-            else:
-                possibly_send.append(U)
-                U = U.self_predecessor
-                if U is None:
-                    break
+        while U is not None and U.height >= min_remote_height and U.hash() not in remote_hashes:
+            possibly_send.append(U)
+            U = U.self_predecessor
+        if U is None or U.hash() in remote_hashes:
+            to_send.extend(possibly_send)
+
     return to_send, [h for h in remote_hashes if h not in poset.units]
 
 def _drop_to_height(units, height):
