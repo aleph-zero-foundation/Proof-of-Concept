@@ -54,7 +54,7 @@ class DAG:
             self.prime_units_by_level[level] = []
         visible_prime_units = set()
         for V in self.prime_units_by_level[level]:
-            if self.is_reachable_through_n_intermediate(V, name, (2 * self.n_processes + 2)//3):
+            if self.is_reachable(V, name) and (V != name):
                 visible_prime_units.add(self.pids[V])
         if 3*len(visible_prime_units) >= 2*self.n_processes:
             level = level + 1
@@ -110,21 +110,6 @@ class DAG:
         return ret
 
 
-    @memo
-    def count_support(self, U, V):
-        below_V = self.nodes_below(V)
-        between_V_and_U = [W for W in below_V if self.is_reachable(U, W)]
-        return len({self.pid(node) for node in between_V_and_U})
-
-
-    def is_reachable_through_n_intermediate(self, U, V, n):
-        '''
-        Checks whether the number of different processes that have units on some path
-        from U to V in dag is at least n.
-        '''
-        return self.count_support(U, V) >= n
-
-
     def self_predecessor(self, pid, parent_nodes):
         parent_nodes = list(parent_nodes)
         below_within_process = [node_below for node_below in self.nodes_below(parent_nodes) if self.pid(node_below) == pid]
@@ -146,28 +131,12 @@ class DAG:
         return list(set(subset) - self.nodes_below(parents))
 
 
-    def old_compute_maximal_from_subset(self, subset):
-        maximal_from_subset = []
-        for U in subset:
-            is_maximal = True
-            for V in subset:
-                if V is not U and self.is_reachable(U, V):
-                    is_maximal = False
-                    break
-            if is_maximal:
-                maximal_from_subset.append(U)
-        return maximal_from_subset
-
-
     def maximal_units_per_process(self, process_id):
         return self.compute_maximal_from_subset([U for U in self if self.pid(U) == process_id])
 
     def floor(self, U):
         lower_cone = self.nodes_below(U)
         return [self.compute_maximal_from_subset([V for V in lower_cone if self.pid(V) == process_id]) for process_id in range(self.n_processes)]
-
-    def ceil(self, U):
-        return self.reversed().floor(U)
 
 
     def sorted(self):
@@ -193,19 +162,3 @@ class DAG:
                 if children[parent] == 0:
                     childless.append(parent)
         return list(reversed(ret))
-
-
-    def reversed(self):
-        ret = DAG(self.n_processes)
-        ret.pids = copy.copy(self.pids)
-        for node in self:
-            ret.nodes[node] = []
-        for node in self:
-            for parent in self.parents(node):
-                ret.nodes[parent].append(node)
-        return ret
-
-
-
-
-

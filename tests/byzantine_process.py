@@ -184,7 +184,7 @@ class ByzantineProcess(Process):
         '''
         Takes a unit from the poset of a process A and the mapping hashes->Units for the poset for process B. Returns a new unit
         (with correct references to corresponding parent units in B) to be added to B's poset. The new unit has all the data in
-        the floor/ceil/level/... fields erased.
+        the floor/level/... fields erased.
         '''
         parent_hashes = [V.hash() for V in U.parents]
         parents = [process.poset.units[V] for V in parent_hashes]

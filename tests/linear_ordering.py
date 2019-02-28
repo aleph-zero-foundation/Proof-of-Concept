@@ -14,7 +14,7 @@ def translate_parents_and_copy(U, hashes_to_units):
     '''
     Takes a unit from the poset of a process A and the mapping hashes->Units for the poset for process B.
     Returns a new unit (with correct references to corresponding parent units in B) to be added to B's poset.
-    The new unit has all the data in the floor/ceil/level/... fields erased.
+    The new unit has all the data in the floor/level/... fields erased.
     '''
     #print(U.bytestring())
     #print(U.hash())
