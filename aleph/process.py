@@ -193,9 +193,9 @@ class Process:
 
         return random.choice(sync_candidates)
 
-    def create_unit(self, txs, prefer_maximal=consts.USE_MAX_PARENTS):
-        prefer_maximal_value = prefer_maximal if prefer_maximal is not None else consts.USE_MAX_PARENTS
-        return create_unit(self.poset, self.process_id, txs, prefer_maximal=prefer_maximal_value)
+    def create_unit(self, txs, prefer_maximal = None):
+        prefer_maximal = prefer_maximal if prefer_maximal is not None else consts.USE_MAX_PARENTS
+        return create_unit(self.poset, self.process_id, txs, prefer_maximal = prefer_maximal)
 
     async def create_add(self, txs_queue, server_started):
         await server_started.wait()
@@ -205,6 +205,7 @@ class Process:
             # log current memory consumption
             memory_usage_in_mib = (psutil.Process(os.getpid()).memory_info().rss)/(2**20)
             self.logger.info(f'memory_usage {self.process_id} | {memory_usage_in_mib:.4f} MiB')
+            self.logger.info(f'max_units {self.process_id} | There are {len(self.poset.max_units)} maximal units just before create_unit')
 
             txs = self.prepared_txs
             with timer(self.process_id, 'create_unit'):

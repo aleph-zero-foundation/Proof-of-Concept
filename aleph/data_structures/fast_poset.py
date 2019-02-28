@@ -60,6 +60,9 @@ class FastPoset(Poset):
         # whose value is the memoized value of computing fun(U_c, U) where fun in {pi, delta}
         self.timing_partial_results = {}
 
+        #we maintain a list of units in the poset ordered according to when they were added to the poset -- necessary for dumping the poset to file
+        self.units_as_added = []
+
 
     def add_unit(self, U):
         '''
@@ -80,6 +83,7 @@ class FastPoset(Poset):
 
         self.level_reached = max(self.level_reached, U.level)
         self.units[U.hash()] = U
+        self.units_as_added.append(U)
 
         # if it is a dealing unit, add it to self.dealing_units
         if not U.parents and not U in self.dealing_units[U.creator_id]:
