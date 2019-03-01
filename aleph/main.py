@@ -40,7 +40,7 @@ def sort_and_get_my_pid(public_keys, signing_keys, my_ip, ip_addresses):
 
 def log_consts():
     logger = logging.getLogger(consts.LOGGER_NAME)
-    consts_names = ['N_PARENTS', 'USE_TCOIN', 'CREATE_FREQ', 'SYNC_INIT_FREQ',  'TXPU', 'LEVEL_LIMIT', 'UNITS_LIMIT']
+    consts_names = ['N_PARENTS', 'USE_TCOIN', 'CREATE_DELAY', 'SYNC_INIT_DELAY',  'TXPU', 'LEVEL_LIMIT', 'UNITS_LIMIT']
     consts_values = []
     for const_name in consts_names:
         consts_values.append(f'{const_name}={consts.__dict__[const_name]}')

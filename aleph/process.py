@@ -224,7 +224,7 @@ class Process:
             timer.write_summary(where=self.logger, groups=[self.process_id])
             timer.reset(self.process_id)
 
-            await asyncio.sleep(consts.CREATE_FREQ)
+            await asyncio.sleep(consts.CREATE_DELAY)
 
 
         self.keep_syncing = False
@@ -244,12 +244,12 @@ class Process:
             sync_count += 1
             target_id = self.choose_process_to_sync_with()
             syncing_tasks.append(asyncio.create_task(self.network.sync(target_id)))
-            await asyncio.sleep(consts.SYNC_INIT_FREQ)
+            await asyncio.sleep(consts.SYNC_INIT_DELAY)
 
         await asyncio.gather(*syncing_tasks)
 
         # give some time for other processes to finish
-        await asyncio.sleep(3*consts.SYNC_INIT_FREQ)
+        await asyncio.sleep(3*consts.SYNC_INIT_DELAY)
 
         logger = logging.getLogger(consts.LOGGER_NAME)
         logger.info(f'sync_stop {self.process_id} | keep_syncing is {self.keep_syncing}')
