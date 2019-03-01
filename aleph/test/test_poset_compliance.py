@@ -6,7 +6,7 @@ import pytest
 
 def check_compliance_vs_pattern(dag, topological_list, pattern, compliance_rules = None):
     unit_dict = {}
-    poset = Poset(n_processes = dag.n_processes, compliance_rules = compliance_rules)
+    poset = Poset(n_processes = dag.n_processes, compliance_rules = compliance_rules, use_tcoin = False)
 
     for node, answer in zip(topological_list, pattern):
         U = Unit(creator_id = dag.pid(node), parents = [unit_dict[parent] for parent in dag.parents(node)], txs = [])

@@ -4,7 +4,7 @@ from aleph.utils.generic_test import generate_and_check_dag
 import random
 
 def create_poset_foundation(n_processes):
-    poset = Poset(n_processes = n_processes)
+    poset = Poset(n_processes = n_processes, use_tcoin = False)
     empty_floor = [[] for _ in range(n_processes)]
 
     bottom_units_per_process = [Unit(creator_id = i, parents = [], txs = []) for i in range(n_processes)]

@@ -6,7 +6,7 @@ import random
 
 def test_trivial_single_level_below():
     n_processes = 4
-    poset = Poset(n_processes = n_processes)
+    poset = Poset(n_processes = n_processes, use_tcoin = False)
 
     bottom_units_per_process = [Unit(creator_id = i, parents = [], txs = []) for i in range(n_processes)]
     for i in range(n_processes):
