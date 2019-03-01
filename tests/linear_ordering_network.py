@@ -35,7 +35,6 @@ async def main():
                       public_keys,
                       None,
                       userDB,
-                      'LINEAR_ORDERING',
                       tx_source_gen(batch_size=3, txpu=1, seed=process_id))
         processes.append(new_process)
         tasks.append(asyncio.create_task(new_process.run()))

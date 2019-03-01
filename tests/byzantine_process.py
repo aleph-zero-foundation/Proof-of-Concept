@@ -20,7 +20,6 @@ class ByzantineProcess(Process):
                  public_key_list,
                  tx_receiver_address,
                  userDB=None,
-                 validation_method='LINEAR_ORDERING',
                  gossip_strategy='unif_random',
                  level_limit=2):
 

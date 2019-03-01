@@ -3,7 +3,7 @@ USE_MAX_PARENTS = 1            # prefer maximal units (globally maximal in poset
 
 VOTING_LEVEL    = 3            # level at which the first voting round occurs, this is "t" from the write-up
 PI_DELTA_LEVEL  = 12           # level at which to switch from the "fast" to the pi_delta algorithm
-USE_TCOIN       = 1            # whether to use threshold coin
+USE_TCOIN       = 0            # whether to use threshold coin
 ADD_SHARES      = PI_DELTA_LEVEL - 1   # level at which to start adding coin shares to units, it's safe to make it PI_DELTA_LEVEL - 1
                                        # keeping it here for the purpose of tests, for which we might want to set it to a lower value
 

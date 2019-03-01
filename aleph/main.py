@@ -79,7 +79,6 @@ async def main():
                       public_keys,
                       recv_address,
                       userDB,
-                      'LINEAR_ORDERING',
                       tx_source)
 
     await process.run()

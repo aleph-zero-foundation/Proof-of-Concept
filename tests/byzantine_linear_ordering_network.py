@@ -19,7 +19,6 @@ def process_builder(byzantine_builder):
                                   public_keys,
                                   recv_address,
                                   userDB=None,
-                                  validation_method='LINEAR_ORDERING',
                                   gossip_strategy='non_recent_random'):
         creator = Process
         if is_byzantine(process_id):
@@ -70,7 +69,6 @@ async def execute_test(node_builder=process_builder(ByzantineProcess), start_por
         recv_address = recv_addresses[process_id]
         new_process = node_builder(n_processes, process_id, sk, pk, addresses,
                                    public_keys, recv_address, userDB,
-                                   'LINEAR_ORDERING',
                                    gossip_strategy='unif_random')
         if is_process_byzantine(new_process):
             byzantine_tasks.append(asyncio.create_task(new_process.run()))
@@ -101,7 +99,6 @@ class ForkDivideAndDieProcess(ByzantineProcess):
                  public_key_list,
                  tx_receiver_address,
                  userDB=None,
-                 validation_method='LINEAR_ORDERING',
                  gossip_strategy='unif_random'):
         ByzantineProcess.__init__(self,
                                   n_processes,
