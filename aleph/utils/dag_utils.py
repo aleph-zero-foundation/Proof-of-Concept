@@ -338,7 +338,7 @@ def constraints_satisfied(constraints, truth):
 
 
 def poset_from_dag(dag):
-    poset = Poset(n_processes=dag.n_processes)
+    poset = Poset(n_processes = dag.n_processes, use_tcoin = False)
     unit_dict = {}
 
     for unit_name in dag.sorted():
