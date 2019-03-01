@@ -284,4 +284,6 @@ class Process:
         finally:
             p.kill()
 
+        self.poset.dump_to_file(f"poset_{self.process_id}.pst"):
+
         self.logger.info(f'process_done {self.process_id} | Exiting program')
