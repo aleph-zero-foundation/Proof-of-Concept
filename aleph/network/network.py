@@ -185,7 +185,7 @@ class Network:
         If we sent some requests there is a 4th exchange where we once again get units. This should only happen due to forks.
         '''
         self.n_init_syncs += 1
-        self.logger.info(f'sync_sync_no | Number of syncs is {self.n_recv_syncs}')
+        self.logger.info(f'sync_sync_no | Number of syncs is {self.n_init_syncs}')
         if self.n_init_syncs > consts.N_INIT_SYNC:
             self.logger.info(f'sync_too_many_syncs | Too many syncs, not initiating a new one with {peer_id}')
             self.n_init_syncs -= 1
