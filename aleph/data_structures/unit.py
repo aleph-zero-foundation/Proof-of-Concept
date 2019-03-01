@@ -66,8 +66,7 @@ class Unit(object):
         NOTE: this has collision resistance as long there are roughly <= 10^9 units considered simultaneusly.
         NOTE: this uses only characters in the set A-Z, 2-7 (base32 encoding)
         '''
-        base32_hash = base64.b32encode(self.hash()[:8]).decode()
-        return '<'+base32_hash[:12]+'>'
+        return pretty_hash(self.hash())
 
 
     def __getstate__(self):
@@ -118,6 +117,14 @@ class Unit(object):
         #str_repr += str(self.self_predecessor.hash())?
         return str_repr
 
+def pretty_hash(some_hash):
+    '''
+    Returns a 12 character string (surrounded by '< >' brackets) -- a shorter hash. To be used for printing hashes in logs.
+    NOTE: this has collision resistance as long there are roughly <= 10^9 units considered simultaneusly.
+    NOTE: this uses only characters in the set A-Z, 2-7 (base32 encoding)
+    '''
+    base32_hash = base64.b32encode(some_hash[:8]).decode()
+    return '<'+base32_hash[:12]+'>'
 
 
 def _serialize_coin_shares(coin_shares):
