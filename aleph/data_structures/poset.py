@@ -169,12 +169,11 @@ class Poset:
                     processes_below += 1
                     break
 
-            # For efficiency:
-            if 3*(processes_below + self.n_processes - 1 - process_id) < 2*self.n_processes:
+            # For efficiency stop if we cannot reach a quorum
+            if not self.is_quorum(processes_below + self.n_processes - 1 - process_id):
                 break
 
-        # same as (...)>=2/3*(...) but avoids floating point division
-        U.level = m+1 if 3*processes_below >= 2*self.n_processes else m
+        U.level = m+1 if self.is_quorum(processes_below) else m
         return U.level
 
 
@@ -310,6 +309,14 @@ class Poset:
 #===============================================================================================================================
 # COMPLIANCE
 #===============================================================================================================================
+
+    def is_quorum(self, number):
+        '''
+        Check whether the given number is enough to form a quorum.
+        :returns: True or False
+        '''
+        # same as (...)>=2/3*(...) but avoids floating point division
+        return 3*number >= 2*self.n_processes
 
 
     def should_check_rule(self, rule):
@@ -800,7 +807,6 @@ class Poset:
             return False
 
         # implementation of a simple DFS from V down until we hit units that do not see U
-        threshold = (2*self.n_processes + 2)//3
         seen_units = set([V])
         seen_processes = set()
         stack = [V]
@@ -808,7 +814,7 @@ class Poset:
         #    (1) are also in seen_units
         #    (2) are above U_c
         # also, we make sure that no unit is put on stack more than once
-        while stack != [] and len(seen_processes) < threshold:
+        while stack != [] and not self.is_quorum(len(seen_processes)):
             W = stack.pop()
             if W.level <= level_V - 2 or (W.level == level_V - 1 and self.is_prime(W)):
                 # if W is of level >= level_V - 1 and is not prime then it cannot be used for this proof
@@ -818,7 +824,7 @@ class Poset:
                     stack.append(W_parent)
                     seen_units.add(W_parent)
 
-        memo[('proof', V_hash)] = len(seen_processes) >= threshold
+        memo[('proof', V_hash)] = self.is_quorum(len(seen_processes))
         return memo[('proof', V_hash)]
 
 
@@ -1013,10 +1019,9 @@ class Poset:
 
 
     def super_majority(self, list_vals):
-        treshold_majority = (2*self.n_processes + 2)//3
-        if list_vals.count(1) >= treshold_majority:
+        if self.is_quorum(list_vals.count(1)):
             return 1
-        if list_vals.count(0) >= treshold_majority:
+        if self.is_quorum(list_vals.count(0)):
             return 0
 
         return -1
