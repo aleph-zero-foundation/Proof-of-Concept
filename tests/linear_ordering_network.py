@@ -12,6 +12,7 @@ async def main():
     n_processes = 10
     consts.USE_TCOIN = 0
     consts.UNITS_LIMIT = 50
+    consts.LEVEL_LIMIT = 100
 
     processes = []
     host_ports = [8900+i for i in range(n_processes)]

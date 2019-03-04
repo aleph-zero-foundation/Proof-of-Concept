@@ -371,6 +371,7 @@ def create_node_line(node, process_id, parents):
 def dag_to_file(dag, file_name):
     topological_list = dag.sorted()
     with open(file_name, 'w') as f:
+        f.write("format standard\n")
         f.write('%d\n' % dag.n_processes)
         for node in topological_list:
             f.write(create_node_line(node, dag.pid(node), dag.parents(node)))
@@ -391,15 +392,16 @@ def dag_from_poset(poset):
     return dag, unit_to_name
 
 
-
-def dag_from_stream(poset_stream):
-    lines = poset_stream.readlines()
+def read_dag_standard(poset_stream):
+    '''
+    Read a dag from stream in the standard format.
+    '''
+    lines = [line.decode('ascii') for line in poset_stream.readlines()]
 
     n_processes = int(lines[0])
     dag = DAG(n_processes)
 
     for line in lines[1:]:
-        line = line.decode('ascii')
         tokens = line.split()
         unit_name = tokens[0]
         creator_id = int(tokens[1])
@@ -413,7 +415,54 @@ def dag_from_stream(poset_stream):
 
     return dag
 
+
+def read_dag_poset_dump(poset_stream):
+    '''
+    Read a dag from stream in the dump-nofork-level-timing format.
+    '''
+    _, process_id = _parse_line(poset_stream.readline())
+    process_id = int(process_id)
+    _, n_processes = _parse_line(poset_stream.readline())
+    n_processes = int(n_processes)
+    _, n_units = _parse_line(poset_stream.readline())
+    n_units = int(n_units)
+
+    dag = DAG(n_processes, no_forkers = True)
+
+    for unit_no in range(n_units):
+        name, creator_id = _parse_line(poset_stream.readline())
+        assert name not in dag, f"Duplicate node name {name}"
+        creator_id = int(creator_id)
+        parents = _parse_line(poset_stream.readline())[1:]
+        assert all(node in dag for node in parents), "Not all parent nodes present in dag."
+        _, level = _parse_line(poset_stream.readline())
+        level = int(level)
+        _, is_timing = _parse_line(poset_stream.readline())
+        is_timing = int(is_timing)
+        dag.add(name, creator_id, parents, level_hint = level, aux_info = {'timing': is_timing})
+
+    return dag
+
+
+def dag_from_stream(poset_stream):
+    token, file_format = _parse_line(poset_stream.readline())
+    assert token == 'format', "The first line does not specify the format."
+
+    if file_format == 'standard':
+        return read_dag_standard(poset_stream)
+    if file_format == 'dump-nofork-level-timing':
+        return read_dag_poset_dump(poset_stream)
+
+    assert False, f"Format {file_format} not supported."
+
+
+
 def dag_from_file(file_name):
-    with open(file_name, mode="rb") as poset_file:
+    # read as binary file, to be consistent with what dag_from_stream expects
+    with open(file_name, mode = 'rb') as poset_file:
         dag = dag_from_stream(poset_file)
     return dag
+
+
+def _parse_line(line):
+    return line.decode('ascii').strip().split()

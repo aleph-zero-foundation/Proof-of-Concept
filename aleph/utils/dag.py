@@ -1,8 +1,5 @@
-import collections
-import copy
 import functools
 
-from aleph.data_structures import Poset, Unit
 
 
 
@@ -42,6 +39,7 @@ class DAG:
         # a dictionary of the type node -> dict(), where dict contains additional info for this particular node
         self.node_aux_info = {}
         self.no_forkers = no_forkers
+        self.nodes_as_added = []
 
 
     def __contains__(self, node): return node in self.nodes
@@ -49,9 +47,16 @@ class DAG:
     def __len__(self): return len(self.nodes)
 
     def pid(self, node): return self.pids[node]
-    def parents(self, node): return iter(self.nodes[node])
+    def parents(self, node): return self.nodes[node]
     def level(self, node): return self.levels[node]
     def height(self, node): return self.get_node_info(node, "height")
+
+    def get_node_list_as_added(self):
+        '''
+        Return a list of nodes in the dag in the same order as they have been added.
+        Note that this in particular gives a topological ordering of nodes.
+        '''
+        return self.nodes_as_added
 
     def get_prime_units_by_level(self, level):
         if level not in self.prime_units_by_level:
@@ -63,28 +68,28 @@ class DAG:
         level = self.level(node)
         if level not in self.prime_units_by_level:
             self.prime_units_by_level[level] = []
-        if self.is_prime(name):
+        if self.is_prime(node):
             self.prime_units_by_level[level].append(node)
 
     def is_prime(self, node):
         level = self.level(node)
-        predecessor = self.self_predecessor(self.pids[node], parents = self.nodes[node])
+        predecessor = self.self_predecessor(self.pids[node], parent_nodes = self.nodes[node])
         if predecessor is None or level > self.levels[predecessor]:
             self.prime_units_by_level[level].append(node)
 
     def add_node_info(self, node, key, value):
         if node not in self.node_aux_info:
-            self.node_aux_info = {}
+            self.node_aux_info[node] = {}
 
         self.node_aux_info[node][key] = value
 
     def get_node_info(self, node, key):
         if node not in self.node_aux_info:
             return None
-        return self.node_aux_info.get(key, None)
+        return self.node_aux_info[node].get(key, None)
 
     def compute_node_height(self, node):
-        predecessor = self.self_predecessor(self.pids[node], parents = self.nodes[node])
+        predecessor = self.self_predecessor(self.pids[node], parent_nodes = self.nodes[node])
         if predecessor is None:
             return 0
         else:
@@ -120,6 +125,8 @@ class DAG:
         if aux_info is not None:
             for key, val in aux_info.items():
                 self.add_node_info(name, key, val)
+
+        self.nodes_as_added.append(name)
 
 
     @memo
