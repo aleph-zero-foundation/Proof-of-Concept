@@ -1345,6 +1345,7 @@ class Poset:
         '''
         set_timing_units = set(self.timing_units)
         with open(file_name, 'w') as f:
+            f.write("format large-level-timing\n")
             f.write(f'process_id {self.process_id}\n')
             f.write(f'n_units {self.process_id}\n')
             for U in self.units_as_added:

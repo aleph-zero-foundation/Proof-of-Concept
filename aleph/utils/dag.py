@@ -160,11 +160,8 @@ class DAG:
         U_height = self.height(U)
         while node_head:
             node  = node_head.pop()
-            if node == U:
-                return True
-
             # optimization that takes advantage of the fact that there are no forks
-            if self.pids[node] == U_pid:
+            if self.pid(node) == U_pid:
                 if self.height(node) >= U_height:
                     return True
 
@@ -207,7 +204,7 @@ class DAG:
             else:
                 return None
 
-        # TODO: this is likely too complicated for our current version of parent selection (when the first parent is always the self_predecessor)
+        # TODO: this might be possibly simplified for our current version of parent selection (when the first parent is always the self_predecessor)
 
         parent_nodes = list(parent_nodes)
         below_within_process = [node_below for node_below in self.nodes_below(parent_nodes) if self.pid(node_below) == pid]
