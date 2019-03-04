@@ -121,7 +121,7 @@ def generate_key_pair_all_regions(key_name='aleph'):
     fingerprint_path = f'key_pairs/{key_name}.fingerprint'
     assert not os.path.exists(key_path), 'key exists, just use it!'
 
-    print('generating key pair')
+    print('        generating key pair')
     # generate a private key
     call(f'openssl genrsa -out {key_path} 2048'.split())
     # give the private key appropriate permissions
@@ -140,12 +140,12 @@ def generate_key_pair_all_regions(key_name='aleph'):
         # first delete the old key
         for key in ec2.key_pairs.all():
             if key.name == key_name:
-                print(f'deleting old key {key.name} in region', region_name)
+                print(f'        deleting old key {key.name} in region', region_name)
                 key.delete()
                 break
 
         # send the public key to current region
-        print('sending key pair to region', region_name)
+        print('        sending key pair to region', region_name)
         ec2.import_key_pair(KeyName=key_name, PublicKeyMaterial=pk_material)
 
         # write fingerprint
@@ -165,7 +165,7 @@ def init_key_pair(region_name, key_name='aleph', dry_run=False):
         # we have the private key locally so let check if we have pk in the region
 
         if not dry_run:
-            print('found local key; ', end='')
+            print('        found local key; ', end='')
         ec2 = boto3.resource('ec2', region_name)
         with open(fingerprint_path, 'r') as f:
             fp = f.readline()
