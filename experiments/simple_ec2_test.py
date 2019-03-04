@@ -125,7 +125,6 @@ async def main():
                       public_keys,
                       recv_address,
                       userDB,
-                      'LINEAR_ORDERING',
                       use_tcoin,
                       stop_conditions,
                       tx_source)

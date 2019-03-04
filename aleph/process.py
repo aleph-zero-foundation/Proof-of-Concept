@@ -18,7 +18,7 @@ class Process:
     '''This class is the main component of the Aleph protocol.'''
 
     def __init__(self, n_processes, process_id, secret_key, public_key, addresses, public_key_list, tx_receiver_address, userDB=None,
-                validation_method='LINEAR_ORDERING', tx_source=tx_listener, gossip_strategy='unif_random'):
+                tx_source=tx_listener, gossip_strategy='unif_random'):
         '''
         :param int n_processes: the committee size
         :param int process_id: the id of the current process
@@ -28,14 +28,12 @@ class Process:
         :param list public_keys: the list of public keys of all committee members
         :param tuple tx_receiver_address: address pair (host, port) on which the process listen for incomming txs
         :param object userDB: initial state of user accounts
-        :param string validation_method: the method of validating transactions/units: either "LINEAR_ORDERING" or None for no validation
         :param object tx_source: method used for listening for incomming txs
         :param string gossip_strategy: name of gossip strategy to be used by the process
         '''
 
         self.n_processes = n_processes
         self.process_id = process_id
-        self.validation_method = validation_method
         self.gossip_strategy = gossip_strategy
 
         self.secret_key = secret_key
@@ -154,10 +152,7 @@ class Process:
         if self.poset.check_compliance(U):
             old_level = self.poset.level_reached
 
-            if self.validation_method == 'LINEAR_ORDERING':
-                self.add_unit_and_extend_linear_order(U)
-            else:
-                self.poset.add_unit(U)
+            self.add_unit_and_extend_linear_order(U)
 
             if self.poset.level_reached > old_level:
                 self.logger.info(f"new_level {self.process_id} | Level {self.poset.level_reached} reached")
@@ -229,7 +224,7 @@ class Process:
             timer.write_summary(where=self.logger, groups=[self.process_id])
             timer.reset(self.process_id)
 
-            await asyncio.sleep(consts.CREATE_FREQ)
+            await asyncio.sleep(consts.CREATE_DELAY)
 
 
         self.keep_syncing = False
@@ -249,12 +244,12 @@ class Process:
             sync_count += 1
             target_id = self.choose_process_to_sync_with()
             syncing_tasks.append(asyncio.create_task(self.network.sync(target_id)))
-            await asyncio.sleep(consts.SYNC_INIT_FREQ)
+            await asyncio.sleep(consts.SYNC_INIT_DELAY)
 
         await asyncio.gather(*syncing_tasks)
 
         # give some time for other processes to finish
-        await asyncio.sleep(3*consts.SYNC_INIT_FREQ)
+        await asyncio.sleep(3*consts.SYNC_INIT_DELAY)
 
         logger = logging.getLogger(consts.LOGGER_NAME)
         logger.info(f'sync_stop {self.process_id} | keep_syncing is {self.keep_syncing}')

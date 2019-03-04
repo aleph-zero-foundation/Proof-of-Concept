@@ -14,7 +14,7 @@ import aleph.const as consts
 def tx_listener(listen_addr, queue):
     '''
     Start a TCP server on *listen_addr* and listen for incoming transactions.
-    Put batches (lists) of transactions on *queue* every consts.CREATE_FREQ seconds or when the tx limit per unit (consts.TXPU) is reached, whichever comes first.
+    Put batches (lists) of transactions on *queue* every consts.CREATE_DELAY seconds or when the tx limit per unit (consts.TXPU) is reached, whichever comes first.
     '''
     tx_buffer = []
     prev_put_time = get_time()
@@ -30,7 +30,7 @@ def tx_listener(listen_addr, queue):
 
             logger.info(f'tx_server_receive | Received from {self.client_address}')
 
-            if len(tx_buffer) == consts.TXPU or get_time() - prev_put_time > consts.CREATE_FREQ:
+            if len(tx_buffer) == consts.TXPU or get_time() - prev_put_time > consts.CREATE_DELAY:
                 prev_put_time = get_time()
                 logger.info(f'tx_server_enqueue | Putting {len(tx_buffer)} txs on queue')
                 queue.put(tx_buffer)

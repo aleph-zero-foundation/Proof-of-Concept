@@ -45,7 +45,7 @@ public_keys = [VerifyKey.from_SigningKey(sk) for sk in signing_keys]
 for process_id in range(n_processes):
     sk = signing_keys[process_id]
     pk = public_keys[process_id]
-    new_process = Process(n_processes, process_id, sk, pk, addresses, public_keys, recv_addresses[process_id], None, 'LINEAR_ORDERING', use_tcoin)
+    new_process = Process(n_processes, process_id, sk, pk, addresses, public_keys, recv_addresses[process_id], None, use_tcoin)
     processes.append(new_process)
 
 #if processes[0].poset.crp[2][0] == 0:

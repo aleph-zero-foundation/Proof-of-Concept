@@ -4,8 +4,8 @@ USE_MAX_PARENTS = 1            # prefer maximal units (globally maximal in poset
 USE_TCOIN       = 0            # whether to use threshold coin
 ADD_SHARES      = 4            # level at which start to adding coin shares to units
 
-CREATE_FREQ     = 1            # frequency of creating new units
-SYNC_INIT_FREQ  = 0.25         # frequency of initianing syncs with other processes
+CREATE_DELAY    = 1            # delay after creating a new unit
+SYNC_INIT_DELAY = 0.25         # delay after initianing a sync with other processes
 N_RECV_SYNC     = 10           # number of allowed parallel syncs
 
 TXPU            = 2000         # number of transactions per unit
