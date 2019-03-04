@@ -10,6 +10,16 @@ from aleph.actions import create_unit
 import random
 
 def generate_and_check_dag(checks, n_processes, n_units, forking = None, repetitions = 1, seed = 123456789):
+    '''
+    Generate a dag with given number of processes, forking processes and units and pull it through a list of correctness checks.
+    :param list checks: a list of functions that take a DAG as input and run some correctness check/s (using asserts)
+    :param int n_processes: the number of processes in the dag
+    :param int n_units: the number of units that should be created
+    :param function forking: a function that outputs the number of forkers we want in the poset
+                             Note: this is a function since we sometimes want it to be generated randomly after setting the seed
+    :param int repetitions: how many times to repeat this procedure
+    :param int seed: a seed for generating randomness by the "random" module
+    '''
     random.seed(seed)
     for _ in range(repetitions):
         if forking is not None:
@@ -20,8 +30,16 @@ def generate_and_check_dag(checks, n_processes, n_units, forking = None, repetit
             check(dag)
 
 
-# Unit creation for tests
 def generate_unit(dag, posets, creator_id, unit_to_name, forking, only_maximal_parents):
+    '''
+    Create a new unit
+    :param DAG dag:
+    :param list posets:
+    :param int creator_id:
+    :param dict unit_to_name:
+    :param bool forking:
+    :param bool only_maximal_parents:
+    '''
     n_processes = len(posets)
     if forking:
         return dag_utils.generate_random_compliant_unit(dag, n_processes, creator_id, forking = True, only_maximal_parents=only_maximal_parents)
@@ -83,11 +101,14 @@ def simulate_with_checks(
         iter_count += 1
         assert iter_count < n_units*5000, "Creating %d units seems to be taking too long." % n_units
         creator_id = random.choice(range(n_processes))
-
         res = generate_unit(dag, posets, creator_id, unit_to_name, forking = creator_id in forkers, only_maximal_parents = only_maximal_parents)
         if res is None:
             verify_fails(dag, n_processes, creator_id, forkers, only_maximal_parents)
             continue
+        else:
+            if creator_id in forkers:
+                print('lol')
+                print(res)
         U, name, parents = res
 
         dag.add(name, creator_id, parents)

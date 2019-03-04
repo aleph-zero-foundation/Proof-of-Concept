@@ -3,12 +3,13 @@ import random
 
 def print_level_at_prime(U, poset, dag, results, additional_args):
     if additional_args is None:
-        levels = set()
+        additional_args = set()
+        levels = additional_args
     else:
         levels = additional_args
     if U.level not in levels:
         levels.add(U.level)
-        print(U.level, len(dag))
+        print(U.level)
 
 def run(repetitions, min_proc, max_proc, units_per_process):
     random.seed(123456789)
@@ -16,12 +17,11 @@ def run(repetitions, min_proc, max_proc, units_per_process):
         n_processes = random.randint(min_proc, max_proc)
         n_units = random.randint(0, units_per_process)
         n_forkers = random.randint(0,n_processes//3)
-        print('test setting', rep, n_processes, n_units, n_forkers)
-        print('level, size')
         simulate_with_checks(
                 n_processes,
                 n_units,
                 n_forkers,
+                use_tcoin = True,
                 post_prepare = print_level_at_prime
             )
 
