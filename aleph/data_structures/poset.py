@@ -23,7 +23,10 @@ class Poset:
                 compliance_rules = None):
         '''
         :param int n_processes: the committee size
-        :param list compliance_rules: dictionary string -> bool
+        :param int process_id: the id of the process owning this poset
+        :param CommonRandomPermutation crp: an object returning the common random permutation of processes at a given level
+        :param bool use_tcoin: whether to use threshold coin, mostly so we can disable it for tests
+        :param dict compliance_rules: a dictionary describing which compliance_rules to use
         '''
         self.n_processes = n_processes
         self.default_compliance_rules = {'forker_muting': True, 'parent_diversity': False, 'growth': False, 'expand_primes': True, 'threshold_coin': use_tcoin}
@@ -92,7 +95,7 @@ class Poset:
             2. update the lists of maximal elements in the poset.
             3. update forking_height
             4. if U is prime, add it to prime_units_by_level
-        :param unit U: unit to be added to the poset
+        :param Unit U: unit to be added to the poset
         '''
 
         # 0. add the unit U to the poset
@@ -144,7 +147,8 @@ class Poset:
     def level(self, U):
         '''
         Calculates the level in the poset of the unit U.
-        :param unit U: the unit whose level is being requested
+        :param Unit U: the unit whose level is being requested
+        :returns: the computed level
         '''
         # TODO: so far this is a rather naive implementation -- loops over all prime units at level just below U
 
@@ -180,87 +184,11 @@ class Poset:
     def is_prime(self, U):
         '''
         Check if the unit is prime.
-        :param unit U: the unit to be checked for being prime
+        :param Unit U: the unit to be checked for being prime
         '''
         # U is prime iff it's a bottom unit or its self_predecessor level is strictly smaller
         return len(U.parents) == 0 or self.level(U) > self.level(U.self_predecessor)
 
-
-    def determine_coin_shares(self, U):
-        '''
-        Determines which coin shares should be added to the prime unit U as described in arxiv whitepaper.
-        :param unit U: prime unit to which coin shares should be added
-        :returns: list of pairs of indices such that for (i,j) in the list the coin share TC^j_i(L(U)) should be added to U
-        '''
-
-        # We start adding coin shares only at levels >= consts.ADD_SHARES, this implies
-        #    that with rather high probability there will be no more than a (small) constant (likely = 1) number of shares per unit
-        if U.level < consts.ADD_SHARES:
-            return []
-
-        # the to-be-constructed list of pairs of indices such that for (i,j) in the list the coin share TC^j_i(L(U)) should be added to U
-        indices = []
-
-        # don't add coin shares of dealers that are proved by U to be forkers or U does not see a dealing unit
-        skip_dealer_ind = set(dealer_id for dealer_id in range(self.n_processes) if self.has_forking_evidence(U, dealer_id) or
-                                                                                    self.index_dealing_unit_below(dealer_id, U) is None)
-
-        share_id = U.creator_id
-
-        # starting from level 3 there is negligible probability that the transversal will have more than 1 element
-        # as we start adding coin shares to units of level 6, everything is just fine
-        level = consts.ADD_SHARES
-
-        # construct the list of all prime units below U at level ADD_SHARES (or higher, if no unit at level=ADD_SHARES for a given process)
-        # it can be proved that these are enough instead of *all* prime units at levels ADD_SHARES <= ... <= U.level - 1
-        prime_below_U = []
-        for process_id in range(self.n_processes):
-            Vs = self.get_prime_unit_above_level(process_id, level)
-            if Vs and Vs[0].level <= U.level - 1:
-                prime_below_U += [V for V in Vs if self.below(V,U)]
-
-
-        sigma = self.crp[U.level]
-
-        for i, dealer_id in enumerate(sigma):
-            # don't add shares for forking dealers
-            if dealer_id in skip_dealer_ind:
-                continue
-
-            indices.append((share_id, dealer_id))
-
-            # during construction of skip_dealer_ind we ruled out the possibility that the below returns None
-            ind_dU = self.index_dealing_unit_below(dealer_id, U)
-            dU = self.dealing_units[dealer_id][ind_dU]
-
-            # filter out all units that have dU<=V
-            prime_below_U = [V for V in prime_below_U if not self.below(dU, V)]
-
-            # have we added all necessary shares?
-            if prime_below_U == []:
-                break
-        return indices
-
-
-    def add_coin_shares(self, U):
-        '''
-        Adds coin shares to the prime unit U as described in arxiv whitepaper.
-        :param unit U: prime unit to which coin shares are added
-        '''
-
-        coin_shares = []
-        indices = self.determine_coin_shares(U)
-        if U.level >= consts.ADD_SHARES:
-            assert indices != [] and indices is not None
-
-        for _, dealer_id in indices:
-            ind = self.index_dealing_unit_below(dealer_id, U)
-
-            # assert self.threshold_coins[dealer_id][ind].process_id == U.creator_id
-            # we can take threshold coin of index ind as it is included in the unique dealing unit by dealer_id below U
-            coin_shares.append(self.threshold_coins[dealer_id][ind].create_coin_share(U.level))
-
-        U.coin_shares = coin_shares
 
     def add_tcoin_to_dealing_unit(self, U):
         '''
@@ -280,7 +208,7 @@ class Poset:
 
     def get_all_prime_units_by_level(self, level):
         '''
-        Returns the set of all prime units at a given level.
+        Returns a list of all prime units at a given level.
         :param int level: the requested level of units
         '''
         if level not in self.prime_units_by_level.keys():
@@ -291,17 +219,15 @@ class Poset:
         '''
         Returns the set of all prime units at a given level that are below the unit U.
         :param int level: the requested level of units
-        :param unit U: the unit below which we want the prime units
+        :param Unit U: the unit below which we want the prime units
         '''
         return [V for V in self.get_all_prime_units_by_level(level) if self.below(V, U)]
 
     def get_prime_units_by_level_per_process(self, level):
         '''
-        Returns the set of all prime units at a given level.
+        Returns a list of all prime units at a given level divided by process. For nonforking processes this should be a list of one-elements lists.
         :param int level: the requested level of units
         '''
-        # TODO: this is a naive implementation
-        # TODO: make sure that at creation of a prime unit it is added to the dict self.prime_units_by_level
         assert level in self.prime_units_by_level.keys()
         return self.prime_units_by_level[level]
 
@@ -330,7 +256,8 @@ class Poset:
         '''
         Check whether the rule (a string) "forker_muting", "parent_diversity", etc. should be checked in the check_compliance function.
         Based on the combination of default values and the compliance_rules dictionary provided as a parameter to the constructor.
-        :returns: True or False
+        :param str rule: the name of the rule to check
+        :returns: whether to check the rule
         '''
         assert rule in self.default_compliance_rules
 
@@ -351,7 +278,8 @@ class Poset:
             5. Check "growth" rule. (optionally)
             6. Satisfies the expand primes rule.
             7. The coinshares are OK, i.e., U contains exactly the coinshares it is supposed to contain.
-        :param unit U: unit whose compliance is being tested
+        :param Unit U: unit whose compliance is being tested
+        :returns: True if all the checks passed, False otherwise
         '''
         # TODO: it is highly desirable that there are no duplicate transactions in U (i.e. literally copies)
 
@@ -402,6 +330,7 @@ class Poset:
         Checks whether the dealing unit U has a threshold coin included.
         We cannot really check whether it is valid (since the secret keys are encrypted).
         Instead, we simply make sure whether the dictionary has all necessary fields and the corresponding lists are of appropriate length.
+        :param Unit U: the unit to check
         :returns: Boolean value, True if U's threshold coin is correct, False otherwise.
         '''
         if not isinstance(U.coin_shares, dict):
@@ -429,7 +358,7 @@ class Poset:
     def check_no_self_forking_evidence(self, U):
         '''
         Checks if the unit U does not provide evidence of its creator forking.
-        :param unit U: the unit whose forking evidence is being checked
+        :param Unit U: the unit whose forking evidence is being checked
         :returns: Boolean value, True if U does not provide evidence of its creator forking
         '''
         combined_floors = self.combine_floors_per_process(U.parents, U.creator_id)
@@ -446,7 +375,7 @@ class Poset:
         Every parent of U that is not its predecessor must have
         more prime units of level L below it than all the previous
         parents combined.
-        :param unit U: unit that is tested against the expand primes rule
+        :param Unit U: unit that is tested against the expand primes rule
         :returns: Boolean value, True if U respects the rule, False otherwise.
         '''
         # Special case of dealing units
@@ -474,7 +403,7 @@ class Poset:
         '''
         Checks if the unit U, created by process j, respects the "growth" rule.
         No parent of U can be below the self predecessor of U.
-        :param unit U: unit that is tested against the grow rule
+        :param Unit U: unit that is tested against the growth rule
         :returns: Boolean value, True if U respects the rule, False otherwise.
         '''
         if len(U.parents) == 0:
@@ -493,7 +422,7 @@ class Poset:
             - There exists a process j, s.t. one of U's parents was created by j
             AND
             - U has as one of the parents a unit that has evidence that j is forking.
-        :param unit U: unit that is checked for respecting anti-forking policy
+        :param Unit U: unit that is checked for respecting anti-forking policy
         :returns: Boolean value, True if U respects the forker-muting policy, False otherwise.
         '''
         if len(U.parents) == 0:
@@ -512,7 +441,8 @@ class Poset:
         0. Parents of U exist in the poset
         1. The first parent was created by U's creator and has one less height than U.
         2. If U has >=2 parents then all parents are created by pairwise different processes.
-        :param unit U: unit whose parents are being checked
+        :param Unit U: unit whose parents are being checked
+        :returns: Boolean value, True if U satisfies the above conditions, False otherwise.
         '''
         # 0. Parents of U exist in the poset
         for V in U.parents:
@@ -536,7 +466,7 @@ class Poset:
 
     def check_parent_diversity(self, U):
         '''
-        Checks if unit U satisfies the parrent diversity rule:
+        Checks if unit U satisfies the parent diversity rule:
         Let j be the creator process of unit U,
         if U wants to use a process i as a parent for U and:
         - previously it created a unit U_1 at height h_1 with parent i,
@@ -545,7 +475,8 @@ class Poset:
         of nodes created by j at height h, s.t. h_1 <= h < h_2,
         (i can be used as a parent for U) iff (|P|>=n_processes/3)
         Note that j is not counted in P.
-        :param unit U: unit whose parent diversity is being tested
+        :param Unit U: unit whose parent diversity is being tested
+        :returns: Boolean value, True if U did not reause a parent process too early, False otherwise.
         '''
 
         # Special case: U is a dealing unit
@@ -591,49 +522,6 @@ class Poset:
 
         return True
 
-    def validate_share(self, U, share_index, dealer_id):
-        '''
-        Checks whether a particular coin share agrees with the dealt public key.
-        Note that even if it does not, it does not follow that U.creator_id is adversary -- it could be that dealer_id is the cheater.
-        '''
-        ind = self.index_dealing_unit_below(dealer_id, U)
-        assert ind is not None
-        coin_share = U.coin_shares[share_index]
-        return self.threshold_coins[dealer_id][ind].verify_coin_share(coin_share, U.creator_id, U.level)
-
-
-    def check_coin_shares(self, U):
-        '''
-        Checks if coin shares stored in U "are OK".
-        :param unit U: unit which coin shares are checked
-        :returns: True if everything works and False otherwise
-        '''
-
-        # NOTE: we cannot require that all the coinshares in U agree with the corresponding VK's dealt!
-        # NOTE: this is because the corresponding SK (which is encrypted) could be broken, in which case U.creator_id could not generate correct shares
-        # Instead, we require that the list of shares is at least of correct length...
-
-        # TODO (not sure this should be done here, if at all): check if shares are valid, i.e. if they can be combined
-
-        indices = self.determine_coin_shares(U)
-        if U.coin_shares is None:
-            if indices:
-                return False
-            else:
-                return True
-        if len(indices) != len(U.coin_shares):
-            return False
-
-        for (share_id, dealer_id), coin_share in zip(indices, U.coin_shares):
-            # there should be exactly one threshold coin below U
-            ind = self.index_dealing_unit_below(dealer_id, U)
-            # NOTE: the check below cannot be performed, since U.creator_id has no control over the correctness of the tc dealt by dealer_id
-            #if not self.threshold_coins[dealer_id][ind].verify_coin_share(coin_share, share_id, U.level):
-            #    return False
-
-        return True
-
-
 #===============================================================================================================================
 # FLOOR
 #===============================================================================================================================
@@ -642,6 +530,7 @@ class Poset:
     def update_floor(self, U):
         '''
         Updates floor of the unit U by merging and taking maximums of floors of parents.
+        :param Unit U: the unit whose floors are being updated
         '''
         U.floor[U.creator_id] = [U]
         if U.parents:
@@ -659,33 +548,29 @@ class Poset:
         '''
         assert len(units_list) > 0, "combine_floors_per_process was called on an empty unit list"
 
-        # initialize forks with the longest floor from units_list
-        lengths = [len(U.floor[process_id]) for U in units_list]
-        index = lengths.index(max(lengths))
-        forks = units_list[index].floor[process_id][:]
-
-        #gather all other floor members in one list
-        candidates = [V for i, U in enumerate(units_list) if i != index for V in U.floor[process_id]]
+        #gather all floor members in one list
+        candidates = [V for U in units_list for V in U.floor[process_id]]
+        new_floor = []
 
         for U in candidates:
-            # This flag checks if there is W comparable with U. If not then we add U to forks
+            # This flag checks if there is W comparable with U. If not then we add U to the new floor
             found_comparable, replace_index = False, None
-            for k, W in enumerate(forks):
-                if U.height > W.height and self.above_within_process(U, W):
+            for k, W in enumerate(new_floor):
+                if self.above_within_process(U, W):
                     found_comparable = True
                     replace_index = k
                     break
-                if U.height <= W.height and self.below_within_process(U, W):
+                if self.below_within_process(U, W):
                     found_comparable = True
                     break
 
             if not found_comparable:
-                forks.append(U)
+                new_floor.append(U)
 
             if replace_index is not None:
-                forks[replace_index] = U
+                new_floor[replace_index] = U
 
-        return forks
+        return new_floor
 
 
     def has_forking_evidence(self, U, process_id):
@@ -698,23 +583,6 @@ class Poset:
         return len(U.floor[process_id]) > 1
 
 
-    def index_dealing_unit_below(self, dealer_id, U):
-        '''
-        Returns an index of dealing unit created by dealer_id that is below U or None otherwise.
-        '''
-
-        n_dunits_below, ind_dU_below = 0, None
-        for ind, dU in enumerate(self.dealing_units[dealer_id]):
-            if self.below(dU, U):
-                n_dunits_below += 1
-                ind_dU_below = ind
-
-            if n_dunits_below > 1:
-                return None
-
-        return ind_dU_below
-
-
 #===============================================================================================================================
 # RELATIONS
 #===============================================================================================================================
@@ -724,8 +592,9 @@ class Poset:
         '''
         Checks if there exists a path (possibly U = V) from U to V going only through units created by their creator process.
         Assumes that U.creator_id = V.creator_id = process_id
-        :param unit U: first unit to be tested
-        :param unit V: second unit to be tested
+        :param Unit U: first unit to be tested
+        :param Unit V: second unit to be tested
+        :returns: True if U <= V, False otherwise
         '''
         assert (U.creator_id == V.creator_id and U.creator_id is not None) , "expected two units created by the same process"
         if U.height > V.height:
@@ -738,32 +607,20 @@ class Poset:
 
         # at this point we know that this is a forking situation: we need go down the tree from V until we reach U's height
         # this will not take much time as process_id is banned for forking right after it is detected
-
         W = V
         while W.height > U.height:
             W = W.self_predecessor
 
-        # TODO: make sure the below line does what it should
         return (W is U)
-
-
-    def strictly_below_within_process(self, U, V):
-        '''
-        Checks if there exists a path from U to V going only through units created by their creator process.
-        It is not allowed that U == V.
-        Assumes that U.creator_id = V.creator_id = process_id
-        :param unit U: first unit to be tested
-        :param unit V: second unit to be tested
-        '''
-        return (U is not V) and self.below_within_process(U,V)
 
 
     def above_within_process(self, U, V):
         '''
         Checks if there exists a path (possibly U = V) from V to U going only through units created by their creator process.
         Assumes that U.creator_id = V.creator_id = process_id
-        :param unit U: first unit to be tested
-        :param unit V: second unit to be tested
+        :param Unit U: first unit to be tested
+        :param Unit V: second unit to be tested
+        :returns: True if U >= V, False otherwise
         '''
         return self.below_within_process(V, U)
 
@@ -771,8 +628,8 @@ class Poset:
     def below(self, U, V):
         '''
         Checks if U <= V.
-        :param unit U: first unit to be tested
-        :param unit V: second unit to be tested
+        :param Unit U: first unit to be tested
+        :param Unit V: second unit to be tested
         '''
         for W in V.floor[U.creator_id]:
             if self.below_within_process(U, W):
@@ -783,8 +640,8 @@ class Poset:
     def above(self, U, V):
         '''
         Checks if U >= V.
-        :param unit U: first unit to be tested
-        :param unit V: second unit to be tested
+        :param Unit U: first unit to be tested
+        :param Unit V: second unit to be tested
         '''
         return self.below(V, U)
 
@@ -799,8 +656,8 @@ class Poset:
             (1) W <= V,
             (2) W has level <=level(V) - 2, or W is a prime unit at level(V)-1,
             (3) U_c <= W.
-        :param unit V: the "prover" unit
-        :param unit U_c: the unit tested for popularity
+        :param Unit V: the "prover" unit
+        :param Unit U_c: the unit tested for popularity
         :returns: True or False: does V prove that U_c is popular?
         '''
         U_c_hash, V_hash = U_c.hash(), V.hash()
@@ -838,6 +695,9 @@ class Poset:
     def default_vote(self, U, U_c):
         '''
         Default vote of U on popularity of U_c, as in the fast consensus algorithm.
+        :param Unit U: the unit that is voting
+        :param Unit U_c: the unit that is being voted on
+        :returns: 1 or 0, as in the fast consensus algorithm
         '''
         r = U.level - U_c.level - consts.VOTING_LEVEL
         assert r >= 1, "Default vote is asked on too low unit level."
@@ -860,6 +720,9 @@ class Poset:
             - at lvl (L+1) the vote is the supermajority of votes of prime ancestors (at level L)
             - at lvl (L+2) the vote is the supermajority of votes (replaced by default_vote if no supermajority) of prime ancestors (at level L+1)
             - etc.
+        :param Unit U: the unit that is voting
+        :param Unit U_c: th eunit that is being voted on
+        :returns: 0, 1 or -1, as described in the fast consensus algorithm, where -1 represents bot
         '''
 
         r = U.level - U_c.level - consts.VOTING_LEVEL
@@ -892,6 +755,7 @@ class Poset:
     def decide_unit_is_popular(self, U_c):
         '''
         Decides popularity of U_c (i.e. whether it should be a candidate for a timing unit).
+        :param Unit U_c: the unit whose popularity we want to investigate
         :returns: one of {-1,0,1}: the decision (0 or 1) in case it follows from our local view of the poset,
                   or -1 if the decision cannot be inferred yet
         '''
@@ -962,7 +826,9 @@ class Poset:
 
     def decide_timing_on_level(self, level):
         '''
-        Returns either a timing unit at this level or (-1) in case when no unit can be chosen yet.
+        Decide which prime unit of the given level shall be the timing unit.
+        :param int level: the level about which we are inquiring
+        :returns: the timing unit at this level or (-1) in case when no unit can be chosen yet
         '''
 
         if self.level_reached < level + consts.VOTING_LEVEL:
@@ -1018,6 +884,13 @@ class Poset:
 
 
     def exists_tc(self, list_vals, U_c, U_tossing):
+        '''
+        Computes the exists function from the whitepaper, including the coin toss if necessary.
+        :param list list_vals: the list of values among which we are checking for existence
+        :param Unit U_c: the unit about which we are making a decision
+        :param Unit U_tossing: the unit which is making the decision
+        :returns: 1 or 0 if it is on the list provided, with preference for 1, otherwise the result of the shared coin toss
+        '''
         if 1 in list_vals:
             return 1
         if 0 in list_vals:
@@ -1026,6 +899,11 @@ class Poset:
 
 
     def super_majority(self, list_vals):
+        '''
+        Computes the supermajority function from the whitepaper.
+        :param list list_vals: the list of values among which we are checking for supermajority
+        :returns: 1 or 0 if either is a supermajority value on the list provided, -1 (representing bot) if neither is
+        '''
         if self.is_quorum(list_vals.count(1)):
             return 1
         if self.is_quorum(list_vals.count(0)):
@@ -1037,6 +915,9 @@ class Poset:
     def compute_pi(self, U_c, U):
         '''
         Computes the value of the Pi function from the paper. The value -1 is equivalent to bottom (undefined).
+        :param Unit U_c: the unit which we are deciding about
+        :param Unit U: the unit that is making the decision
+        :returns: 0, 1 or -1, as defined in the whitepaper
         '''
         # "r" is the number of level of the pi_delta protocol.
         # Note that level U_c.level + consts.PI_DELTA_LEVEL has number 1 because we want it to execute an "odd" round
@@ -1077,6 +958,9 @@ class Poset:
     def compute_delta(self, U_c, U):
         '''
         Computes the value of the Delta function from the paper. The value -1 is equivalent to bottom (undefined).
+        :param Unit U_c: the unit which we are deciding about
+        :param Unit U: the unit that is making the decision
+        :returns: 0, 1 or -1, as defined in the whitepaper
         '''
         U_c_hash = U_c.hash()
         U_hash = U.hash()
@@ -1111,6 +995,7 @@ class Poset:
     def first_dealing_unit(self, V):
         '''
         Returns the first dealing unit (sorted w.r.t. crp at level level(V)) that is below V.
+        :param Unit V: the unit below which we are looking for a dealing unit
         '''
         permutation = self.crp[self.level(V)]
 
@@ -1130,6 +1015,8 @@ class Poset:
         '''
         Checks whether the coin share of U agrees with the dealt public key.
         Note that even if it does not, it does not follow that U.creator_id is adversary -- it could be that dealer_id is the cheater.
+        :param Unit U: the unit whose coin shares are being checked
+        :returns: True if the coin share is verified successfully, False otherwise
         '''
         U_dealing = self.first_dealing_unit(U)
         coin_share = U.coin_shares[0]
@@ -1137,13 +1024,15 @@ class Poset:
 
 
     def toss_coin(self, U_c, U_tossing):
-        # The coin toss at unit U_tossing (necessarily at level >= consts.ADD_SHARES + 1)
-        # With low probability the toss may fail -- typically because of adversarial behavior of some process(es).
-        # :param unit U_c: the unit whose popularity decision is being considered by tossing a coin
-        #                  this param is used only in case when the _simple_coin is used, otherwise
-        #                  the result of coin toss is meant to be a function of U_tossing.level only
-        # :param unit U_tossing: the unit what is cossing a toin
-        # :returns: One of {0, 1} -- a (pseudo)random bit, impossible to predict before (U_tossing.level - 1) was reached
+        '''
+        The coin toss at unit U_tossing (necessarily at level >= consts.ADD_SHARES + 1)
+        With low probability the toss may fail -- typically because of adversarial behavior of some process(es).
+        :param unit U_c: the unit whose popularity decision is being considered by tossing a coin
+                         this param is used only in case when the _simple_coin is used, otherwise
+                         the result of coin toss is meant to be a function of U_tossing.level only
+        :param unit U_tossing: the unit that is cossing a toin
+        :returns: One of {0, 1} -- a (pseudo)random bit, impossible to predict before (U_tossing.level - 1) was reached
+        '''
 
         logger = logging.getLogger(consts.LOGGER_NAME)
         logger.info(f'toss_coin_start | Tossing at lvl {U_tossing.level} for unit {U_c.short_name()} at lvl {U_c.level}.')
@@ -1209,7 +1098,7 @@ class Poset:
     def add_coin_shares(self, U):
         '''
         Adds coin shares to the prime unit U using the simplified strategy: add the coin_share determined by FAI(U, U.level) to U
-        :param unit U: prime unit to which coin shares are added
+        :param Unit U: prime unit to which coin shares are added
         '''
 
         coin_shares = []
@@ -1222,6 +1111,10 @@ class Poset:
 
 
     def extract_tcoin_from_dealing_unit(self, U):
+        '''
+        Extracts and stores the threshold coin from a given unit.
+        :param Unit U: the dealing unit from which we are extracting the coin
+        '''
         assert U.parents == [], "Trying to extract tcoin from a non-dealing unit."
         sk = SecretKey(U.coin_shares['sks'][self.process_id])
         vk = VerificationKey(self.coin_share_threshold(), U.coin_shares['vk'], U.coin_shares['vks'])
@@ -1233,6 +1126,8 @@ class Poset:
         Checks coin shares of a prime unit that is not a dealing unit.
         This boils down to checking if U has exactly one share if its level is >= consts.ADD_SHARES and zero shares otherwise.
         At this point there is no point checking whether the share is correct, because that might be because of an dishonest dealer.
+        :param Unit U: the unit whose shares we are checking
+        :returns: True if there is the appropriate number of shares, False otherwise
         '''
         assert self.is_prime(U), "Trying to check shares of a non-prime unit."
         assert len(U.parents) > 0, "Trying to check shares of a dealing unit."
@@ -1240,41 +1135,6 @@ class Poset:
             return len(U.coin_shares) == 0
         else:
             return len(U.coin_shares) == 1
-
-#===============================================================================================================================
-# HELPER FUNCTIONS LOOSELY RELATED TO POSETS
-#===============================================================================================================================
-
-
-    def get_prime_unit_above_level(self, process_id, level):
-        '''
-        Let L be the smallest level s.t. L>=level and there exists a prime unit created by process_id at level l.
-        Then this outputs the list of all prime units created by process_id at level L.
-        :param int process_id: the id number of a process
-        :param int level: the target level
-        :returns: List of prime units by process id with level = level (or higher if no such exists), or None
-        '''
-        # NOTE: this implementation is efficient only if level is relatively small
-        # this assumption is realistic since it is normally called for level = 3
-        # if there is no unit at lvl level yet, return None
-        if not level in self.prime_units_by_level:
-            return None
-
-        # there is a unit/units by this process at this level, just return it
-        if self.prime_units_by_level[level][process_id] != []:
-            return self.prime_units_by_level[level][process_id]
-
-        # need to find the lowest level above 'level' that has a unit created by process_id
-        for U in self.max_units_per_process[process_id]:
-            if U.level >= level:
-                V = U
-                # go down as long as we are above 'level'
-                while V.self_predecessor.level >= level:
-                    V = V.self_predecessor
-
-                return self.prime_units_by_level[V.level][process_id]
-
-        return None
 
 
 #===============================================================================================================================
@@ -1327,6 +1187,7 @@ class Poset:
         '''
         Return a list of all units with timing round equal k.
         In other words, all U such that U < T_k but not U < T_(k-1) where T_i is the i-th timing unit.
+        :param int k: the level of the timing round requested
         '''
         T_k = self.timing_units[k]
         T_k_1 = self.timing_units[k-1] if k > 0 else None
@@ -1351,7 +1212,8 @@ class Poset:
     def dump_to_file(self, file_name):
         '''
         Dumps the poset to file in a rather simple format. Units are listed in the same order as the were added to the poset.
-        Except from parents and creator_id we also include info about the level of each unit and a bit 0/1 whether the unit was a timing unit.
+        In addition to parents and creator_id we also include info about the level of each unit and a bit 0/1 whether the unit was a timing unit.
+        :param str file_name: the name of the file in which the poset is to be saved
         '''
         set_timing_units = set(self.timing_units)
         with open(file_name, 'w') as f:
