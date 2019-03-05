@@ -181,6 +181,11 @@ def get_logs(conn):
         conn.run(f'zip -q {ip}-aleph.log.zip aleph.log')
     conn.get(f'proof-of-concept/aleph/{ip}-aleph.log.zip', f'../results/{ip}-aleph.log.zip')
 
+@task
+def get_dag(conn):
+    ''' Retrieves poset.dag from the server.'''
+
+    conn.get(f'proof-of-concept/aleph/poset.dag', f'../poset.dag')
 
 @task
 def stop_world(conn):
