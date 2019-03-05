@@ -13,7 +13,7 @@ def image_id_in_region(region_name, version='bionic'):
     '''Find id of os image we use. The id may differ for different regions'''
 
     if version == 'bionic':
-    	image_name = 'ubuntu/images/hvm-ssd/ubuntu-bionic-18.04-amd64-server-20190122'
+    	image_name = 'ubuntu/images/hvm-ssd/ubuntu-bionic-18.04-amd64-server-20190210'
     elif version == 'cosmic':
         image_name = 'ubuntu/images/hvm-ssd/ubuntu-cosmic-18.10-amd64-server-20190110'
 

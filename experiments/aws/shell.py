@@ -473,11 +473,11 @@ def get_logs(n_processes, regions, n_parents, use_tcoin, create_freq, sync_init_
 
     print(len(os.listdir('../results')), 'files in ../results')
 
-    print('read addresses')
+    print('reading addresses')
     with open('ip_addresses', 'r') as f:
         ip_addresses = [line[:-1] for line in f]
 
-    print('read signing keys')
+    print('reading signing keys')
     with open('signing_keys', 'r') as f:
         hexes = [line[:-1].encode() for line in f]
         signing_keys = [SigningKey(hexed) for hexed in hexes]
@@ -488,17 +488,25 @@ def get_logs(n_processes, regions, n_parents, use_tcoin, create_freq, sync_init_
     signing_keys = [signing_keys[i] for i in arg_sort]
     ip_addresses= [ip_addresses[i] for i in arg_sort]
 
-    print('write addresses')
+    print('writing addresses')
     with open('ip_addresses_sorted', 'w') as f:
         for ip in ip_addresses:
             f.write(ip+'\n')
 
-    print('write signing keys')
+    print('writing signing keys')
     with open('signing_keys_sorted', 'w') as f:
         for sk in signing_keys:
             f.write(sk.to_hex().decode()+'\n')
 
-    print('rename logs')
+    print('generating pid->region mapping')
+    with open('host_locations', 'w') as f:
+        for rn in regions:
+            f.write(rn+' ')
+            for ip in instances_ip_in_region(rn):
+                f.write(str(ip_addresses.index(ip))+' ')
+            f.write('\n')
+
+    print('renaming logs')
     for fp in os.listdir('../results'):
         name = fp[-13:-8] # other | aleph
         pid = ip_addresses.index(fp.split(f'-{name}.log')[0].replace('-', '.'))
@@ -506,10 +514,10 @@ def get_logs(n_processes, regions, n_parents, use_tcoin, create_freq, sync_init_
 
     result_path = f'../{n_processes}_{n_parents}_{use_tcoin}_{create_freq}_{sync_init_freq}_{n_recv_sync}_{txpu}'
 
-    print('rename dir')
+    print('renaming dir')
     os.rename('../results', result_path)
 
-    print('unzip downloaded logs')
+    print('unzipping downloaded logs')
     for path in os.listdir(result_path):
         index = path.split('.')[0]
         path = os.path.join(result_path, path)
@@ -518,17 +526,17 @@ def get_logs(n_processes, regions, n_parents, use_tcoin, create_freq, sync_init_
         os.rename(f'{result_path}/aleph.log', f'{result_path}/{index}.aleph.log')
         os.remove(path)
 
-    print('zip logs')
+    print('zipping logs')
     with zipfile.ZipFile(result_path+'.zip', 'w') as zf:
         for path in os.listdir(result_path):
             path = os.path.join(result_path, path)
             zf.write(path)
             os.remove(path)
 
-    print('remove empty dir')
+    print('removing empty dir')
     os.rmdir(result_path)
 
-    print('get dag')
+    print('getting dag')
     run_task_for_ip(ip_addresses[0])
 
     print('done')
@@ -600,8 +608,8 @@ restricted = {
                  }
     }
 
-pb = lambda : run_protocol(104, badger_regions(), [], 't2.medium')
-rs = lambda : run_protocol(8, badger_regions(), [], 't2.micro')
+pb = lambda : run_protocol(104, badger_regions(), {}, 't2.medium')
+rs = lambda : run_protocol(8, badger_regions(), {}, 't2.micro')
 rf = lambda : run_protocol(128, available_regions(), restricted['t2.medium'], 't2.medium')
 mu = lambda regions=badger_regions(): memory_usage(regions)
 

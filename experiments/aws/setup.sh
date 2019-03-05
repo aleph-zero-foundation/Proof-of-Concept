@@ -4,7 +4,7 @@ echo update > setup.log
 sudo apt update
 
 echo install from ubuntu repo >> setup.log
-sudo apt install -y make flex bison zip unzip virtualenv libgmp-dev libmpc-dev libssl-dev
+sudo apt install -y make flex bison zip unzip virtualenv libgmp-dev libmpc-dev libssl1.0-dev
 sudo apt install -y python3.7-dev python3-pip
 
 echo install pbc >> setup.log
