@@ -24,7 +24,7 @@ for level in range(1000):
     n_visible_below = []
     for U in primes:
         below = dag.get_prime_units_by_level(level-1)
-        cnt = sum(dag.below(V, U) for V in below)
+        cnt = sum(dag.is_reachable(V, U) for V in below)
         n_visible_below.append(cnt)
 
     avg_n_visible = sum(n_visible_below)/len(n_visible_below)
@@ -47,7 +47,7 @@ timer_start = time.time()
 for _ in range(tries):
     U1 = random.choice(units_list)
     U2 = random.choice(units_list)
-    res = dag.below(U1, U2)
+    res = dag.is_reachable(U1, U2)
 
 timer_stop = time.time()
 print(f"Executed {tries} random below queries, total time {timer_stop - timer_start:.4f}")

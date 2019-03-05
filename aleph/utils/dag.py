@@ -28,7 +28,7 @@ class DAG:
 
     def __init__(self, n_processes, no_forkers = False):
         '''
-        :param bool non_forkers: if set to true then it is guaranteed that there is no forking in the poset
+        :param bool no_forkers: if set to true then it is guaranteed that there is no forking in the poset
                                  and that the first parent of every node is its self_predecessor
         '''
         self.n_processes = n_processes
@@ -97,7 +97,7 @@ class DAG:
 
     def add(self, name, pid, parents, level_hint = None, aux_info = None):
         '''
-        :param itn level_hint: if not None, gives the level of the unit, and thus saves on computation
+        :param int level_hint: if not None, gives the level of the unit, and thus saves on computation
         '''
         assert all(p in self for p in parents), 'Parents of {} are not in DAG'.format(name)
         self.pids[name] = pid
@@ -132,7 +132,6 @@ class DAG:
     @memo
     def is_reachable(self, U, V):
         '''Checks whether V is reachable from U in a DAG, using BFS
-        :param dict dag: a dictionary of the form: node -> [list of parent nodes]
         :returns: a boolean value True if reachable, False otherwise
         '''
 
@@ -154,7 +153,6 @@ class DAG:
                     node_head.add(parent)
 
         return False
-    below = is_reachable
 
     def fast_is_reachable(self, U, V):
         '''
