@@ -32,7 +32,6 @@ def test_threshold_coin_toss():
     results = simulate_with_checks(
             n_processes,
             n_units,
-            n_forkers = 0,
             post_prepare = toss_for_prime,
             use_tcoin = True,
             seed = 0)
