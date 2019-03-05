@@ -234,6 +234,9 @@ class Process:
         elif created_count == consts.UNITS_LIMIT:
             logger.info(f'create_stop {self.process_id} | process created {consts.UNITS_LIMIT} units')
 
+        # dump the final poset to disc
+        self.poset.dump_to_file(f'poset.dag')
+
 
     async def dispatch_syncs(self, server_started):
         await server_started.wait()
@@ -283,8 +286,5 @@ class Process:
             listener_task.cancel()
         finally:
             p.kill()
-
-        # dump the final poset to disc
-        self.poset.dump_to_file(f'poset.dag')
 
         self.logger.info(f'process_done {self.process_id} | Exiting program')
