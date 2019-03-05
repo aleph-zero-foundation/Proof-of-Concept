@@ -5,26 +5,33 @@ import random
 
 
 def test_trivial_single_level_below():
+    '''
+    A simple manual test that makes sure that poset.max_units_per_process are correctly set when only dealing units are present
+        and that after adding one additional unit to the poset, Poset.below returns correct results.
+    '''
+
+    # start by creating a poset with 4 processes and add the 4 dealing units to it
     n_processes = 4
     poset = Poset(n_processes = n_processes, use_tcoin = False)
-
-    bottom_units_per_process = [Unit(creator_id = i, parents = [], txs = []) for i in range(n_processes)]
+    dealing_units_per_process = [Unit(creator_id = i, parents = [], txs = []) for i in range(n_processes)]
     for i in range(n_processes):
-        poset.prepare_unit(bottom_units_per_process[i])
-        poset.add_unit(bottom_units_per_process[i])
+        poset.prepare_unit(dealing_units_per_process[i])
+        poset.add_unit(dealing_units_per_process[i])
 
+    # make sure that dealing units are set as maximal units in the poset
     for i in range(n_processes):
-        assert poset.max_units_per_process[i][0] is bottom_units_per_process[i]
+        assert poset.max_units_per_process[i][0] is dealing_units_per_process[i]
 
     U0 = poset.max_units_per_process[0][0]
     U1 = poset.max_units_per_process[1][0]
     U2 = poset.max_units_per_process[2][0]
     U3 = poset.max_units_per_process[3][0]
 
+    # add one new unit with parents U0, U1 to the poset
     U = Unit(creator_id = 0, parents = [U0, U1], txs = [])
-
     poset.prepare_unit(U)
     poset.add_unit(U)
+
     assert poset.below(U0, U)
     assert poset.above(U, U0)
     assert poset.below(U1, U)
@@ -71,15 +78,13 @@ def test_large_forking_below():
     )
 
 
-def check_all_pairs_below(arg):
+def check_all_pairs_below(dag):
     '''
-    Create a poset from a dag and test U<=V for all pairs of units U,V
-    against a naive BFS-implementation from dag_utils
+    Create a poset from a dag and test (U <= V) for all pairs of units U, V against the implementation in the DAG class.
     '''
-    poset, unit_dict = dag_utils.poset_from_dag(arg)
+    poset, unit_dict = dag_utils.poset_from_dag(dag)
 
     for nodeU, U in unit_dict.items():
         for nodeV, V in unit_dict.items():
-            assert poset.below(U,V) == arg.is_reachable(nodeU, nodeV), "Problem with {} and {}".format(nodeU, nodeV)
-            assert poset.above(U,V) == arg.is_reachable(nodeV, nodeU), "Problem with {} and {}".format(nodeU, nodeV)
+            assert poset.below(U,V) == dag.is_reachable(nodeU, nodeV), f"Problem with {nodeU} and {nodeV}"
 
