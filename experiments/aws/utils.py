@@ -224,6 +224,9 @@ def generate_signing_keys(n_processes):
             f.write(SigningKey().to_hex().decode()+'\n')
 
 
+def m5large_regions():
+    return available_regions() + ['eu-west-2']
+
 def available_regions():
     ''' Returns a list of all currently available regions.'''
     non_badger_regions = list(set(boto3.Session().get_available_regions('ec2'))-set(badger_regions()))

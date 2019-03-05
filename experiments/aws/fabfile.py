@@ -185,7 +185,7 @@ def get_logs(conn):
 def get_dag(conn):
     ''' Retrieves poset.dag from the server.'''
 
-    conn.get(f'proof-of-concept/aleph/poset_0.dag', f'../poset.dag')
+    conn.get(f'proof-of-concept/aleph/poset.dag', f'../poset.dag')
 
 @task
 def stop_world(conn):

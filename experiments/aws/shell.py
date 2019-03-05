@@ -16,7 +16,7 @@ from aleph.crypto.keys import SigningKey, VerifyKey
 import aleph.const as consts
 
 from fabfile import zip_repo
-from utils import image_id_in_region, default_region_name, init_key_pair, security_group_id_by_region, available_regions, badger_regions, generate_signing_keys, n_processes_per_regions, eu_regions
+from utils import image_id_in_region, default_region_name, init_key_pair, security_group_id_by_region, available_regions, badger_regions, generate_signing_keys, n_processes_per_regions, eu_regions, m5large_regions
 
 N_JOBS = 8
 
@@ -33,7 +33,7 @@ def run_task_for_ip(task='test', ip_list=[], parallel=False, output=False):
     :param bool output: indicates whether output of task is needed
     '''
 
-    print(    f'running task {task} in {ip_list}')
+    print(f'    running task {task} in {ip_list}')
 
     if parallel:
         hosts = " ".join(["ubuntu@"+ip for ip in ip_list])
@@ -47,7 +47,7 @@ def run_task_for_ip(task='test', ip_list=[], parallel=False, output=False):
             return check_output(cmd.split())
         return call(cmd.split())
     except Exception as e:
-        print(    'paramiko troubles')
+        print('    paramiko troubles')
 
 #======================================================================================
 #                              routines for some region
@@ -592,16 +592,17 @@ cm = run_cmd
 
 ti = terminate_instances
 
-restricted = {'ap-south-1':     10,  # Mumbai
-              'ap-southeast-2': 5,   # Sydney
-              'eu-central-1':   10,  # Frankfurt
-              'sa-east-1':      5}   # Sao Paolo
-badger_restricted = {'ap-southeast-2': 5, 'sa-east-1': 5}
-
+restricted = {
+    't2.medium': {  'ap-south-1':     10,  # Mumbai
+                    'ap-southeast-2': 5,   # Sydney
+                    'eu-central-1':   10,  # Frankfurt
+                    'sa-east-1':      5    # Sao Paolo
+                 }
+    }
 
 pb = lambda : run_protocol(104, badger_regions(), [], 't2.medium')
-rs = lambda : run_protocol(8, badger_regions(), restricted, 't2.micro')
-rf = lambda : run_protocol(128, available_regions(), restricted, 't2.micro')
+rs = lambda : run_protocol(8, badger_regions(), [], 't2.micro')
+rf = lambda : run_protocol(128, available_regions(), restricted['t2.medium'], 't2.medium')
 mu = lambda regions=badger_regions(): memory_usage(regions)
 
 #======================================================================================
