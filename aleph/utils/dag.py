@@ -1,8 +1,5 @@
-import collections
-import copy
 import functools
 
-from aleph.data_structures import Poset, Unit
 
 
 
@@ -29,12 +26,20 @@ class memo:
 
 class DAG:
 
-    def __init__(self, n_processes):
+    def __init__(self, n_processes, no_forkers = False):
+        '''
+        :param bool no_forkers: if set to true then it is guaranteed that there is no forking in the poset
+                                 and that the first parent of every node is its self_predecessor
+        '''
         self.n_processes = n_processes
         self.nodes = {}
         self.pids = {}
         self.levels = {}
         self.prime_units_by_level = {}
+        # a dictionary of the type node -> dict(), where dict contains additional info for this particular node
+        self.node_aux_info = {}
+        self.no_forkers = no_forkers
+        self.nodes_as_added = []
 
 
     def __contains__(self, node): return node in self.nodes
@@ -42,38 +47,97 @@ class DAG:
     def __len__(self): return len(self.nodes)
 
     def pid(self, node): return self.pids[node]
-    def parents(self, node): return iter(self.nodes[node])
+    def parents(self, node): return self.nodes[node]
+    def level(self, node): return self.levels[node]
+    def height(self, node): return self.get_node_info(node, "height")
 
+    def get_node_list_as_added(self):
+        '''
+        Return a list of nodes in the dag in the same order as they have been added.
+        Note that this in particular gives a topological ordering of nodes.
+        '''
+        return self.nodes_as_added
 
-    def add(self, name, pid, parents):
+    def get_prime_units_by_level(self, level):
+        if level not in self.prime_units_by_level:
+            return []
+        else:
+            return self.prime_units_by_level[level]
+
+    def update_prime_units(self, node):
+        level = self.level(node)
+        if level not in self.prime_units_by_level:
+            self.prime_units_by_level[level] = []
+        if self.is_prime(node):
+            self.prime_units_by_level[level].append(node)
+
+    def is_prime(self, node):
+        level = self.level(node)
+        predecessor = self.self_predecessor(self.pids[node], parent_nodes = self.nodes[node])
+        if predecessor is None or level > self.levels[predecessor]:
+            self.prime_units_by_level[level].append(node)
+
+    def add_node_info(self, node, key, value):
+        if node not in self.node_aux_info:
+            self.node_aux_info[node] = {}
+
+        self.node_aux_info[node][key] = value
+
+    def get_node_info(self, node, key):
+        if node not in self.node_aux_info:
+            return None
+        return self.node_aux_info[node].get(key, None)
+
+    def compute_node_height(self, node):
+        predecessor = self.self_predecessor(self.pids[node], parent_nodes = self.nodes[node])
+        if predecessor is None:
+            return 0
+        else:
+            return self.get_node_info(predecessor, "height") + 1
+
+    def add(self, name, pid, parents, level_hint = None, aux_info = None):
+        '''
+        :param int level_hint: if not None, gives the level of the unit, and thus saves on computation
+        '''
         assert all(p in self for p in parents), 'Parents of {} are not in DAG'.format(name)
         self.pids[name] = pid
         self.nodes[name] = parents[:]
-        level = max([self.levels[p] for p in parents]) if len(parents) > 0 else 0
-        if level not in self.prime_units_by_level:
-            self.prime_units_by_level[level] = []
-        visible_prime_units = set()
-        for V in self.prime_units_by_level[level]:
-            if self.is_reachable(V, name) and (V != name):
-                visible_prime_units.add(self.pids[V])
-        if 3*len(visible_prime_units) >= 2*self.n_processes:
-            level = level + 1
-        if level not in self.prime_units_by_level:
-            self.prime_units_by_level[level] = []
+
+        if level_hint is None:
+            level = max([self.levels[p] for p in parents]) if len(parents) > 0 else 0
+            if level not in self.prime_units_by_level:
+                self.prime_units_by_level[level] = []
+            visible_prime_units = set()
+            for V in self.prime_units_by_level[level]:
+                if self.is_reachable(V, name) and (V != name):
+                    visible_prime_units.add(self.pids[V])
+            if 3*len(visible_prime_units) >= 2*self.n_processes:
+                level = level + 1
+        else:
+            level = level_hint
+
         self.levels[name] = level
-        predecessor = self.self_predecessor(pid, parents)
-        if predecessor is None or level > self.levels[predecessor]:
-            self.prime_units_by_level[level].append(name)
+        self.update_prime_units(name)
 
+        height = self.compute_node_height(name)
+        self.add_node_info(name, "height", height)
 
+        if aux_info is not None:
+            for key, val in aux_info.items():
+                self.add_node_info(name, key, val)
+
+        self.nodes_as_added.append(name)
 
 
     @memo
     def is_reachable(self, U, V):
         '''Checks whether V is reachable from U in a DAG, using BFS
-        :param dict dag: a dictionary of the form: node -> [list of parent nodes]
         :returns: a boolean value True if reachable, False otherwise
         '''
+
+        if self.no_forkers:
+            return self.fast_is_reachable(U, V)
+
         have_path_to_V = set()
         node_head = set([V])
         while node_head:
@@ -89,7 +153,34 @@ class DAG:
                     node_head.add(parent)
 
         return False
-    below = is_reachable
+
+    def fast_is_reachable(self, U, V):
+        '''
+        Same as is_reachable but optimized for the case when there are no forkers in the dag and there is access to the level info.
+        '''
+
+        have_path_to_V = set()
+        node_head = set([V])
+        U_pid = self.pids[U]
+        U_height = self.height(U)
+        while node_head:
+            node  = node_head.pop()
+            # optimization that takes advantage of the fact that there are no forks
+            if self.pid(node) == U_pid:
+                if self.height(node) >= U_height:
+                    return True
+
+            if node not in have_path_to_V:
+                have_path_to_V.add(node)
+                # optimization: if we reached too low of a level, no need to go deeper
+                if self.levels[node] < self.levels[U]:
+                    continue
+                for parent in self.parents(node):
+                    if parent in have_path_to_V:
+                        continue
+                    node_head.add(parent)
+
+        return False
 
 
     def nodes_below(self, arg):
@@ -111,6 +202,15 @@ class DAG:
 
 
     def self_predecessor(self, pid, parent_nodes):
+
+        if self.no_forkers:
+            if parent_nodes:
+                return parent_nodes[0]
+            else:
+                return None
+
+        # TODO: this might be possibly simplified for our current version of parent selection (when the first parent is always the self_predecessor)
+
         parent_nodes = list(parent_nodes)
         below_within_process = [node_below for node_below in self.nodes_below(parent_nodes) if self.pid(node_below) == pid]
 

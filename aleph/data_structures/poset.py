@@ -1355,8 +1355,10 @@ class Poset:
         '''
         set_timing_units = set(self.timing_units)
         with open(file_name, 'w') as f:
+            f.write("format dump-nofork-level-timing\n")
             f.write(f'process_id {self.process_id}\n')
-            f.write(f'n_units {self.process_id}\n')
+            f.write(f'n_processes {self.n_processes}\n')
+            f.write(f'n_units {len(self.units_as_added)}\n')
             for U in self.units_as_added:
                 f.write(f'{U.short_name()} {U.creator_id}\n')
                 f.write('parents '+' '.join(V.short_name() for V in U.parents) + '\n')
