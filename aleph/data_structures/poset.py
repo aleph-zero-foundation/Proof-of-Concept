@@ -169,12 +169,11 @@ class Poset:
                     processes_below += 1
                     break
 
-            # For efficiency:
-            if 3*(processes_below + self.n_processes - 1 - process_id) < 2*self.n_processes:
+            # For efficiency stop if we cannot reach a quorum
+            if not self.is_quorum(processes_below + self.n_processes - 1 - process_id):
                 break
 
-        # same as (...)>=2/3*(...) but avoids floating point division
-        U.level = m+1 if 3*processes_below >= 2*self.n_processes else m
+        U.level = m+1 if self.is_quorum(processes_below) else m
         return U.level
 
 
@@ -271,7 +270,7 @@ class Poset:
         '''
         # create a dict of all VKs and SKs in a raw format -- charm group elements with no classes wrapped around them
         cs_dict = {}
-        vk, sks = generate_keys(self.n_processes, self.n_processes//3+1)
+        vk, sks = generate_keys(self.n_processes, self.coin_share_threshold())
         cs_dict['vk'] = vk.vk
         # TODO: these should be encrypted using corresponding processes' public keys
         cs_dict['sks'] = [secret_key.sk for secret_key in sks]
@@ -310,6 +309,21 @@ class Poset:
 #===============================================================================================================================
 # COMPLIANCE
 #===============================================================================================================================
+
+    def coin_share_threshold(self):
+        '''
+        How many coin shares are needed to flip a threshold coin.
+        :returns: the amount of shares needed
+        '''
+        return self.n_processes//3 + 1
+
+    def is_quorum(self, number):
+        '''
+        Check whether the given number is enough to form a quorum.
+        :returns: True or False
+        '''
+        # same as (...)>=2/3*(...) but avoids floating point division
+        return 3*number >= 2*self.n_processes
 
 
     def should_check_rule(self, rule):
@@ -800,7 +814,6 @@ class Poset:
             return False
 
         # implementation of a simple DFS from V down until we hit units that do not see U
-        threshold = (2*self.n_processes + 2)//3
         seen_units = set([V])
         seen_processes = set()
         stack = [V]
@@ -808,7 +821,7 @@ class Poset:
         #    (1) are also in seen_units
         #    (2) are above U_c
         # also, we make sure that no unit is put on stack more than once
-        while stack != [] and len(seen_processes) < threshold:
+        while stack != [] and not self.is_quorum(len(seen_processes)):
             W = stack.pop()
             if W.level <= level_V - 2 or (W.level == level_V - 1 and self.is_prime(W)):
                 # if W is of level >= level_V - 1 and is not prime then it cannot be used for this proof
@@ -818,7 +831,7 @@ class Poset:
                     stack.append(W_parent)
                     seen_units.add(W_parent)
 
-        memo[('proof', V_hash)] = len(seen_processes) >= threshold
+        memo[('proof', V_hash)] = self.is_quorum(len(seen_processes))
         return memo[('proof', V_hash)]
 
 
@@ -1013,10 +1026,9 @@ class Poset:
 
 
     def super_majority(self, list_vals):
-        treshold_majority = (2*self.n_processes + 2)//3
-        if list_vals.count(1) >= treshold_majority:
+        if self.is_quorum(list_vals.count(1)):
             return 1
-        if list_vals.count(0) >= treshold_majority:
+        if self.is_quorum(list_vals.count(0)):
             return 0
 
         return -1
@@ -1149,7 +1161,7 @@ class Poset:
         # run through all prime ancestors of U_tossing to gather coin shares
         for V in self.get_all_prime_units_by_level(level):
             # we gathered enough coin shares -- ceil(n_processes/3)
-            if len(coin_shares) == self.n_processes//3 + 1:
+            if len(coin_shares) == self.coin_share_threshold():
                 break
 
             # can use only shares from units visible from the tossing unit (so that every process arrives at the same result)
@@ -1178,20 +1190,19 @@ class Poset:
 
         # check whether we have enough valid coin shares to toss a coin
         n_collected = len(coin_shares)
-        n_required = self.n_processes//3 + 1
-        if n_collected == n_required:
+        if n_collected == self.coin_share_threshold():
             # this is the threshold coin we shall use
             t_coin = self.threshold_coins[U_dealing.hash()]
             coin, correct = t_coin.combine_coin_shares(coin_shares, str(level))
             if correct:
-                logger.info(f'toss_coin_succ {self.process_id} | Succeded - {n_collected} out of required {n_required} shares collected')
+                logger.info(f'toss_coin_succ {self.process_id} | Succeded - {n_collected} out of required {self.coin_share_threshold()} shares collected')
                 return coin
             else:
-                logger.warning(f'toss_coin_fail {self.process_id} | Failed - {n_collected} out of required {n_required} shares collected, but combine unsuccesful')
+                logger.warning(f'toss_coin_fail {self.process_id} | Failed - {n_collected} out of required {self.coin_share_threshold()} shares collected, but combine unsuccesful')
                 return self._simple_coin(U_c, level)
 
         else:
-            logger.warning(f'toss_coin_fail {self.process_id} | Failed - {n_collected} out of required {n_required} shares were collected')
+            logger.warning(f'toss_coin_fail {self.process_id} | Failed - {n_collected} out of required {self.coin_share_threshold()} shares were collected')
             return self._simple_coin(U_c, level)
 
 
@@ -1212,10 +1223,9 @@ class Poset:
 
     def extract_tcoin_from_dealing_unit(self, U):
         assert U.parents == [], "Trying to extract tcoin from a non-dealing unit."
-        threshold = self.n_processes//3+1
         sk = SecretKey(U.coin_shares['sks'][self.process_id])
-        vk = VerificationKey(threshold, U.coin_shares['vk'], U.coin_shares['vks'])
-        self.threshold_coins[U.hash()] = ThresholdCoin(U.creator_id, self.process_id, self.n_processes, threshold, sk, vk)
+        vk = VerificationKey(self.coin_share_threshold(), U.coin_shares['vk'], U.coin_shares['vks'])
+        self.threshold_coins[U.hash()] = ThresholdCoin(U.creator_id, self.process_id, self.n_processes, self.coin_share_threshold(), sk, vk)
 
 
     def check_coin_shares(self, U):
