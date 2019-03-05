@@ -51,4 +51,4 @@ def check_all_levels(arg):
     poset, unit_dict = dag_utils.poset_from_dag(arg)
 
     for nodeU, U in unit_dict.items():
-        assert U.level == arg.levels[nodeU], "Node {} has broken level!".format(nodeU)
+        assert U.level == arg.levels[nodeU], f"Node {nodeU} has broken level!"
