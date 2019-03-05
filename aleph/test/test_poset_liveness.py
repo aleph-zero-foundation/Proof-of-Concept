@@ -9,7 +9,7 @@ def print_level_at_prime(U, poset, dag, results, additional_args):
         levels = additional_args
     if U.level not in levels:
         levels.add(U.level)
-        print(U.level)
+        #print(U.level)
 
 def run(repetitions, min_proc, max_proc, units_per_process):
     random.seed(123456789)

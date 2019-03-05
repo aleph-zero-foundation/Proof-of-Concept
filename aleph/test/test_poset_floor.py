@@ -4,6 +4,10 @@ from aleph.utils.generic_test import generate_and_check_dag
 import random
 
 def create_poset_foundation(n_processes):
+    '''
+    Creates a layer of n_processes dealing units and adds them to a poset.
+    :returns: the resulting poset
+    '''
     poset = Poset(n_processes = n_processes, use_tcoin = False)
     empty_floor = [[] for _ in range(n_processes)]
 
@@ -14,6 +18,9 @@ def create_poset_foundation(n_processes):
     return poset
 
 def test_trivial_single_level():
+    '''
+    Tests floors for dealing units.
+    '''
     n_processes = 4
     poset = create_poset_foundation(n_processes)
     for i in range(n_processes):
@@ -23,6 +30,9 @@ def test_trivial_single_level():
 
 
 def test_simple_tower():
+    '''
+    A simple manual test for floors.
+    '''
     n_processes = 4
     poset = create_poset_foundation(n_processes)
 
@@ -46,6 +56,9 @@ def test_simple_tower():
             assert foundation_units[i].floor[j] == ([foundation_units[i]] if j == i else [])
 
 def check_all_floors(dag):
+    '''
+    Given a dag, a poset is generated and the floor of every unit is tested against the implementation in DAG.
+    '''
     poset, unit_dict = dag_utils.poset_from_dag(dag)
     for nodeU, U in unit_dict.items():
         for [tile, other] in zip(U.floor, [[unit_dict[nodeV] for nodeV in nodes] for nodes in dag.floor(nodeU)]):

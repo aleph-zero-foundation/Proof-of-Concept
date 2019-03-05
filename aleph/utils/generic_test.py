@@ -75,7 +75,7 @@ def distribute_unit(U, name, posets, forkers, name_to_unit, unit_to_name):
 def verify_nonforker_fails(dag, n_processes, creator_id, forkers, only_maximal_parents):
     if creator_id not in forkers:
         res = dag_utils.generate_random_compliant_unit(dag, n_processes, creator_id, forking = False, only_maximal_parents=only_maximal_parents)
-        assert res is None, "Impossibly generated {}, with parents {}".format(res[0], res[1])
+        assert res is None, f"Impossibly generated {res[0]}, with parents {res[1]}"
 
 def simulate_with_checks(
         n_processes,
@@ -105,11 +105,9 @@ def simulate_with_checks(
         if res is None:
             verify_fails(dag, n_processes, creator_id, forkers, only_maximal_parents)
             continue
-        else:
-            if creator_id in forkers:
-                print('lol')
-                print(res)
         U, name, parents = res
+        if creator_id in forkers:
+            print(U, name, parents)
 
         dag.add(name, creator_id, parents)
 
