@@ -14,7 +14,7 @@ class timer:
             code2
             code3
 
-        with timer('group', 'somename', disable_gc=True): #disables garbage collector in the whole block
+        with timer('group', 'somename', disable_gc=True): #disables garbage collector in the whole block (this is the default setting)
             code1
             ...
 
