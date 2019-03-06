@@ -5,7 +5,7 @@ import pickle
 import random
 import subprocess
 
-from aleph.network import listener, sync, tx_generator
+from aleph.network import tx_generator
 from aleph.data_structures import Poset, UserDB
 from aleph.process import Process
 from aleph.crypto.keys import SigningKey, VerifyKey

@@ -16,21 +16,12 @@ def translate_parents_and_copy(U, hashes_to_units):
     Returns a new unit (with correct references to corresponding parent units in B) to be added to B's poset.
     The new unit has all the data in the floor/level/... fields erased.
     '''
-    #print(U.bytestring())
-    #print(U.hash())
     parent_hashes = [V.hash() for V in U.parents]
-    #print(parent_hashes)
-    #if parent_hashes:
-        #print(parent_hashes[0] in hashes_to_units)
-        #print(hashes_to_units.keys())
-    #print(hashes_to_units)
     parents = [hashes_to_units[V] for V in parent_hashes]
     U_new = Unit(U.creator_id, parents, U.transactions(), U.signature, U.coin_shares)
     return U_new
 
 
-
-#random.seed(194)
 n_processes = 16
 n_units = 1000
 use_tcoin = True
@@ -48,10 +39,6 @@ for process_id in range(n_processes):
     new_process = Process(n_processes, process_id, sk, pk, addresses, public_keys, recv_addresses[process_id], None, use_tcoin)
     processes.append(new_process)
 
-#if processes[0].poset.crp[2][0] == 0:
-#   break
-
-
 
 for unit_no in range(n_units):
     while True:
@@ -63,8 +50,6 @@ for unit_no in range(n_units):
 
         process.poset.prepare_unit(new_unit)
         assert process.poset.check_compliance(new_unit), "A unit created by this process is not passing the compliance test!"
-        #if use_tcoin and new_unit.level == 0:
-        #    process.add_tcoin_to_dealing_unit(new_unit)
         process.sign_unit(new_unit)
         process.add_unit_to_poset(new_unit)
 
@@ -77,10 +62,3 @@ for unit_no in range(n_units):
 
     if unit_no%50 == 0:
         print(f"Adding unit no {unit_no} out of {n_units}.")
-
-
-    #dag, translation = dag_utils.dag_from_poset(process.poset)
-    #plot_dag(dag)
-
-
-

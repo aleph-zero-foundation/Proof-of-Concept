@@ -3,7 +3,6 @@ import random
 from joblib import Parallel, delayed
 from time import time
 
-
 def report_coin_toss(U, poset, dag, results, additional_args):
     if additional_args is None:
         levels, U_c = set(), None
@@ -16,6 +15,7 @@ def report_coin_toss(U, poset, dag, results, additional_args):
         if U_c is not None and U.level-U_c.level >= 4:
             results.append(poset.toss_coin(U_c, U))
     return levels, U_c
+
 
 def check_distribution(n_jobs, n_processes, n_units, n_forkers):
     print('n_jobs', n_jobs, '\nn_processes', n_processes, '\nn_units', n_units, '\nn_forkers', n_forkers)

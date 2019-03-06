@@ -14,7 +14,7 @@ def save_pub_keys(pub_keys):
 
 if __name__ == '__main__':
     import sys
-    assert(len(sys.argv) == 3)
+    assert len(sys.argv) == 3
     n_machines = int(sys.argv[1])
     processes_per_machine = int(sys.argv[2])
     pub_keys = []

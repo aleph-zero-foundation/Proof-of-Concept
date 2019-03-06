@@ -32,7 +32,6 @@ class ByzantineProcess(Process):
                          public_key_list,
                          tx_receiver_address,
                          userDB,
-                         validation_method,
                          gossip_strategy=gossip_strategy)
         self._logger = logging.getLogger(consts.LOGGER_NAME)
         self._first_forking_unit = None
@@ -137,13 +136,12 @@ class ByzantineProcess(Process):
             if self._add_byzantine_unit(self, U) is None:
                 logger.debug('failed to add a forking unit')
                 return False
-            else:
-                logger.debug('successfully added a forking unit')
-                return True
-        else:
-            self._log_new_unit(U, self._first_forking_unit, self._second_forking_unit, self.poset)
-            logger.debug('added a new unit to the poset')
+            logger.debug('successfully added a forking unit')
             return True
+
+        self._log_new_unit(U, self._first_forking_unit, self._second_forking_unit, self.poset)
+        logger.debug('added a new unit to the poset')
+        return True
 
     def _check_for_self_diamond(self, U, first_forking_unit, second_forking_unit, poset):
         if first_forking_unit is None or second_forking_unit is None:

@@ -4,7 +4,6 @@ from joblib import Parallel, delayed
 
 from aleph.utils.generic_test import simulate_with_checks
 
-
 def time_coin_toss(U, poset, dag, results, additional_args):
     if additional_args is None:
         levels, U_c = set(), None
@@ -45,5 +44,5 @@ def measure_time(n_jobs, n_processes, n_units, n_forkers):
     print(all_len, all_sum/all_len, [len(res) for res in results])
 
 if __name__ == '__main__':
-    measure_time(8, 4, 1000, 0, 'link_self_predecessor')
-    measure_time(8, 100, 50000, 0, 'link_self_predecessor')
+    measure_time(8, 4, 1000, 0)
+    measure_time(8, 100, 50000, 0)
