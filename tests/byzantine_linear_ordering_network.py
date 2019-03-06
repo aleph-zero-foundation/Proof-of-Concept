@@ -7,8 +7,9 @@ from aleph.crypto.keys import SigningKey, VerifyKey
 from aleph.data_structures import UserDB
 from aleph.network import tx_generator
 from aleph.process import Process
-from byzantine_process import ByzantineProcess
 import aleph.const as consts
+
+from byzantine_process import ByzantineProcess
 
 
 def process_builder(byzantine_builder):
@@ -24,8 +25,7 @@ def process_builder(byzantine_builder):
         if is_byzantine(process_id):
             creator = byzantine_builder
 
-        return creator(n_processes, process_id, sk, pk, addresses, public_keys, recv_address, userDB,
-                       validation_method, gossip_strategy=gossip_strategy)
+        return creator(n_processes, process_id, sk, pk, addresses, public_keys, recv_address, userDB, gossip_strategy=gossip_strategy)
 
     return byzantine_process_builder
 
@@ -108,7 +108,6 @@ class ForkDivideAndDieProcess(ByzantineProcess):
                                   public_key_list,
                                   tx_receiver_address,
                                   userDB,
-                                  validation_method,
                                   gossip_strategy=gossip_strategy)
         self._process_copy = Process(n_processes,
                                      process_id,
@@ -117,7 +116,6 @@ class ForkDivideAndDieProcess(ByzantineProcess):
                                      public_key_list,
                                      tx_receiver_address,
                                      userDB,
-                                     validation_method,
                                      gossip_strategy=gossip_strategy)
         self._has_stopped_adding = False
 
@@ -128,7 +126,7 @@ class ForkDivideAndDieProcess(ByzantineProcess):
         sync_candidates = list(range(self.n_processes))
         sync_candidates.remove(self.process_id)
         sync_candidates = sync_candidates * 2 if len(sync_candidates) < 2 else sync_candidates
-        if len(sync_candidates) == 0:
+        if sync_candidates:
             self.logger.debug('no candidate to whom I can send units')
             return
         target_ids = random.sample(sync_candidates, 2)
