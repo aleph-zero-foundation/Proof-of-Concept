@@ -2,7 +2,7 @@ from aleph.utils.dag_utils import generate_random_forking, generate_random_nonfo
 from aleph.crypto.keys import SigningKey, VerifyKey
 from aleph.crypto.crp import CommonRandomPermutation
 from aleph.data_structures import Unit, Poset
-from aleph.crypto.signatures.threshold_signatures import generate_keys
+from aleph.crypto.threshold_signatures import generate_keys
 from aleph.crypto.threshold_coin import ThresholdCoin
 from aleph.utils import dag_utils
 from aleph.utils.dag import DAG

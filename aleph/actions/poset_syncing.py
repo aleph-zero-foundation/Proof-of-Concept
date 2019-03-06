@@ -1,9 +1,11 @@
 '''This module implements functions useful for syncing posets.'''
 
-import random
 import logging
 
 import aleph.const as consts
+
+from aleph.data_structures import pretty_hash
+
 
 def poset_info(poset):
     '''
@@ -11,9 +13,12 @@ def poset_info(poset):
     :param Poset poset: the poset which state we want to receive
     :returns: A list of lists of pairs (height, hash), with the heights and hashes of maximal elements per process in the poset.
     '''
+
     def to_sync_repr(units):
         return [(U.height, U.hash()) for U in units]
+
     return [to_sync_repr(units) for units in poset.max_units_per_process]
+
 
 def order_units_topologically(units_list):
     '''
@@ -24,8 +29,7 @@ def order_units_topologically(units_list):
     :param list unit_list: the list of units to sort
     :returns: topologically sorted unit_list
     '''
-    # NOTE: this might be potentially slow, as it uses a dictionaries of Units
-    # implements a DFS on a custom stack
+
     state = {U: 0 for U in units_list}
     top_list = []
     unit_stack = []
@@ -47,6 +51,7 @@ def order_units_topologically(units_list):
 
     return top_list
 
+
 def units_to_send_with_pid(poset, tops, pid):
     '''
     Determine which units created by pid to send to a poset which has the top known units of pid as given.
@@ -56,6 +61,7 @@ def units_to_send_with_pid(poset, tops, pid):
     :param int pid: the id of the creator of units we are interested in
     :returns: units created by pid the other poset should receive to catch up to us, and a list of tops we don't recognize
     '''
+
     # NOTE: this can potentially be slowed down arbitrarily if forkers are not sufficiently muted.
     # TODO: ensure sufficient muting of forkers -- see create_unit's comments
     to_send = []
@@ -74,6 +80,7 @@ def units_to_send_with_pid(poset, tops, pid):
 
     return to_send, [h for h in remote_hashes if h not in poset.units]
 
+
 def _drop_to_height(units, height):
     if height == -1:
         return set()
@@ -82,7 +89,9 @@ def _drop_to_height(units, height):
         while U.height > height:
             U = U.self_predecessor
         result.add(U)
+
     return result
+
 
 def requested_units_to_send(poset, tops, requests):
     '''
@@ -92,14 +101,16 @@ def requested_units_to_send(poset, tops, requests):
     :param list requests: the hashes of the requested units
     :returns: units created by pid the other poset requested and has not yet seen
     '''
+
     if requests == []:
         return []
+
     to_send = []
-    # NOTE: this fails terribly if we get a fake request
     requested = set(poset.units[h] for h in requests)
     known_remotes = set(poset.units[t[1]] for t in tops if t[1] in poset.units)
     operation_height = max(U.height for U in requested)
     known_remotes = _drop_to_height(known_remotes, operation_height)
+
     while requested:
         considered_requests = set(U for U in requested if U.height == operation_height)
         for U in considered_requests:
@@ -109,9 +120,11 @@ def requested_units_to_send(poset, tops, requests):
             requested.remove(U)
         operation_height -= 1
         known_remotes = _drop_to_height(known_remotes, operation_height)
+
     return to_send
 
-def units_to_send(poset, info, requests = None):
+
+def units_to_send(poset, info, requests=None):
     '''
     Determine which units to send to a poset which has the given info.
     :param Poset poset: the poset which is supposed to be the source of the units
@@ -119,10 +132,12 @@ def units_to_send(poset, info, requests = None):
     :param list requests: a list of explicitly requested units, per process
     :returns: units the other poset should receive to catch up to us
     '''
+
     if requests is None:
         requests = [[] for _ in info]
     to_send = []
     my_requests = []
+
     for pid in range(poset.n_processes):
         pid_to_send, pid_my_requests = units_to_send_with_pid(poset, info[pid], pid)
         to_send.extend(pid_to_send)
@@ -130,7 +145,9 @@ def units_to_send(poset, info, requests = None):
         hashes_to_send = [U.hash() for U in pid_to_send]
         unfulfilled_requests = [h for h in requests[pid] if h not in hashes_to_send]
         to_send.extend(requested_units_to_send(poset, info[pid], unfulfilled_requests))
+
     return order_units_topologically(to_send), my_requests
+
 
 def dehash_parents(poset, U):
     '''
@@ -138,13 +155,13 @@ def dehash_parents(poset, U):
     :param Poset poset: the poset where U is supposed to end up in
     :param Unit U: the unit with hashes instead of parents
     '''
+
     if not all(p in poset.units for p in U.parents):
-        import base64
+        strangers = [pretty_hash(parent_hash) for parent_hash in U.parents if parent_hash not in poset.units]
         logger = logging.getLogger(consts.LOGGER_NAME)
-        logger.error(f"dehash_parents {poset.process_id} | Parents not found in the poset for {U.short_name()}")
-        for pa in U.parents:
-            pa = base64.b32encode(pa).decode()[:16]
-            logger.info(f"{pa}")
+        logger.error(f'dehash_parents {poset.process_id} | Parents {strangers} not found in the poset for {U.short_name()}')
+
         assert False, 'Attempting to fix parents but parents not present in poset'
+
     U.parents = [poset.units[p] for p in U.parents]
-    U.height = U.parents[0].height+1 if len(U.parents) > 0 else 0
+    U.height = U.parents[0].height+1 if U.parents else 0

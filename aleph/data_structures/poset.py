@@ -6,7 +6,7 @@ import random
 import logging
 
 
-from aleph.crypto.signatures.threshold_signatures import generate_keys, SecretKey, VerificationKey
+from aleph.crypto.threshold_signatures import generate_keys, SecretKey, VerificationKey
 from aleph.crypto.threshold_coin import ThresholdCoin
 from aleph.crypto import sha3_hash
 from aleph.crypto.byte_utils import extract_bit

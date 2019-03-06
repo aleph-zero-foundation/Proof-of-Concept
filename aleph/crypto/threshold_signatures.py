@@ -1,5 +1,6 @@
-from charm.toolbox.pairinggroup import ZR, G1, G2, pair
 from functools import reduce
+
+from charm.toolbox.pairinggroup import ZR, G1, pair
 
 from aleph.config import PAIRING_GROUP, GENERATOR
 
@@ -9,18 +10,15 @@ from aleph.config import PAIRING_GROUP, GENERATOR
 
 def generate_keys(n_parties, threshold):
     '''
-        Generates one verification key and n_parties secret keys.
-        :param int n_parties: number of parties that need secret keys
-        :param int threshold: number of signature shares required for generating a signature
+    Generates one verification key and n_parties secret keys.
+    :param int n_parties: number of parties that need secret keys
+    :param int threshold: number of signature shares required for generating a signature
     '''
 
-    # TODO check if this is following setup is optimal
     group = PAIRING_GROUP
 
     # pick a generator of the group
     gen = GENERATOR
-
-
 
     # pick a set of coefficients
     coef = group.random(ZR, threshold)
@@ -33,11 +31,11 @@ def generate_keys(n_parties, threshold):
     vk = gen ** secret
     vks = [gen ** scr for scr in sks]
 
-
     verification_key = VerificationKey(threshold, vk, vks)
     secret_keys = [SecretKey(sk) for sk in sks]
 
     return verification_key, secret_keys
+
 
 class VerificationKey:
     '''
@@ -47,11 +45,8 @@ class VerificationKey:
     def __init__(self, threshold, vk, vks):
         '''
         :param int threshold: number of signature shares needed to generate a signature
-        :param function hash_fct: function for hashing messages
-        :param function L: Lagrange operator for polynomial interpolation
         :param int vk: global verification key
         :param list vks: verification keys corresponding to secret keys of all parties
-        :param int gen: generator of the G2 group
         '''
         self.threshold = threshold
         self.vk = vk
@@ -61,14 +56,26 @@ class VerificationKey:
         self.gen = GENERATOR
 
     def hash_fct(self, msg):
+        '''
+        Hash function used for hashing messages into group G1.
+        :param string msg: message to be hashed
+        :returns: element of G1 group
+        '''
+
         return self.group.hash(msg, G1)
 
-    # Lagrange polynomial
-    def L(self, S, i):
-        ONE = self.group.init(ZR, 1)
+    def lagrange(self, S, i):
+        '''
+        Lagrange approximation.
+        :param list S: list of values for numerator
+        :param int i: special value for denumerator
+        '''
+
+        one = self.group.init(ZR, 1)
         S = sorted(S)
-        num = reduce(lambda x, y: x*y, [0 - j - 1 for j in S if j != i], ONE)
-        den = reduce(lambda x, y: x*y, [i - j     for j in S if j != i], ONE)
+        num = reduce(lambda x, y: x*y, [0 - j - 1 for j in S if j != i], one)
+        den = reduce(lambda x, y: x*y, [i - j     for j in S if j != i], one)
+
         return num/den
 
     def verify_share(self, share, i, msg_hash):
@@ -95,7 +102,7 @@ class VerificationKey:
         '''
         assert len(shares) == self.threshold
         R = shares.keys()
-        return reduce(lambda x,y: x*y, [share ** self.L(R, i) for i, share in shares.items()], 1)
+        return reduce(lambda x,y: x*y, [share ** self.lagrange(R, i) for i, share in shares.items()], 1)
 
     def hash_msg(self, msg):
         '''
@@ -104,14 +111,17 @@ class VerificationKey:
         '''
         return self.hash_fct(msg)
 
+
 class SecretKey:
     '''
     An object used for generating shares of a signature of a message.
     '''
+
     def __init__(self, sk):
         '''
         :param int sk: secret used for signing
         '''
+
         self.sk = sk
 
     def generate_share(self, msg_hash):
