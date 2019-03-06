@@ -558,8 +558,55 @@ class LogAnalyzer:
         secs_till_max_level_timing = diff_in_seconds(self.levels[0]['date'], self.levels[max_level]['timing_decided_date'])
         return tot_txs/secs_till_max_level_timing
 
+    def plot_network_utilization(self, network_plot_outbound_file=None, network_plot_inbound_file=None):
+        if not self.generate_plots:
+            return
+        window_in_seconds = 1
 
-    def get_cpu_times(self, cpu_plot_file = None, cpu_io_plot_file = None):
+        def is_in_window(event1, event2):
+            return diff_in_seconds(event1['start_date'], event2['start_date']) < window_in_seconds
+
+        def plot_network(events, y_label='bytes sent', network_plot_file=network_plot_outbound_file):
+            if not events:
+                return
+            events = sorted(events, key=lambda x: x['start_date'])
+            series = [dict(n_bytes=0, start_date=events[0]['start_date'])]
+            for event in events:
+                while not is_in_window(series[-1], event):
+                    series.append(dict(n_bytes=0, start_date=(series[-1]['start_date'] + timedelta(0, window_in_seconds))))
+                series[-1]['n_bytes'] += event['n_bytes']
+
+            x_series = [diff_in_seconds(series[0]['start_date'], value['start_date']) for value in series]
+            y_series = [val['n_bytes'] for val in series]
+            plt.bar(x_series, y_series)
+            plt.xlabel('time in seconds')
+            plt.ylabel(y_label)
+            plt.savefig(network_plot_file, dpi=800)
+            plt.close()
+            print(f'Plot written to {network_plot_file}.')
+
+        # plotting outbound traffic
+        if network_plot_outbound_file is not None:
+            events = [event['network_report']
+                      for _, sync in self.syncs.items()
+                      for event in sync.get('events', [])
+                      if 'network_report' in event and event['event_name'].startswith('send')]
+
+            plot_network(events, network_plot_file=network_plot_outbound_file)
+
+        # plotting outbound traffic
+        if network_plot_inbound_file is not None:
+            events = [event['network_report']
+                      for _, sync in self.syncs.items()
+                      for event in sync.get('events', [])
+                      if 'network_report' in event and event['event_name'].startswith('receive')]
+
+            plot_network(events, 'bytes received', network_plot_file=network_plot_inbound_file)
+
+    def get_cpu_times(self,
+                      cpu_plot_file = None,
+                      cpu_io_plot_file = None,
+                      cpu_io_network_plot_file = None):
         timer_names = ['t_prepare_units', 't_compress_units', 't_decompress_units', 't_unpickle_units',
                      't_pickle_units', 't_verify_signatures', 't_add_units']
         cpu_time_summary = { name : [] for name in timer_names }
@@ -571,21 +618,34 @@ class LogAnalyzer:
 
         cpu_breakdown_entries = []
         cpu_io_breakdown = []
+        cpu_io_network_breakdown = []
 
         for sync_id, sync_dict in sorted(self.syncs.items(), key = lambda x: x[0]):
             sync_tot_cpu_time = 0.0
+            sync_tot_network_time = 0.0
             entry = []
             for name in timer_names:
                 if name in sync_dict:
                     cpu_time_summary[name].append(sync_dict[name])
                     sync_tot_cpu_time += sync_dict[name]
                 entry.append(sync_dict.get(name, 0.0))
+            for event in sync_dict.get('events', []):
+                network_report = event.get('network_report', None)
+                if network_report is None:
+                    continue
+                await_event = network_report.get('await', None)
+                if not await_event or 'stop_date' not in await_event:
+                    continue
+                sync_tot_network_time += diff_in_seconds(await_event['start_date'], await_event['stop_date'])
             if sync_tot_cpu_time > 0.0:
                 cpu_time_summary['t_tot_sync'].append(sync_tot_cpu_time)
                 cpu_breakdown_entries.append(entry)
             if sync_tot_cpu_time > 0.0 and 'stop_date' in sync_dict:
                 sync_tot_time = diff_in_seconds(sync_dict['start_date'], sync_dict['stop_date'])
                 cpu_io_breakdown.append([sync_tot_cpu_time, sync_tot_time - sync_tot_cpu_time])
+                cpu_io_network_breakdown.append([sync_tot_cpu_time,
+                                                 sync_tot_time - sync_tot_cpu_time - sync_tot_network_time,
+                                                 sync_tot_network_time])
 
         for level, level_dict in self.levels.items():
             if 't_lin_order' in level_dict:
@@ -626,6 +686,24 @@ class LogAnalyzer:
             layer_rest = plt.bar(x_series, y_series_rest, width, bottom=y_series_cpu)
             plt.legend([layer_cpu[0], layer_rest[0]], ('cpu_time', 'io+rest'))
             plt.savefig(cpu_io_plot_file, dpi=800)
+            plt.close()
+
+        # the plot showing how the sync time divides into cpu vs (network operations vs rest)
+        if self.generate_plots and cpu_io_network_breakdown:
+            layers = []
+            n_syncs = len(cpu_io_breakdown)
+            heights = [0.0] * n_syncs
+            y_series_cpu = [cpu_io_network_breakdown[i][0] for i in range(n_syncs)]
+            y_series_io = [cpu_io_network_breakdown[i][1] for i in range(n_syncs)]
+            y_series_network = [cpu_io_network_breakdown[i][2] for i in range(n_syncs)]
+            x_series = range(n_syncs)
+            # the width of the bars
+            width = 0.5
+            layer_cpu = plt.bar(x_series, y_series_cpu, width)
+            layer_io = plt.bar(x_series, y_series_io, width, bottom=y_series_cpu)
+            layer_network = plt.bar(x_series, y_series_network, width, bottom=y_series_cpu)
+            plt.legend([layer_cpu[0], layer_io[0], layer_network[0]], ('cpu_time', 'io', 'network'))
+            plt.savefig(cpu_io_network_plot_file, dpi=800)
             plt.close()
 
         return cpu_time_summary
@@ -715,14 +793,30 @@ class LogAnalyzer:
         units_received_per_sync = []
         time_per_sync = []
         syncs_not_succeeded = 0
+        send_poset_info_not_succeeded = 0
+        send_requests_not_succeeded = 0
+        send_units_not_succeeded = 0
+        bytes_sent_per_sync = []
         time_per_unit_exchanged = []
         bytes_per_unit_exchanged = []
         establish_connection_times = []
 
         for sync_id, sync in sorted(self.syncs.items(), key = lambda x: x[0]):
-            if not 'stop_date' in sync:
+            bytes_sent_per_sync.append(self.retrieve_bytes_sent(sync['events']))
+            if 'stop_date' not in sync:
                 syncs_not_succeeded += 1
+
+                for event in (e for e in sync['events'] if self.is_event_failed(e)):
+                    name = event['event_name']
+                    if name == 'send_poset_info':
+                        send_poset_info_not_succeeded += 1
+                    if name == 'send_requests':
+                        send_requests_not_succeeded += 1
+                    if name == 'send_units':
+                        send_units_not_succeeded += 1
+
                 continue
+
             time_sync = diff_in_seconds(sync['start_date'], sync['stop_date'])
             time_per_sync.append(time_sync)
             units_sent_per_sync.append(sync['units_sent'])
@@ -747,8 +841,10 @@ class LogAnalyzer:
             plt.close()
 
         return units_sent_per_sync, units_received_per_sync, time_per_sync, \
-                time_per_unit_exchanged, bytes_per_unit_exchanged, \
-                establish_connection_times, syncs_not_succeeded
+            time_per_unit_exchanged, bytes_per_unit_exchanged, \
+            establish_connection_times, syncs_not_succeeded, \
+            send_poset_info_not_succeeded, send_units_not_succeeded, \
+            send_requests_not_succeeded, bytes_sent_per_sync
 
 
 
@@ -832,7 +928,31 @@ class LogAnalyzer:
             plt.savefig(plot_file, dpi=800)
             plt.close()
 
+    def is_event_failed(self, event):
+        return 'stop_date' not in event
 
+    def get_successes_failures_count(self, event):
+        succeded, failed = 0, 0
+        for e in event:
+            if not self.is_event_failed(e):
+                succeded += 1
+            else:
+                failed += 1
+        return succeded, failed
+
+    def get_event_time(self, event):
+        result = 0.0
+        for e in event:
+            if not self.is_event_failed(e):
+                result += diff_in_seconds(e['start_date'], e['stop_date'])
+        return result
+
+    def retrieve_bytes_sent(self, events):
+        bytes_sent = 0
+        for event in events:
+            if 'network_report' in event:
+                bytes_sent += event['network_report']['n_bytes']
+        return bytes_sent
 
     def prepare_report_per_process(self, dest_dir = 'reports', file_name_prefix = 'report-sync-'):
         '''
@@ -858,7 +978,19 @@ class LogAnalyzer:
         '''
 
         syncs_failed = [0] * self.n_processes
+        send_poset_info_failed = [0] * self.n_processes
+        send_poset_info_succeded = [0] * self.n_processes
+        send_poset_info_avg = [0] * self.n_processes
+        send_poset_info_avg = [0] * self.n_processes
+        send_units_failed = [0] * self.n_processes
+        send_units_succeded = [0] * self.n_processes
+        send_units_avg = [0] * self.n_processes
+        send_units_avg = [0] * self.n_processes
+        send_requests_failed = [0] * self.n_processes
+        send_requests_succeded = [0] * self.n_processes
+        send_requests_avg = [0] * self.n_processes
         syncs_succeded = [0] * self.n_processes
+        syncs_sent_data = [0] * self.n_processes
         tot_time = [0.0] * self.n_processes
         conn_est_time = [0.0] * self.n_processes
         n_conn_est = [0] * self.n_processes
@@ -876,16 +1008,44 @@ class LogAnalyzer:
                 n_conn_est[target] += 1
                 conn_est_time[target] += sync['conn_est_time']
 
+            events = sync.get('events', [])
+            send_poset_info_events = [a for a in events if a['event_name'] == 'send_poset_info']
+            poset_info_result = self.get_successes_failures_count(send_poset_info_events)
+            send_poset_info_succeded[target] += poset_info_result[0]
+            send_poset_info_failed[target] += poset_info_result[1]
+
+            send_units_events = [a for a in events if a['event_name'] == 'send_units']
+            send_units_results = self.get_successes_failures_count(send_units_events)
+            send_units_succeded[target] += send_units_results[0]
+            send_units_failed[target] += send_units_results[1]
+
+            send_requests_events = [a for a in events if a['event_name'] == 'send_request ==\'send_requests']
+            send_requests_result = self.get_successes_failures_count(send_requests_events)
+            send_requests_succeded[target] += send_requests_result[0]
+            send_requests_failed[target] += send_requests_result[1]
+
+            send_poset_info_avg[target] += self.get_event_time(send_poset_info_events)
+            send_units_avg[target] += self.get_event_time(send_units_events)
+            send_requests_avg[target] += self.get_event_time(send_requests_events)
+
+            syncs_sent_data[target] += self.retrieve_bytes_sent(events)
 
             if 'stop_date' not in sync:
                 syncs_failed[target] += 1
+
                 continue
 
             syncs_succeded[target] += 1
             tot_time[target] += diff_in_seconds(sync['start_date'], sync['stop_date'])
 
-
-        fields = ['name', 'sync_fail', 'sync_succ', 'avg_time', 'n_conn', 'conn_est_t', 'n_conn_fail']
+        fields = ['name',
+                  'sync_fail (poset_info, units, requests)',
+                  'sync_succ (poset_info, units, requests)',
+                  'avg_time (poset_info, units, requests)',
+                  'n_conn',
+                  'conn_est_t',
+                  'n_conn_fail',
+                  'sent_bytes']
         lines = []
         lines.append(format_line(fields))
 
@@ -894,11 +1054,41 @@ class LogAnalyzer:
                 tot_time[target] /= syncs_succeded[target]
             else:
                 tot_time[target] = -1.0
+            if send_poset_info_succeded[target]:
+                send_poset_info_avg[target] /= send_poset_info_succeded[target]
+            else:
+                send_poset_info_avg[target] = -1.0
+            if send_units_succeded[target]:
+                send_units_avg[target] /= send_units_succeded[target]
+            else:
+                send_units_avg[target] = -1.0
+            if send_requests_succeded[target]:
+                send_requests_avg[target] /= send_requests_succeded[target]
+            else:
+                send_requests_avg[target] = -1.0
             data = {'name' : f'proc_{target}'}
-            data['sync_fail'] = syncs_failed[target]
-            data['sync_succ'] = syncs_succeded[target]
-            data['avg_time'] = tot_time[target]
 
+            def custom_float_format(main_value, *values):
+                return f"{main_value:.4f}" + ' (' + ', '.join([f"{v:.4f}" for v in values]) + ')'
+
+            data['sync_fail (poset_info, units, requests)'] = custom_float_format(
+                syncs_failed[target],
+                send_poset_info_failed[target],
+                send_units_failed[target],
+                send_requests_failed[target]
+            )
+            data['sync_succ (poset_info, units, requests)'] = custom_float_format(
+                syncs_succeded[target],
+                send_poset_info_succeded[target],
+                send_units_succeded[target],
+                send_requests_succeded[target]
+            )
+            data['avg_time (poset_info, units, requests)'] = custom_float_format(
+                tot_time[target],
+                send_poset_info_avg[target],
+                send_units_avg[target],
+                send_requests_avg[target]
+            )
             if n_conn_est[target]:
                 conn_est_time[target] /= n_conn_est[target]
             else:
@@ -906,10 +1096,11 @@ class LogAnalyzer:
             data['n_conn'] = n_conn_est[target]
             data['n_conn_fail'] = n_conn_fail[target]
             data['conn_est_t'] = conn_est_time[target]
+            data['sent_bytes'] = syncs_sent_data[target]
 
             lines.append(format_line(fields, data))
 
-        report_file = os.path.join(dest_dir,'txt-sync', file_name_prefix+str(self.process_id)+'.txt')
+        report_file = os.path.join(dest_dir, 'txt-sync', file_name_prefix+str(self.process_id)+'.txt')
         os.makedirs(os.path.dirname(report_file), exist_ok=True)
 
         with open(report_file, "w") as rep_file:
@@ -1005,7 +1196,6 @@ class LogAnalyzer:
             stats['name'] = name
             lines.append(format_line(fields, stats))
 
-
         # timing_decision
         levels, n_units_per_level, levels_plus_decided, level_delays, n_txs_per_level = self.get_timing_decision_stats()
         _append_stat_line(n_units_per_level, 'n_units_decision')
@@ -1030,7 +1220,8 @@ class LogAnalyzer:
         os.makedirs(os.path.dirname(sync_plot_file), exist_ok=True)
 
         sent_per_sync, recv_per_sync, time_per_sync, time_per_unit_ex, \
-            bytes_per_unit_ex, est_conn_time, syncs_not_succ = self.get_sync_info(sync_plot_file)
+            bytes_per_unit_ex, est_conn_time, syncs_not_succ, send_poset_info_not_succeeded, \
+            send_units_not_succeeded, send_requests_not_succeeded, bytes_sent_per_sync = self.get_sync_info(sync_plot_file)
         _append_stat_line(sent_per_sync, 'units_sent_sync')
         _append_stat_line(recv_per_sync, 'units_recv_sync')
         _append_stat_line(time_per_sync, 'time_per_sync')
@@ -1038,6 +1229,10 @@ class LogAnalyzer:
         _append_stat_line(bytes_per_unit_ex, 'bytes_per_unit_ex')
         _append_stat_line(est_conn_time, 'est_conn_time')
         _append_stat_line([syncs_not_succ], 'sync_fail')
+        _append_stat_line([send_poset_info_not_succeeded], 'send_poset_info_fail')
+        _append_stat_line([send_units_not_succeeded], 'send_units_fail')
+        _append_stat_line([send_requests_not_succeeded], 'send_requests_fail')
+        _append_stat_line(bytes_sent_per_sync, 'bytes_sent_per_sync')
 
         # gen plot on units exchanged vs time
         units_ex_plot_file = os.path.join(dest_dir, 'plot-units', f'units-{self.process_id}.png')
@@ -1064,8 +1259,11 @@ class LogAnalyzer:
         # cpu time
         sync_bar_plot_file_cpu = os.path.join(dest_dir,'plot-sync-bar','cpu-sync-' + str(self.process_id) + '.png')
         sync_bar_plot_file_all = os.path.join(dest_dir,'plot-sync-bar','all-sync-' + str(self.process_id) + '.png')
+        sync_bar_plot_cpu_io_network = os.path.join(dest_dir,'plot-sync-bar','cpu-io-network-sync-' + str(self.process_id) + '.png')
         os.makedirs(os.path.dirname(sync_bar_plot_file_cpu), exist_ok=True)
-        times = self.get_cpu_times(sync_bar_plot_file_cpu, sync_bar_plot_file_all)
+        times = self.get_cpu_times(sync_bar_plot_file_cpu,
+                                   sync_bar_plot_file_all,
+                                   sync_bar_plot_cpu_io_network)
         _append_stat_line(times['t_prepare_units'], 'time_prepare')
         _append_stat_line(times['t_compress_units'], 'time_compress')
         _append_stat_line(times['t_decompress_units'], 'time_decompress')
@@ -1081,6 +1279,11 @@ class LogAnalyzer:
         # n_parents
         _append_stat_line(self.get_n_parents(), 'n_parents')
 
+        # plot network statistics
+        bar_plot_network_outbound = os.path.join(dest_dir,'plot-network-bar','network-outbound-' + str(self.process_id) + '.png')
+        bar_plot_network_inbound = os.path.join(dest_dir,'plot-network-bar','network-inbound-' + str(self.process_id) + '.png')
+        os.makedirs(os.path.dirname(bar_plot_network_outbound), exist_ok=True)
+        self.plot_network_utilization(bar_plot_network_outbound, bar_plot_network_inbound)
 
 
 
@@ -1118,7 +1321,7 @@ def compute_basic_stats(list_of_numbers):
 
     return summ
 
-def format_line(field_list, data = None):
+def format_line(field_list, data=None):
     '''
     Construct one line of the report file.
     '''
@@ -1135,7 +1338,7 @@ def format_line(field_list, data = None):
         else:
             entry = str(value)
 
-        just_len = 25 if field == 'name' else 12
+        just_len = 25 if field == 'name' else len(field) + 10
         entry = entry.ljust(just_len)
         line += entry
     return line
