@@ -1,29 +1,3 @@
-import functools
-
-
-
-
-class memo:
-    '''Decorator. Caches a function's return value each time it is called.
-    If called later with the same arguments, the cached value is returned
-    (not reevaluated).
-    '''
-    def __init__(self, func):
-        self.func = func
-        self.cache = {}
-    def __call__(self, *args):
-        if args in self.cache:
-            return self.cache[args]
-        else:
-            value = self.func(*args)
-            self.cache[args] = value
-            return value
-    def __get__(self, obj, objtype):
-        '''Support instance methods.'''
-        return functools.partial(self.__call__, obj)
-
-
-
 class DAG:
     '''
     A class to represent the structural info about a poset (in the sense of Aleph) in (arguably) the simplest possible form.
@@ -160,8 +134,6 @@ class DAG:
         self.nodes_as_added.append(name)
 
 
-    # One might consider using @memo here, but at this point it does not make the tests run faster.
-    # Also, for large dags, it might actually unnecessarily fill the memory -- need to be careful with @memo.
     def is_reachable(self, U, V):
         '''
         Checks whether V is reachable from U in the dag, using a simple graph search algorithm.

@@ -548,7 +548,4 @@ def dag_from_file(file_name):
 
 
 def _parse_line(line):
-    '''
-    Given a line (bytestring) that is a space-separated list of tokens, returns the tokens as a list of strings.
-    '''
     return line.decode('ascii').strip().split()
