@@ -51,3 +51,8 @@ for _ in range(tries):
 
 timer_stop = time.time()
 print(f"Executed {tries} random below queries, total time {timer_stop - timer_start:.4f}")
+
+for U in units_list:
+    if dag.get_node_info(U, "timing"):
+        print(U, "is the timing unit at level", dag.level(U))
+

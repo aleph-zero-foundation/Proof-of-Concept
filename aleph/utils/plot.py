@@ -12,23 +12,19 @@ import matplotlib.pyplot as plt
 
 from aleph.utils.dag_utils import dag_from_poset
 
-def parse_line(line):
-    unit, creator_id = line.split()[:2]
-    parents = line.split()[2:-1]
-    self_predecessor = line.split()[-1]
-
-    return unit, int(creator_id), parents
 
 
 def plot_dag(dag):
-
+    '''
+    Given a DAG instance dag, generates and shows its plot.
+    '''
     G = nx.DiGraph()
     height, creator = {}, {}
     branch = {pid:{} for pid in range(dag.n_processes)}
     self_descendant, self_predecessor = {}, {}
 
     for unit in dag.sorted():
-        # add unit to networkx representation
+        # add the unit to networkx representation
         G.add_node(unit)
         creator_id = dag.pid(unit)
 
@@ -36,7 +32,7 @@ def plot_dag(dag):
         height[unit] = max([height[parent] for parent in dag.parents(unit)], default=-1) + 1
 
         for parent in dag.parents(unit):
-            # add edge to networkx representation
+            # add an edge to the networkx representation
             G.add_edge(unit, parent)
 
         # set self_predecessor[unit]
@@ -59,10 +55,8 @@ def plot_dag(dag):
 
     pos = {}
 
-    # pos = graphviz_layout(G, prog='dot')
-
     # find positions of units in the plot
-    # we plot units created by a given process veritcally
+    # we plot units created by a given process vertically
     # we use height[unit] for its height in the plot
     # TODO plot forks next to each other
     x = dict(zip(range(dag.n_processes), np.linspace(27, 243, dag.n_processes)))
@@ -95,5 +89,8 @@ def plot_dag(dag):
 
 
 def plot_poset(poset):
+    '''
+    Given a poset, generates and shows its plot.
+    '''
     dag, _ = dag_from_poset(poset)
     plot_dag(dag)

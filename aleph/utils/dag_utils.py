@@ -6,6 +6,15 @@ from aleph.data_structures import Poset, Unit
 
 
 def check_parent_diversity(dag, pid, parents, threshold):
+    '''
+    Checks whether the parent diversity rule is satisfied in dag for a node created by a given process with given parents.
+    :param DAG dag: the dag of interest
+    :param int pid: the creator_id of the node being checked
+    :param list parents: the parents of the node being checked
+    :param int threshold: the threshold to be used in the parent diversity rule (by default it's (2/3)*N)
+                          see also the docstring of check_parent_diversity in poset.py
+    :returns: True or False
+    '''
     proposed_parents_processes = [dag.pid(node) for node in parents if dag.pid(node) != pid]
     ancestor_processes = set()
     W = dag.self_predecessor(pid, parents)
@@ -23,6 +32,9 @@ def check_parent_diversity(dag, pid, parents, threshold):
 
 
 def forking_processes_in_lower_cone(dag, node):
+    '''
+    :returns: the list of all process_ids of processes that can be proved forking in dag given the lower cone of node.
+    '''
     cone = dag.nodes_below(node)
     forkers = []
     for process_id in range(dag.n_processes):
@@ -35,6 +47,10 @@ def forking_processes_in_lower_cone(dag, node):
 
 
 def check_forker_muting(dag, parents):
+    '''
+    Checks whether the forker_muting rule is satisfied by a node with specified parents in dag.
+    See also the comment regarding forker_muting in poset.py.
+    '''
     all_forkers_with_evidence = []
     for U in parents:
         all_forkers_with_evidence.extend(forking_processes_in_lower_cone(dag, U))
@@ -44,11 +60,16 @@ def check_forker_muting(dag, parents):
 
 
 def check_distinct_parent_processes(dag, parents):
+    '''
+    Checks whether all parents are created by different processes.
+    '''
     return len(parents) == len(set(dag.pid(parent) for parent in parents))
 
 
-
 def check_growth(dag, node_self_predecessor, node_parents):
+    '''
+    Checks whether the growth rule (see the comment under check_growth in poset.py) is satisfied.
+    '''
     assert node_self_predecessor is not None
 
     for parent in node_parents:
@@ -57,6 +78,9 @@ def check_growth(dag, node_self_predecessor, node_parents):
     return True
 
 def check_expand_primes(dag, node_self_predecessor, node_parents):
+    '''
+    Checks whether the expand_primes rules is satisfied for a given node. See the comment under check_expand_primes in poset.py.
+    '''
     level = dag.levels[node_self_predecessor]
     prime_units = dag.prime_units_by_level[level]
     visible_prime_units = set()
@@ -76,6 +100,9 @@ def check_expand_primes(dag, node_self_predecessor, node_parents):
 
 
 def check_introduce_new_fork(dag, pid, self_predecessor):
+    '''
+    Checks whether a node is forking. Only the pid and the self_predecessor of the node are required to check this.
+    '''
     assert self_predecessor is not None
     return self_predecessor not in dag.maximal_units_per_process(pid)
 
@@ -83,9 +110,8 @@ def check_introduce_new_fork(dag, pid, self_predecessor):
 
 def check_new_unit_correctness(dag, new_unit_pid, new_unit_parents, forkers):
     '''
-    Check whether the new unit does not introduce a diamond structure and
-    whether the growth rule is preserved
-    Returns the self_predecessor of new_unit if adding new_unit is correct and False otherwise
+    Check whether the new unit does not introduce a diamond structure and whether the growth rule is preserved.
+    :returns: the self_predecessor of new_unit if adding new_unit is correct and False otherwise.
     '''
 
     self_predecessor = dag.self_predecessor(new_unit_pid, new_unit_parents)
@@ -116,8 +142,8 @@ def generate_random_nonforking(n_processes, n_units, file_name = None):
     Generate a random non-forking poset with n_processes processes and optionally save it to file_name.
     :param int n_processes: the number of processes in poset
     :param int n_units: the number of units in the process beyond n_processes initial units,
-    hence the total number of units is (n_processes + n_units)
-    :return: a DAG instance
+                        hence the total number of units is (n_processes + n_units)
+    :returns: a DAG instance
     '''
     process_heights = [0] * n_processes
     dag = DAG(n_processes)
@@ -147,8 +173,8 @@ def generate_random_forking(n_processes, n_units, n_forkers, file_name = None):
     :param int n_processes: the number of processes in poset
     :param int n_forkers: the number of forking processes
     :param int n_units: the number of units in the process beyond genesis + n_processes initial units,
-    hence the total number of units is (1 + n_processes + n_units)
-    :return: a DAG instance
+                        hence the total number of units is (1 + n_processes + n_units)
+    :returns: a DAG instance
     '''
     forkers = random.sample(range(n_processes), n_forkers)
     node_heights = {}
@@ -189,7 +215,14 @@ def generate_random_forking(n_processes, n_units, n_forkers, file_name = None):
 
 def generate_random_compliant_unit(dag, n_processes, process_id = None, forking = False, only_maximal_parents = False, checks='expand_primes'):
     '''
-    Generates a random compliant unit created by a given process_id (or random process).
+    Generates a random compliant unit created by a given process_id (or random process if no process_id provided).
+    :param DAG dag: the dag of interest
+    :param int n_processes: the number of processes in dag
+    :param int process_id: the process_id of the unit creator
+    :param bool forking: whether it is allowed for the new unit to fork
+    :param bool only_maximal_parents: always pick parents to be maximal (within their processes)
+    :param str checks: either 'expand_primes' or 'growth_diversity' depending on which set of rules to enforce
+    :returns: a pair (node, parents) -- the name of the new unit and its list of parents
     '''
     if process_id is None:
         process_id = random.choice(range(n_processes))
@@ -236,6 +269,15 @@ def generate_random_compliant_unit(dag, n_processes, process_id = None, forking 
 
 
 def generate_random_violation(n_processes, n_correct_units, n_forkers, ensure, violate):
+    '''
+    Generates a dag that has a certain number of units that satisfy a prespecified set of rules, and the last unit is a violation.
+    :param int n_processes: the number of processes in the dag
+    :param int n_correct_units: the number of initial correct units (satisfying rules) that are supposed to be generated
+    :param int n_forkers: the number of forking processes
+    :param dict ensure: a dict of the form {property -> bool} that specifies the set of constraints that should be satisfied for all nodes in the poset
+    :param dict violate: a dict of the form {property -> bool} that specifies how the last unit should violate the constraints
+    :returns: A pair (dag, unit_list) the created dag, and the list of its nodes in topological order (with the last being the violation)
+    '''
     forkers = random.sample(range(n_processes), n_forkers)
     node_heights = {}
     dag = DAG(n_processes)
@@ -302,6 +344,9 @@ def generate_random_violation(n_processes, n_correct_units, n_forkers, ensure, v
 
 
 def generate_unit_name(unit_height, process_id, parallel_no = 0):
+    '''
+    Generate a new unit name deterministically depending on its process_id, height and how many other forks are there at this height.
+    '''
     if parallel_no == 0:
         name = "%d,%d" % (unit_height, process_id)
     else:
@@ -310,7 +355,7 @@ def generate_unit_name(unit_height, process_id, parallel_no = 0):
 
 def generate_unused_name(dag, process_id):
     '''
-    Generates a random string name for a node, that does yet exist in dag.
+    Generates a random string name for a node, that does not yet exist in dag.
     '''
     name = ""
     name_len = 0
@@ -323,10 +368,24 @@ def generate_unused_name(dag, process_id):
 
 
 def nodes_by_process_height(dag, node_heights, process_id, height):
+    '''
+    Finds nodes by process id and height.
+    :param DAG dag: the considered dag
+    :param dict node_heights: the dictionary of the form {node -> int} giving heights of nodes
+    :param int process_id: the process_id of the process the nodes should be created by
+    :param int height: the target height of the nodes
+    :returns: the set of all nodes in the dag that are created by a specific process and have a specific height
+    '''
     return [node for node in node_heights if (dag.pid(node) == process_id and height == node_heights[node])]
 
 
 def constraints_satisfied(constraints, truth):
+    '''
+    Checks satisfaction of a set constraints.
+    :param dict constraints: a dictionary of the form {property -> bool} that specifies the constraints
+    :param dict truth: a dictionary of the form {property -> bool} that gives the values for the properties to check
+    :returns: True or False depending on whether all constraints are satisfied.
+    '''
     return all(truth[i] == constraints[i] for i in constraints)
 
 
@@ -338,6 +397,10 @@ def constraints_satisfied(constraints, truth):
 
 
 def poset_from_dag(dag):
+    '''
+    Generates a poset from a given dag.
+    :returns: a pair (poset, unit_dict), where unit_dict is a dict of the form {name_in_dag -> unit} binding units in the new poset with nodes in dag
+    '''
     poset = Poset(n_processes = dag.n_processes, use_tcoin = False)
     unit_dict = {}
 
@@ -360,6 +423,9 @@ def poset_from_dag(dag):
 
 
 def create_node_line(node, process_id, parents):
+    '''
+    Forms a line representing one node (of a dag) in the file.
+    '''
     line = '%s %d' % (node, process_id)
     for parent in parents:
         line += ' ' + parent
@@ -369,6 +435,9 @@ def create_node_line(node, process_id, parents):
 
 
 def dag_to_file(dag, file_name):
+    '''
+    Saves a dag to a file in the "standard" format.
+    '''
     topological_list = dag.sorted()
     with open(file_name, 'w') as f:
         f.write("format standard\n")
@@ -378,6 +447,10 @@ def dag_to_file(dag, file_name):
 
 
 def dag_from_poset(poset):
+    '''
+    Converts a poset into a dag.
+    :returns: a pair (dag, unit_to_name), where unit_to_name is a dict of the form {unit -> name_in_dag} binding units in the dag with nodes in poset
+    '''
     dag = DAG(poset.n_processes)
     unit_to_name = {}
     for _ in poset.units.items():
@@ -395,6 +468,7 @@ def dag_from_poset(poset):
 def read_dag_standard(poset_stream):
     '''
     Read a dag from stream in the standard format.
+    :returns: a DAG
     '''
     lines = [line.decode('ascii') for line in poset_stream.readlines()]
 
@@ -419,6 +493,7 @@ def read_dag_standard(poset_stream):
 def read_dag_poset_dump(poset_stream):
     '''
     Read a dag from stream in the dump-nofork-level-timing format.
+    :returns: a DAG
     '''
     _, process_id = _parse_line(poset_stream.readline())
     process_id = int(process_id)
@@ -445,6 +520,10 @@ def read_dag_poset_dump(poset_stream):
 
 
 def dag_from_stream(poset_stream):
+    '''
+    Reads the dag from a binary input stream.
+    :returns: a DAG
+    '''
     token, file_format = _parse_line(poset_stream.readline())
     assert token == 'format', "The first line does not specify the format."
 
@@ -458,6 +537,10 @@ def dag_from_stream(poset_stream):
 
 
 def dag_from_file(file_name):
+    '''
+    Reads a dag from file.
+    :returns: a DAG
+    '''
     # read as binary file, to be consistent with what dag_from_stream expects
     with open(file_name, mode = 'rb') as poset_file:
         dag = dag_from_stream(poset_file)
