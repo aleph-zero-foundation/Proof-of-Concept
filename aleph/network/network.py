@@ -84,9 +84,11 @@ class Network:
         self.logger.info(f'send_poset_{mode} {ids} | sending info about heights to {channel.peer_id}')
         to_send = poset_info(self.process.poset)
         data = pickle.dumps(to_send)
+        self.logger.info(f'send_poset_wait_{mode} {ids} | writing info about heights to {channel.peer_id}')
         await channel.write(data)
         printable_heights = [[(h, pretty_hash(H)) for (h, H) in local_info] for local_info in to_send]
-        self.logger.info(f'send_poset_{mode} {ids} | sent heights {printable_heights} to {channel.peer_id}')
+        self.logger.info(f'send_poset_done_{mode} {ids} | sent heights {printable_heights} ({len(data)} bytes) '
+                         f'to {channel.peer_id}')
 
 
     async def _receive_poset_info(self, channel, mode, ids):
@@ -96,16 +98,19 @@ class Network:
         self.logger.info(f'receive_poset_{mode} {ids} | Receiving info about heights from {channel.peer_id}')
         info = pickle.loads(data)
         printable_heights = [[(h, pretty_hash(H)) for (h, H) in local_info] for local_info in info]
-        self.logger.info(f'receive_poset_{mode} {ids} | Got heights {printable_heights} from {channel.peer_id}')
+        self.logger.info(f'receive_poset_{mode} {ids} | Got heights {printable_heights} ({len(data)} bytes) '
+                         f'from {channel.peer_id}')
         return info, ids
 
 
     async def _send_requests(self, to_send, channel, mode, ids):
         self.logger.info(f'send_requests_start_{mode} {ids} | Sending requests to {channel.peer_id}')
         data = pickle.dumps(to_send)
+        self.logger.info(f'send_requests_wait_{mode} {ids} | writing requests to {channel.peer_id}')
         await channel.write(data)
         printable_requests = [[pretty_hash(H) for H in local_info] for local_info in to_send]
-        self.logger.info(f'send_requests_done_{mode} {ids} | sent requests {printable_requests} to {channel.peer_id}')
+        self.logger.info(f'send_requests_done_{mode} {ids} | sent requests {printable_requests} ({len(data)} bytes) '
+                         f'to {channel.peer_id}')
 
 
     async def _receive_requests(self, channel, mode, ids):
@@ -113,7 +118,8 @@ class Network:
         data = await channel.read()
         requests_received = pickle.loads(data)
         printable_requests = [[pretty_hash(H) for H in local_info] for local_info in requests_received]
-        self.logger.info(f'receive_requests_done_{mode} {ids} | received requests {printable_requests} from {channel.peer_id}')
+        self.logger.info(f'receive_requests_done_{mode} {ids} | received requests {printable_requests} ({len(data)} bytes) '
+                         f'from {channel.peer_id}')
         return requests_received
 
 
