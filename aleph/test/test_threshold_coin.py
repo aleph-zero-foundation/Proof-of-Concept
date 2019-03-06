@@ -1,8 +1,7 @@
-from aleph.crypto.threshold_coin import ThresholdCoin
-from aleph.crypto.signatures.threshold_signatures import generate_keys
-
 import random
 
+from aleph.crypto.threshold_coin import ThresholdCoin
+from aleph.crypto.threshold_signatures import generate_keys
 
 
 def test_tcoin():
@@ -25,7 +24,7 @@ def test_tcoin():
         pid = random.randrange(n_parties)
         assert TCs[pid].verify_coin_share(share, i, nonce)
 
-    _shares = {i:shares[i] for i in random.sample(range(n_parties), threshold)}
+    _shares = {i: shares[i] for i in random.sample(range(n_parties), threshold)}
 
     pid = random.randrange(n_parties)
     assert TCs[pid].combine_coin_shares(_shares, str(nonce))[0] in [0, 1]

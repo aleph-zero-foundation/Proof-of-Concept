@@ -1,5 +1,6 @@
-from aleph.crypto.signatures.threshold_signatures import generate_keys
 from random import sample
+
+from aleph.crypto.threshold_signatures import generate_keys
 
 
 def test_combine_signature():
@@ -18,7 +19,7 @@ def test_combine_signature():
 
     # generate signature shares of all parties
     shares = [SK.generate_share(msg_hash) for SK in SKs]
-    _shares = {i:shares[i] for i in sample(range(n_parties), threshold)}
+    _shares = {i: shares[i] for i in sample(range(n_parties), threshold)}
 
     # check if all shares are valid
     for i, share in _shares.items():

@@ -3,5 +3,4 @@ from .byte_utils import xor
 from .byte_utils import sha3_hash
 from .keys import SigningKey, VerifyKey
 from .threshold_coin import ThresholdCoin
-
-from .signatures.threshold_signatures import generate_keys
+from .threshold_signatures import generate_keys
