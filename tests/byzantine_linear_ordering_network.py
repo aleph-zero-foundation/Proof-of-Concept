@@ -197,7 +197,7 @@ if __name__ == '__main__':
     print('success')
 
     print('executing the ForkDivideAndStayAliveProcess test')
-    #asyncio.run(execute_test(process_builder(ForkDivideAndStayAliveProcess), 8000, 8500))
+    asyncio.run(execute_test(process_builder(ForkDivideAndStayAliveProcess), 8000, 8500))
     print('success')
 
     print('executing the ForkDivideAndDieProcess test')
