@@ -6,6 +6,7 @@ import logging
 from aleph.data_structures.unit import Unit
 import aleph.const as consts
 
+
 def recent_parents_restricted(poset, W, parent_processes):
     '''
     Compute ids of processes recently used to parent units.
@@ -18,7 +19,7 @@ def recent_parents_restricted(poset, W, parent_processes):
     recent_parents = set()
     threshold = (poset.n_processes+2)//3
     while len(recent_parents) < threshold and W.parents:
-        parents = [V.creator_id for V in W.parents if V.creator_id != W.creator_id]
+        parents = [V.creator_id for V in W.parents if V.creator_id != W.creator_id if V.creator_id != W.creator_id and V.creator_id not in recent_parents]
 
         if len(recent_parents) + len(parents) >= threshold:
             break
