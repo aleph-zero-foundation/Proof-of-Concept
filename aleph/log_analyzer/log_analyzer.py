@@ -43,7 +43,7 @@ class LogAnalyzer:
         self.pattern_memory = parse.compile("{usage:f} MiB")
         self.pattern_level = parse.compile("Level {level:d} reached")
         self.pattern_add_line = parse.compile("At lvl {timing_level:d} added {n_units:d} units and {n_txs:d} txs to the linear order {unit_list}")
-        self.pattern_decide_timing = parse.compile("Timing unit for lvl {level:d} decided at lvl + {plus_level:d}")
+        self.pattern_decide_timing = parse.compile("Timing unit for lvl {level:d} decided at lvl + {plus_level:d}, poset lvl + {plus_poset_level:d}")
         self.pattern_sync_establish = parse.compile("Established connection to {process_id:d}")
         self.pattern_listener_succ = parse.compile("Syncing with {process_id:d} succesful")
         self.pattern_receive_units_done = parse.compile("Received {n_bytes:d} bytes and {n_units:d} units")
