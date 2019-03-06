@@ -4,6 +4,8 @@ import logging
 
 import aleph.const as consts
 
+from aleph.data_structures import pretty_hash
+
 
 def poset_info(poset):
     '''
@@ -155,12 +157,9 @@ def dehash_parents(poset, U):
     '''
 
     if not all(p in poset.units for p in U.parents):
-        import base64
+        strangers = [pretty_hash(parent_hash) for parent_hash in U.parents if parent_hash not in poset.units]
         logger = logging.getLogger(consts.LOGGER_NAME)
-        logger.error(f"dehash_parents {poset.process_id} | Parents not found in the poset for {U.short_name()}")
-        for parent_hash in U.parents:
-            parent_hash = base64.b32encode(parent_hash).decode()[:16]
-            logger.info(f"{parent_hash}")
+        logger.error(f'dehash_parents {poset.process_id} | Parents {strangers} not found in the poset for {U.short_name()}')
 
         assert False, 'Attempting to fix parents but parents not present in poset'
 
