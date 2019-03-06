@@ -1,5 +1,5 @@
 class Tx(object):
-    '''This class stores a transactions issued by some user and is signed by the user'''
+    '''This class stores a transactions issued by some user'''
 
     __slots__ = ['issuer', 'receiver', 'amount']#, 'index', 'signature']
 
