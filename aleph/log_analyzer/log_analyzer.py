@@ -1298,6 +1298,22 @@ class LogAnalyzer:
         _append_stat_line(self.build_bytes_per_second_stats(self.get_outbound_network_events()), 'bytes_sent_per_sec')
         _append_stat_line(self.build_bytes_per_second_stats(self.get_inbound_network_events()), 'bytes_received_per_sec')
 
+        # TODO: start - add time spent on network events
+        # info about rounds of syncs
+        events_per_sync = [s.get('events', []) for _, s in self.syncs.items()]
+
+        send_poset_info_events = [[a for a in events if a['event_name'] == 'send_poset_info'] for events in events_per_sync]
+        send_poset_info_times = [t for t in [self.get_event_time(evs) for evs in send_poset_info_events] if t != 0]
+        _append_stat_line(send_poset_info_times, 'send_poset_per_sync')
+
+        send_units_events = [[a for a in events if a['event_name'] == 'send_units'] for events in events_per_sync]
+        send_units_times = [t for t in [self.get_event_time(evs) for evs in send_units_events] if t != 0]
+        _append_stat_line(send_units_times, 'send_units_per_sync')
+
+        send_requests_events = [[a for a in events if a['event_name'] == 'send_requests'] for events in events_per_sync]
+        send_requests_times = [t for t in [self.get_event_time(evs) for evs in send_requests_events] if t != 0]
+        _append_stat_line(send_requests_times, 'send_requests_per_sync')
+
         # gen plot on units exchanged vs time
         units_ex_plot_file = os.path.join(dest_dir, 'plot-units', f'units-{self.process_id}.png')
         os.makedirs(os.path.dirname(units_ex_plot_file), exist_ok=True)
