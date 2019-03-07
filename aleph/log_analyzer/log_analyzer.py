@@ -710,39 +710,65 @@ class LogAnalyzer:
             plt.savefig(cpu_plot_file, dpi=800)
             plt.close()
 
+        def plot_io_breakdown(*data):
+            if not data:
+                return
+            n_syncs = len(data[0][1])
+            x_series = range(n_syncs)
+            plots = []
+            width = 0.5
+            heights = [0.0] * n_syncs
+            for plot_data in data:
+                plot = plt.bar(x_series, plot_data[1], width, label=plot_data[0], bottom=heights)
+                plots.append(plot)
+                heights = [plot_data[1][i] + heights[i] for i in range(n_syncs)]
+            plt.legend(handles=plots)
+            plt.savefig(cpu_io_network_plot_file, dpi=800)
+            plt.close()
+
         # the plot showing how the sync time divides into cpu vs non-cpu
         if self.generate_plots and cpu_io_breakdown != []:
-            layers = []
             n_syncs = len(cpu_io_breakdown)
-            heights = [0.0] * n_syncs
             y_series_cpu = [cpu_io_breakdown[i][0] for i in range(n_syncs)]
             y_series_rest = [cpu_io_breakdown[i][1] for i in range(n_syncs)]
-            x_series = range(n_syncs)
-            # the width of the bars
-            width = 0.5
-            layer_cpu = plt.bar(x_series, y_series_cpu, width)
-            layer_rest = plt.bar(x_series, y_series_rest, width, bottom=y_series_cpu)
-            plt.legend([layer_cpu[0], layer_rest[0]], ('cpu_time', 'io+rest'))
-            plt.savefig(cpu_io_plot_file, dpi=800)
-            plt.close()
+            plot_io_breakdown(('cpu_time', y_series_cpu), ('io+rest', y_series_rest))
+
+            # layers = []
+            # n_syncs = len(cpu_io_breakdown)
+            # y_series_cpu = [cpu_io_breakdown[i][0] for i in range(n_syncs)]
+            # y_series_rest = [cpu_io_breakdown[i][1] for i in range(n_syncs)]
+            # x_series = range(n_syncs)
+            # # the width of the bars
+            # width = 0.5
+            # layer_cpu = plt.bar(x_series, y_series_cpu, width)
+            # layer_rest = plt.bar(x_series, y_series_rest, width, bottom=y_series_cpu)
+            # plt.legend([layer_cpu[0], layer_rest[0]], ('cpu_time', 'io+rest'))
+            # plt.savefig(cpu_io_plot_file, dpi=800)
+            # plt.close()
 
         # the plot showing how the sync time divides into cpu vs (network operations vs rest)
         if self.generate_plots and cpu_io_network_breakdown:
-            layers = []
             n_syncs = len(cpu_io_breakdown)
-            heights = [0.0] * n_syncs
-            y_series_cpu = [cpu_io_network_breakdown[i][0] for i in range(n_syncs)]
-            y_series_io = [cpu_io_network_breakdown[i][1] for i in range(n_syncs)]
-            y_series_network = [cpu_io_network_breakdown[i][2] for i in range(n_syncs)]
-            x_series = range(n_syncs)
-            # the width of the bars
-            width = 0.5
-            layer_cpu = plt.bar(x_series, y_series_cpu, width)
-            layer_io = plt.bar(x_series, y_series_io, width, bottom=y_series_cpu)
-            layer_network = plt.bar(x_series, y_series_network, width, bottom=y_series_cpu)
-            plt.legend([layer_cpu[0], layer_io[0], layer_network[0]], ('cpu_time', 'io', 'network'))
-            plt.savefig(cpu_io_network_plot_file, dpi=800)
-            plt.close()
+            cpu_series = [cpu_io_network_breakdown[i][0] for i in range(n_syncs)]
+            io_series = [cpu_io_network_breakdown[i][1] for i in range(n_syncs)]
+            network_series = [cpu_io_network_breakdown[i][2] for i in range(n_syncs)]
+            plot_io_breakdown(('cpu_time', cpu_series), ('io', io_series), ('network_send', network_series))
+            return cpu_time_summary
+
+            # layers = []
+            # n_syncs = len(cpu_io_breakdown)
+            # heights = [0.0] * n_syncs
+            # y_series_cpu = [cpu_io_network_breakdown[i][0] for i in range(n_syncs)]
+            # y_series_io = [cpu_io_network_breakdown[i][1] for i in range(n_syncs)]
+            # y_series_network = [cpu_io_network_breakdown[i][2] for i in range(n_syncs)]
+            # x_series = range(n_syncs)
+            # width = 0.5
+            # layer_cpu = plt.bar(x_series, y_series_cpu, width)
+            # layer_io = plt.bar(x_series, y_series_io, width, bottom=y_series_cpu)
+            # layer_network = plt.bar(x_series, y_series_network, width, bottom=y_series_cpu)
+            # plt.legend([layer_cpu[0], layer_io[0], layer_network[0]], ('cpu_time', 'io', 'network'))
+            # plt.savefig(cpu_io_network_plot_file, dpi=800)
+            # plt.close()
 
         return cpu_time_summary
 
