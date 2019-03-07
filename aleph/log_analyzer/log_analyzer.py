@@ -586,26 +586,43 @@ class LogAnalyzer:
         secs_till_max_level_timing = diff_in_seconds(self.levels[0]['date'], self.levels[max_level]['timing_decided_date'])
         return tot_txs/secs_till_max_level_timing
 
+    def build_bytes_per_second_stats(self, events, window_in_seconds=1):
+        events = sorted(events, key=lambda x: x['start_date'])
+        series = [0]
+        last_timestamp = events[0]['start_date']
+        for event in events:
+            while not (diff_in_seconds(last_timestamp, event['start_date']) <= window_in_seconds):
+                series.append(0)
+                last_timestamp += timedelta(0, window_in_seconds)
+            series[-1] += event['n_bytes']
+
+        return series
+
+    def get_outbound_network_events(self):
+        return [event['network_report']
+                for _, sync in self.syncs.items()
+                for event in sync.get('events', [])
+                if 'network_report' in event and event['event_name'].startswith('send')]
+
+    def get_inbound_network_events(self):
+        return [event['network_report']
+                for _, sync in self.syncs.items()
+                for event in sync.get('events', [])
+                if 'network_report' in event and event['event_name'].startswith('receive')]
+
+
     def plot_network_utilization(self, network_plot_outbound_file=None, network_plot_inbound_file=None):
         if not self.generate_plots:
             return
-        window_in_seconds = 1
-
-        def is_in_window(event1, event2):
-            return diff_in_seconds(event1['start_date'], event2['start_date']) < window_in_seconds
 
         def plot_network(events, y_label='bytes sent', network_plot_file=network_plot_outbound_file):
             if not events:
                 return
-            events = sorted(events, key=lambda x: x['start_date'])
-            series = [dict(n_bytes=0, start_date=events[0]['start_date'])]
-            for event in events:
-                while not is_in_window(series[-1], event):
-                    series.append(dict(n_bytes=0, start_date=(series[-1]['start_date'] + timedelta(0, window_in_seconds))))
-                series[-1]['n_bytes'] += event['n_bytes']
 
-            x_series = [diff_in_seconds(series[0]['start_date'], value['start_date']) for value in series]
-            y_series = [val['n_bytes'] for val in series]
+            series = self.build_bytes_per_second_stats(events, window_in_seconds=1)
+
+            x_series = list(range(len(series)))
+            y_series = series
             plt.bar(x_series, y_series)
             plt.xlabel('time in seconds')
             plt.ylabel(y_label)
@@ -615,20 +632,12 @@ class LogAnalyzer:
 
         # plotting outbound traffic
         if network_plot_outbound_file is not None:
-            events = [event['network_report']
-                      for _, sync in self.syncs.items()
-                      for event in sync.get('events', [])
-                      if 'network_report' in event and event['event_name'].startswith('send')]
-
+            events = self.get_outbound_network_events()
             plot_network(events, network_plot_file=network_plot_outbound_file)
 
-        # plotting outbound traffic
+        # plotting inbound traffic
         if network_plot_inbound_file is not None:
-            events = [event['network_report']
-                      for _, sync in self.syncs.items()
-                      for event in sync.get('events', [])
-                      if 'network_report' in event and event['event_name'].startswith('receive')]
-
+            events = self.get_inbound_network_events()
             plot_network(events, 'bytes received', network_plot_file=network_plot_inbound_file)
 
     def get_cpu_times(self,
@@ -1286,6 +1295,8 @@ class LogAnalyzer:
         _append_stat_line([send_units_not_succeeded], 'send_units_fail')
         _append_stat_line([send_requests_not_succeeded], 'send_requests_fail')
         _append_stat_line(bytes_sent_per_sync, 'bytes_sent_per_sync')
+        _append_stat_line(self.build_bytes_per_second_stats(self.get_outbound_network_events()), 'bytes_sent_per_sec')
+        _append_stat_line(self.build_bytes_per_second_stats(self.get_inbound_network_events()), 'bytes_received_per_sec')
 
         # gen plot on units exchanged vs time
         units_ex_plot_file = os.path.join(dest_dir, 'plot-units', f'units-{self.process_id}.png')
