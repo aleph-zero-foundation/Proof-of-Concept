@@ -216,7 +216,9 @@ class LogAnalyzer:
     def create_sync_event(self, start_date, target=None, events=None, tried=None):
         if events is None:
             events = []
-        result = {'start_date': start_date, 'target': target, 'events': events}
+        result = {'start_date': start_date, 'events': events}
+        if target:
+            result['target'] = target
         if tried:
             result['tried'] = tried
         return result
