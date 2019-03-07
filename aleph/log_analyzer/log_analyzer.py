@@ -305,6 +305,7 @@ class LogAnalyzer:
                 sync_events.append(new_event)
             else:
                 assert sync_events, f"There was no starting event for {event_name}"
+                assert sync_events[-1]['event_name'] == event_name, f'Wrong name of the last event'
                 sync_events[-1]['stop_date'] = event['date']
 
         return parse
@@ -1033,10 +1034,8 @@ class LogAnalyzer:
         send_poset_info_failed = [0] * self.n_processes
         send_poset_info_succeded = [0] * self.n_processes
         send_poset_info_avg = [0] * self.n_processes
-        send_poset_info_avg = [0] * self.n_processes
         send_units_failed = [0] * self.n_processes
         send_units_succeded = [0] * self.n_processes
-        send_units_avg = [0] * self.n_processes
         send_units_avg = [0] * self.n_processes
         send_requests_failed = [0] * self.n_processes
         send_requests_succeded = [0] * self.n_processes
