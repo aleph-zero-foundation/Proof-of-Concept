@@ -710,7 +710,7 @@ class LogAnalyzer:
             plt.savefig(cpu_plot_file, dpi=800)
             plt.close()
 
-        def plot_io_breakdown(*data):
+        def plot_io_breakdown(plot_file, *data):
             if not data:
                 return
             n_syncs = len(data[0][1])
@@ -723,7 +723,7 @@ class LogAnalyzer:
                 plots.append(plot)
                 heights = [plot_data[1][i] + heights[i] for i in range(n_syncs)]
             plt.legend(handles=plots)
-            plt.savefig(cpu_io_network_plot_file, dpi=800)
+            plt.savefig(plot_file, dpi=800)
             plt.close()
 
         # the plot showing how the sync time divides into cpu vs non-cpu
@@ -731,7 +731,7 @@ class LogAnalyzer:
             n_syncs = len(cpu_io_breakdown)
             y_series_cpu = [cpu_io_breakdown[i][0] for i in range(n_syncs)]
             y_series_rest = [cpu_io_breakdown[i][1] for i in range(n_syncs)]
-            plot_io_breakdown(('cpu_time', y_series_cpu), ('io+rest', y_series_rest))
+            plot_io_breakdown(cpu_io_plot_file, ('cpu_time', y_series_cpu), ('io+rest', y_series_rest))
 
             # layers = []
             # n_syncs = len(cpu_io_breakdown)
@@ -752,8 +752,10 @@ class LogAnalyzer:
             cpu_series = [cpu_io_network_breakdown[i][0] for i in range(n_syncs)]
             io_series = [cpu_io_network_breakdown[i][1] for i in range(n_syncs)]
             network_series = [cpu_io_network_breakdown[i][2] for i in range(n_syncs)]
-            plot_io_breakdown(('cpu_time', cpu_series), ('io', io_series), ('network_send', network_series))
-            return cpu_time_summary
+            plot_io_breakdown(cpu_io_network_plot_file,
+                              ('cpu_time', cpu_series),
+                              ('io', io_series),
+                              ('network_send', network_series))
 
             # layers = []
             # n_syncs = len(cpu_io_breakdown)
