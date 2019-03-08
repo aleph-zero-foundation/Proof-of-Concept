@@ -1,4 +1,7 @@
 import asyncio
+import logging
+
+import aleph.const as consts
 
 
 class RejectException(Exception): pass
@@ -84,7 +87,20 @@ class Channel:
 
     async def open(self):
         '''Activate the channel by opening a new connection to the peer.'''
-        self.reader, self.writer = await asyncio.open_connection(*self.address)
+
+        logger = logging.getLogger(consts.LOGGER_NAME)
+        logger.info(f'sync_open_chan {self.owner_id} | Opening connection to {self.peer_id} - start')
+        while True:
+            fut = asyncio.open_connection(*self.address)
+            try:
+                self.reader, self.writer = await asyncio.wait_for(fut, timeout=1)
+                break
+            except (asyncio.TimeoutError, ConnectionRefusedError):
+                logger.info(f'sync_open_chan {self.owner_id} | Opening connection to {self.peer_id} - failed')
+                await asyncio.sleep(1)
+
+        logger.info(f'sync_open_chan {self.owner_id} | Opening connection to {self.peer_id} - succeded')
+
         self.send_handshake()
         self.active.set()
 

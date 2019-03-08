@@ -224,7 +224,7 @@ def generate_signing_keys(n_processes):
             f.write(SigningKey().to_hex().decode()+'\n')
 
 
-def m5large_regions():
+def all_regions():
     return available_regions() + ['eu-west-2']
 
 def available_regions():
