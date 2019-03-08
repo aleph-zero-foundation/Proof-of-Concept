@@ -1,9 +1,12 @@
 from aleph.utils import dag_utils
-import time, os
+import time, os, sys
 import random
 
 # path to a file with a dag dumped from poset using the dump_to_file() method
 file_name = 'poset_1.dag'
+if len(sys.argv) > 1:
+    file_name = sys.argv[1]
+
 if not os.path.exists(file_name):
     print(f"The file {file_name} doesn't exist. Aborting.")
     exit(0)
@@ -42,7 +45,7 @@ for U in units_list:
             print(f"Process {creator_id} jumped from level {level_prev} to {level_now}.")
 
 
-tries = 10**5
+tries = 10**4
 timer_start = time.time()
 for _ in range(tries):
     U1 = random.choice(units_list)

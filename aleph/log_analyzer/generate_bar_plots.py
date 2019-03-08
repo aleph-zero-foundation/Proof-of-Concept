@@ -10,11 +10,11 @@ import parse
 
 def gen_label_from_dir_name(dir_name):
     # create_f and sync_f are parsed as strings and not floats because of some strange issue with parse
-    parsed = parse.parse("{N:d}_{parents:d}_{tcoin:d}_{create_f}_{sync_f}_{recv:d}_{txpu:d}_{fast_poset:d}",dir_name)
+    parsed = parse.parse("{N:d}_{parents:d}_{tcoin:d}_{create_d}_{sync_d}_{txpu:d}",dir_name)
     if parsed is None:
         return None
     tc = 'TC' if parsed['tcoin'] else '  '
-    label = f"N={parsed['N']:<4} TX={parsed['txpu']:<4} FQ=({float(parsed['create_f']):.1f},{float(parsed['sync_f']):.2f}) {tc}"
+    label = f"N={parsed['N']:<4} TX={parsed['txpu']:<4} DEL=({float(parsed['create_d']):.1f},{float(parsed['sync_d']):.2f})"
     return label
 
 
@@ -33,12 +33,21 @@ def get_median(num_list):
 
 
 def gen_plot(data, plot_info, file_name):
-   # fig, ax = plt.subplot
+
+    # printing data to stdout in case when exact values are needed:
+    print("")
+    print(plot_info['title'])
+    for data_point in data:
+        label = data_point[0]
+        value = data_point[1]
+        line = f"{label} {value:>14.3f}"
+        print(line)
+
+
     yfont = {'fontname':'monospace'}
     width = 0.7
     ax = plt.subplot()
     ax.grid(b = True, axis = 'x', linestyle = '--', color = 'black', linewidth = 0.5, alpha = 0.5)
-    #ax.xaxis.grid()
     n_bars = len(data)
     data.sort(key = lambda x: x[1])
     colors = gen_colors(n_bars)
@@ -47,11 +56,9 @@ def gen_plot(data, plot_info, file_name):
         colors.reverse()
     bar_pos = range(len(data))
     data_series = [val for _, val in data]
-    #colors = [color_mapping[label] for label, _ in data]
 
     bars = ax.barh(bar_pos, data_series, width, color = colors, edgecolor = 'black', linewidth = 0.5)
     labels = [p[0] for p in data]
-    #plt.setp((ax,), xticks=x_series, xticklabels=xticklabels)
     ax.set_yticks(bar_pos)
     ax.set_yticklabels(labels, fontsize=6)
     plt.subplots_adjust(left=0.3)
