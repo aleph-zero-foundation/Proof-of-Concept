@@ -252,7 +252,7 @@ class Process:
         await asyncio.gather(*syncing_tasks)
 
         # give some time for other processes to finish
-        await asyncio.sleep(3*consts.SYNC_INIT_DELAY)
+        await asyncio.sleep(3*consts.SYNC_INIT_DELAY + 2)
 
         logger = logging.getLogger(consts.LOGGER_NAME)
         logger.info(f'sync_stop {self.process_id} | keep_syncing is {self.keep_syncing}')
