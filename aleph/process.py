@@ -220,6 +220,8 @@ class Process:
                     self.prepared_txs = txs_queue.get()
                 else:
                     self.prepared_txs = []
+            else:
+                self.logger.info(f'create_fail {self.process_id} | Failed to create a new unit')
 
             timer.write_summary(where=self.logger, groups=[self.process_id])
             timer.reset(self.process_id)
