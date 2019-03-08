@@ -16,7 +16,7 @@ from aleph.crypto.keys import SigningKey, VerifyKey
 import aleph.const as consts
 
 from fabfile import zip_repo
-from utils import image_id_in_region, default_region_name, init_key_pair, security_group_id_by_region, available_regions, badger_regions, generate_signing_keys, n_processes_per_regions, eu_regions, m5large_regions
+from utils import image_id_in_region, default_region_name, init_key_pair, security_group_id_by_region, available_regions, badger_regions, generate_signing_keys, n_processes_per_regions, eu_regions, all_regions
 
 N_JOBS = 8
 
@@ -262,7 +262,7 @@ def exec_for_regions(func, regions='all', parallel=True):
     '''A helper function for running routines in all regions.'''
 
     if regions == 'all':
-        regions = available_regions()
+        regions = all_regions()
     if regions == 'badger regions':
         regions = badger_regions()
 
@@ -537,7 +537,7 @@ def get_logs(n_processes, regions, n_parents, use_tcoin, create_delay, sync_init
     os.rmdir(result_path)
 
     print('getting dag')
-    run_task_for_ip(ip_addresses[0])
+    run_task_for_ip('get-dag', [ip_addresses[0]])
 
     print('done')
 
@@ -560,7 +560,7 @@ def reached_max_level(regions=available_regions()):
     return n_protocol_stopped
 
 
-def cut_instances(new_n_proc, regions=available_regions(), restricted=[]):
+def cut_instances(new_n_proc, regions=available_regions(), restricted={}):
     ''' Cuts current number of processes to new_n_proc. '''
 
     print('collecting running instances')
@@ -605,8 +605,24 @@ restricted = {
                     'ap-southeast-2': 5,   # Sydney
                     'eu-central-1':   10,  # Frankfurt
                     'sa-east-1':      5    # Sao Paolo
+                 },
+    't2.large':  {  'us-east-1':      20,
+                    'us-west-1':      39,
+                    'us-west-2':      20,
+                    'eu-west-1':      39,
+                    'sa-east-1':      20,
+                    'ap-southeast-1': 20,
+                    'ap-southeast-2': 20,
+                    'ap-northeast-1': 38,
+                    'ap-south-1':     20,
+                    'us-east-2':      20,
+                    'us-east-2':      20,
+                    'ca-central-1':   20,
+                    'eu-central-1':   20,
+                    'eu-west-2':      20,
                  }
     }
+m5alarge = ['us-east-1','us-west-2','eu-west-1','ap-southeast-1','us-east-2']
 
 pb = lambda : run_protocol(104, badger_regions(), {}, 't2.medium')
 rs = lambda : run_protocol(8, badger_regions(), {}, 't2.micro')
