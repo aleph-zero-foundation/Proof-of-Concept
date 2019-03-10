@@ -67,8 +67,7 @@ class LogAnalyzer:
         self.pattern_create_fail = parse.compile("Failed to create a new unit")
         self.pattern_prime_unit = parse.compile("New prime unit at level {level:d} : {unit}")
 
-        # create the mapping between event types and the functions used for parsing this types of events
-
+        # prepare some common parsers used in the following parts of the initialization
         receive_units_done_parser = self.combine_parsers(
             self.parse_receive_units_done,
             self.parse_bytes_processed_in_sync('receive_units', self.parse_bytes_received_units)
@@ -107,6 +106,7 @@ class LogAnalyzer:
             self.parse_send_units_sent
         )
 
+        # create the mapping between event types and the functions used for parsing this types of events
         self.parse_mapping = {
             'create_add' : self.parse_create,
             'memory_usage' : self.parse_mem_usg,
@@ -176,13 +176,19 @@ class LogAnalyzer:
             }
 
     def create_msg_pattern(self):
+        # NOTE: 'parse' always matches the shortest text necessary (from left to right) to fulfill the parse pattern due to this
+        #       behavior some logs are not parsed correctly, e.g. ones including pretty printed lists (file pattern is not
+        #       parsed correctly). The following code is a 'dirty' fix for this behavior.
+
+        # try to parse a file name included in every log line, i.e. a pattern of the form [filename.py:linenumber] (e.g.
+        # process.py:1)
         @parse.with_pattern(r'[a-zA-Z0-9_]+\.py:\d+')
         def file_line_parser(text):
             return text
         return parse.compile("[{date}] [{msg_level}] [{name}] {msg} [{file_line:file_line_type}]",
                              dict(file_line_type=file_line_parser))
 
-    # Functions for parsing specific types of log messages. Typically one function per log lessage type.
+    # Functions for parsing specific types of log messages. Typically one function per log message type.
     # Although some functions support more of them at the same time
     # Each of these functions takes the same set of parameters, being:
     # -- ev_params: parameters of the log event, typically process_id or/and sync_id
@@ -190,79 +196,6 @@ class LogAnalyzer:
     # -- event: this is the partial result of parsing of the current line, it has a date field etc.
 
     # ----------- START PARSING FUNCTIONS ---------------
-
-    def parse_bytes_send_units(self, msg_body):
-        return self.parse_value_using_parser(self.pattern_send_units_sent, 'n_bytes')(msg_body)
-
-    def parse_bytes_send_poset_info(self, msg_body):
-        return self.parse_value_using_parser(self.pattern_send_poset_info_bytes, 'n_bytes')(msg_body)
-
-    def parse_bytes_send_requests(self, msg_body):
-        return self.parse_value_using_parser(self.pattern_send_requests_bytes, 'n_bytes')(msg_body)
-
-    def parse_bytes_received_units(self, msg_body):
-        return self.parse_value_using_parser(self.pattern_receive_units_done, 'n_bytes')(msg_body)
-
-    def parse_bytes_received_requests(self, msg_body):
-        return self.parse_value_using_parser(self.pattern_receive_requests_bytes, 'n_bytes')(msg_body)
-
-    def parse_bytes_received_poset_info(self, msg_body):
-        return self.parse_value_using_parser(self.pattern_receive_poset_info_bytes, 'n_bytes')(msg_body)
-
-    def parse_value_using_parser(self, parser, tag):
-        def parser_method(msg_body):
-            parsed = parser.parse(msg_body)
-            if parsed is None:
-                return (False, None)
-            return True, parsed[tag]
-        return parser_method
-
-    def combine_parsers(self, *parsers):
-        def parse(ev_params, msg_body, event):
-            for parser in parsers:
-                parser(ev_params, msg_body, event)
-        return parse
-
-    def create_sync_event(self, start_date, target=None, events=None, tried=None):
-        if events is None:
-            events = []
-        result = {'start_date': start_date, 'events': events}
-        if target:
-            result['target'] = target
-        if tried:
-            result['tried'] = tried
-        return result
-
-    def create_network_report(self, n_bytes, start_date):
-        return dict(n_bytes=n_bytes, start_date=start_date)
-
-    def get_or_create_events(self, sync_id, event_name, start_date):
-        sync = self.syncs.get(sync_id, None)
-        if sync is None:
-            sync = self.create_sync_event(start_date)
-            self.syncs[sync_id] = sync
-        return sync['events']
-
-    def create_event(self, event_name):
-        return dict(event_name=event_name)
-
-    def create_await(self, start_date):
-        return dict(start_date=start_date)
-
-    def process_network_report(self, event_name, report_handler=lambda _: None):
-        def parse(ev_params, msg_body, event):
-            sync_id = int(ev_params[1])
-            events = self.get_or_create_events(sync_id, event_name, event['date'])
-            if (not events) or (events[-1]['event_name'] != event_name):
-                events.append(self.create_event(event_name))
-            last_event = events[-1]
-            report = last_event.get('network_report', None)
-            if report is None:
-                report = self.create_network_report(0, start_date=event['date'])
-                last_event['network_report'] = report
-            report_handler(report)
-
-        return parse
 
     def parse_await_time(self, event_name, is_start=False):
         def parse(ev_params, msg_body, event):
@@ -465,7 +398,6 @@ class LogAnalyzer:
         self.syncs[sync_id]['bytes_received'] = parsed['n_bytes']
 
 
-
     def parse_send_units_sent(self, ev_params, msg_body, event):
         parsed = self.pattern_send_units_sent.parse(msg_body)
 
@@ -473,9 +405,82 @@ class LogAnalyzer:
         self.syncs[sync_id]['units_sent'] = parsed['n_units']
         self.syncs[sync_id]['bytes_sent'] = parsed['n_bytes']
 
+    # helper functions for related with parsing
+
+    def parse_bytes_send_units(self, msg_body):
+        return self.parse_value_using_parser(self.pattern_send_units_sent, 'n_bytes')(msg_body)
+
+    def parse_bytes_send_poset_info(self, msg_body):
+        return self.parse_value_using_parser(self.pattern_send_poset_info_bytes, 'n_bytes')(msg_body)
+
+    def parse_bytes_send_requests(self, msg_body):
+        return self.parse_value_using_parser(self.pattern_send_requests_bytes, 'n_bytes')(msg_body)
+
+    def parse_bytes_received_units(self, msg_body):
+        return self.parse_value_using_parser(self.pattern_receive_units_done, 'n_bytes')(msg_body)
+
+    def parse_bytes_received_requests(self, msg_body):
+        return self.parse_value_using_parser(self.pattern_receive_requests_bytes, 'n_bytes')(msg_body)
+
+    def parse_bytes_received_poset_info(self, msg_body):
+        return self.parse_value_using_parser(self.pattern_receive_poset_info_bytes, 'n_bytes')(msg_body)
+
+    def parse_value_using_parser(self, parser, tag):
+        def parser_method(msg_body):
+            parsed = parser.parse(msg_body)
+            if parsed is None:
+                return (False, None)
+            return True, parsed[tag]
+        return parser_method
+
+    def combine_parsers(self, *parsers):
+        def parse(ev_params, msg_body, event):
+            for parser in parsers:
+                parser(ev_params, msg_body, event)
+        return parse
+
     # ----------- END PARSING FUNCTIONS ---------------
 
+    def create_sync_event(self, start_date, target=None, events=None, tried=None):
+        if events is None:
+            events = []
+        result = {'start_date': start_date, 'events': events}
+        if target:
+            result['target'] = target
+        if tried:
+            result['tried'] = tried
+        return result
 
+    def create_network_report(self, n_bytes, start_date):
+        return dict(n_bytes=n_bytes, start_date=start_date)
+
+    def get_or_create_events(self, sync_id, event_name, start_date):
+        sync = self.syncs.get(sync_id, None)
+        if sync is None:
+            sync = self.create_sync_event(start_date)
+            self.syncs[sync_id] = sync
+        return sync['events']
+
+    def create_event(self, event_name):
+        return dict(event_name=event_name)
+
+    def create_await(self, start_date):
+        return dict(start_date=start_date)
+
+    def process_network_report(self, event_name, report_handler=lambda _: None):
+        def parse(ev_params, msg_body, event):
+            sync_id = int(ev_params[1])
+            events = self.get_or_create_events(sync_id, event_name, event['date'])
+            if (not events) or (events[-1]['event_name'] != event_name):
+                events.append(self.create_event(event_name))
+            last_event = events[-1]
+            report = last_event.get('network_report', None)
+            if report is None:
+                report = self.create_network_report(0, start_date=event['date'])
+                last_event['network_report'] = report
+            report_handler(report)
+
+        return parse
 
     def parse_and_handle_log_line(self, line):
         '''
@@ -531,8 +536,6 @@ class LogAnalyzer:
             return False
 
         return True
-
-
 
     def analyze(self):
         '''
