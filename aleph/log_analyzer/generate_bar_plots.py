@@ -94,7 +94,6 @@ def generate_plots():
             a = pd.read_csv(os.path.join(inner_dir, f_name), delim_whitespace=True)
             n_stats = len(a.iloc[:])
             for i in range(n_stats):
-                #print(a.iloc[i])
                 stat_name = a.iloc[i]['name']
                 stat_val = a.iloc[i]['avg']
                 if stat_name not in stats:

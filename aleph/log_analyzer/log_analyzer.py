@@ -1343,7 +1343,6 @@ class LogAnalyzer:
 
 
 
-        #self.get_sync_info_per_process()
         report_file = os.path.join(dest_dir,'txt-basic', file_name_prefix+str(self.process_id)+'.txt')
         os.makedirs(os.path.dirname(report_file), exist_ok=True)
 
