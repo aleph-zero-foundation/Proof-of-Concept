@@ -318,10 +318,9 @@ class LogAnalyzer:
             elif timer_name == "attempt_timing":
                 self.timing_attempt_times.append(time_spent)
             else:
-            # this is 'linear_order_L' where L is the level
+                # this is 'linear_order_L' where L is the level
                 level = parse.parse("linear_order_{level:d}", timer_name)['level']
                 self.levels[level]['t_lin_order'] = time_spent
-
 
     def parse_mem_usg(self, ev_params, msg_body, event):
         parsed = self.pattern_memory.parse(msg_body)
@@ -1040,15 +1039,15 @@ class LogAnalyzer:
 
         syncs_failed = [0] * self.n_processes
         send_poset_info_failed = [0] * self.n_processes
-        send_poset_info_succeded = [0] * self.n_processes
+        send_poset_info_succeeded = [0] * self.n_processes
         send_poset_info_avg = [0] * self.n_processes
         send_units_failed = [0] * self.n_processes
-        send_units_succeded = [0] * self.n_processes
+        send_units_succeeded = [0] * self.n_processes
         send_units_avg = [0] * self.n_processes
         send_requests_failed = [0] * self.n_processes
-        send_requests_succeded = [0] * self.n_processes
+        send_requests_succeeded = [0] * self.n_processes
         send_requests_avg = [0] * self.n_processes
-        syncs_succeded = [0] * self.n_processes
+        syncs_succeeded = [0] * self.n_processes
         syncs_sent_data = [0] * self.n_processes
         tot_time = [0.0] * self.n_processes
         conn_est_time = [0.0] * self.n_processes
@@ -1070,17 +1069,17 @@ class LogAnalyzer:
             events = sync.get('events', [])
             send_poset_info_events = [a for a in events if a['event_name'] == 'send_poset_info']
             poset_info_result = self.get_successes_failures_count(send_poset_info_events)
-            send_poset_info_succeded[target] += poset_info_result[0]
+            send_poset_info_succeeded[target] += poset_info_result[0]
             send_poset_info_failed[target] += poset_info_result[1]
 
             send_units_events = [a for a in events if a['event_name'] == 'send_units']
             send_units_results = self.get_successes_failures_count(send_units_events)
-            send_units_succeded[target] += send_units_results[0]
+            send_units_succeeded[target] += send_units_results[0]
             send_units_failed[target] += send_units_results[1]
 
             send_requests_events = [a for a in events if a['event_name'] == 'send_request ==\'send_requests']
             send_requests_result = self.get_successes_failures_count(send_requests_events)
-            send_requests_succeded[target] += send_requests_result[0]
+            send_requests_succeeded[target] += send_requests_result[0]
             send_requests_failed[target] += send_requests_result[1]
 
             send_poset_info_avg[target] += self.get_event_time(send_poset_info_events)
@@ -1094,7 +1093,7 @@ class LogAnalyzer:
 
                 continue
 
-            syncs_succeded[target] += 1
+            syncs_succeeded[target] += 1
             tot_time[target] += diff_in_seconds(sync['start_date'], sync['stop_date'])
 
         fields = ['name',
@@ -1109,39 +1108,40 @@ class LogAnalyzer:
         lines.append(format_line(fields))
 
         for target in range(self.n_processes):
-            if syncs_succeded[target]:
-                tot_time[target] /= syncs_succeded[target]
+            if syncs_succeeded[target]:
+                tot_time[target] /= syncs_succeeded[target]
             else:
                 tot_time[target] = -1.0
-            if send_poset_info_succeded[target]:
-                send_poset_info_avg[target] /= send_poset_info_succeded[target]
+            if send_poset_info_succeeded[target]:
+                send_poset_info_avg[target] /= send_poset_info_succeeded[target]
             else:
                 send_poset_info_avg[target] = -1.0
-            if send_units_succeded[target]:
-                send_units_avg[target] /= send_units_succeded[target]
+            if send_units_succeeded[target]:
+                send_units_avg[target] /= send_units_succeeded[target]
             else:
                 send_units_avg[target] = -1.0
-            if send_requests_succeded[target]:
-                send_requests_avg[target] /= send_requests_succeded[target]
+            if send_requests_succeeded[target]:
+                send_requests_avg[target] /= send_requests_succeeded[target]
             else:
                 send_requests_avg[target] = -1.0
             data = {'name' : f'proc_{target}'}
 
+            data['sync_fail (poset_info, units, requests)'] = (
+                f'{syncs_failed[target]} ('
+                f'{send_poset_info_failed[target]}, '
+                f'{send_units_failed[target]}, '
+                f'{send_requests_failed[target]})'
+            )
+            data['sync_succ (poset_info, units, requests)'] = (
+                f'{syncs_succeeded[target]} ('
+                f'{send_poset_info_succeeded[target]}, '
+                f'{send_units_succeeded[target]}, '
+                f'{send_requests_succeeded[target]})'
+            )
+
             def custom_float_format(main_value, *values):
                 return f"{main_value:.4f}" + ' (' + ', '.join([f"{v:.4f}" for v in values]) + ')'
 
-            data['sync_fail (poset_info, units, requests)'] = custom_float_format(
-                syncs_failed[target],
-                send_poset_info_failed[target],
-                send_units_failed[target],
-                send_requests_failed[target]
-            )
-            data['sync_succ (poset_info, units, requests)'] = custom_float_format(
-                syncs_succeded[target],
-                send_poset_info_succeded[target],
-                send_units_succeded[target],
-                send_requests_succeded[target]
-            )
             data['avg_time (poset_info, units, requests)'] = custom_float_format(
                 tot_time[target],
                 send_poset_info_avg[target],
@@ -1388,14 +1388,12 @@ class LogAnalyzer:
         _append_stat_line([self.n_create_fail], 'n_create_fail')
 
         # plot network statistics
-        bar_plot_network_outbound = os.path.join(dest_dir,'plot-network-bar','network-outbound-' + str(self.process_id) + '.png')
-        bar_plot_network_inbound = os.path.join(dest_dir,'plot-network-bar','network-inbound-' + str(self.process_id) + '.png')
+        bar_plot_network_outbound = os.path.join(dest_dir, 'plot-network-bar','network-outbound-' + str(self.process_id) + '.png')
+        bar_plot_network_inbound = os.path.join(dest_dir, 'plot-network-bar','network-inbound-' + str(self.process_id) + '.png')
         os.makedirs(os.path.dirname(bar_plot_network_outbound), exist_ok=True)
         self.plot_network_utilization(bar_plot_network_outbound, bar_plot_network_inbound)
 
-
-
-        report_file = os.path.join(dest_dir,'txt-basic', file_name_prefix+str(self.process_id)+'.txt')
+        report_file = os.path.join(dest_dir, 'txt-basic', file_name_prefix+str(self.process_id)+'.txt')
         os.makedirs(os.path.dirname(report_file), exist_ok=True)
 
         with open(report_file, "w") as rep_file:
@@ -1405,14 +1403,11 @@ class LogAnalyzer:
             print(f'Report file written to {report_file}.')
 
 
-
-
-
-
 # ------------- Helper Functions for the Log Analyzer ------------------
 
 def diff_in_seconds(date_from, date_to):
     return (date_to-date_from).total_seconds()
+
 
 def compute_basic_stats(list_of_numbers):
     '''
@@ -1427,6 +1422,7 @@ def compute_basic_stats(list_of_numbers):
     summ['max'] = np.max(np_array)
 
     return summ
+
 
 def format_line(field_list, data=None):
     '''
@@ -1456,7 +1452,6 @@ def format_line(field_list, data=None):
 def get_tokens(space_separated_string):
     return [s.strip() for s in space_separated_string.split()]
 
+
 def parse_unit_list(space_separated_units):
     return [s[1:-1] for s in space_separated_units.split()]
-
-
