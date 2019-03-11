@@ -22,7 +22,11 @@ class LogAnalyzer:
         self.create_attempt_dates = []
 
         self.create_times = []
+        self.max_units_cnts = []
+        self.n_create_fail = 0
         self.timing_attempt_times = []
+
+        self.prime_learned_times_per_level = {}
 
         self.current_recv_sync_no = []
         self.read_process_id = process_id
@@ -59,6 +63,9 @@ class LogAnalyzer:
         self.pattern_send_requests_bytes = parse.compile("sent requests {to_send} ({n_bytes:d} bytes) to {process_id:d}")
         self.pattern_receive_requests_bytes = parse.compile("received requests {requests_received} ({n_bytes:d} bytes) from {process_id:d}")
         self.pattern_receive_poset_info_bytes = parse.compile("Got heights {info} ({n_bytes:d} bytes) from {process_id:d}")
+        self.pattern_max_units = parse.compile("There are {n_maximal:d} maximal units just before create_unit")
+        self.pattern_create_fail = parse.compile("Failed to create a new unit")
+        self.pattern_prime_unit = parse.compile("New prime unit at level {level:d} : {unit}")
 
         # create the mapping between event types and the functions used for parsing this types of events
 
@@ -123,6 +130,9 @@ class LogAnalyzer:
             'add_received_done_listener' : self.parse_add_received_done,
             'add_received_done_sync' : self.parse_add_received_done,
             'timer' : self.parse_timer,
+            'max_units' : self.parse_max_units,
+            'create_fail' : self.parse_create_fail,
+            'prime_unit' : self.parse_prime_unit,
 
             'send_poset_sync' : self.parse_network_operation('send_poset_info', is_start=True),
             'send_poset_wait_sync' : send_poset_wait_parser,
@@ -298,6 +308,22 @@ class LogAnalyzer:
                 sync_events[-1]['stop_date'] = event['date']
 
         return parse
+
+    def parse_max_units(self, ev_params, msg_body, event):
+        parsed = self.pattern_max_units.parse(msg_body)
+        self.max_units_cnts.append(parsed['n_maximal'])
+
+    def parse_create_fail(self, ev_params, msg_body, event):
+        parsed = self.pattern_max_units.parse(msg_body)
+        self.n_create_fail += 1
+
+    def parse_prime_unit(self, ev_params, msg_body, event):
+        parsed = self.pattern_prime_unit.parse(msg_body)
+        level = parsed['level']
+        if level not in self.prime_learned_times_per_level:
+            self.prime_learned_times_per_level[level] = []
+        date = event['date']
+        self.prime_learned_times_per_level[level].append(date)
 
     def parse_create(self,  ev_params, msg_body, event):
         parsed = self.pattern_create.parse(msg_body)
@@ -722,6 +748,20 @@ class LogAnalyzer:
 
         return delay_list
 
+    def get_delays_learn_prime_quorum(self):
+        '''
+        Computes delays between learning about the first prime unit at a given level and learning the prime unit no (2/3)*N.
+        '''
+        delay_list = []
+        for level in self.prime_learned_times_per_level:
+            dates = self.prime_learned_times_per_level[level]
+            threshold = (2*self.n_processes+2)//3
+            if len(dates) >= threshold:
+                # Note that the timestamps are added to the list in chronological order, so the list is sorted
+                delay_list.append(diff_in_seconds(dates[0], dates[threshold-1]))
+
+        return delay_list
+
     def get_delays_add_foreign_order(self):
         '''
         Computes delays between adding a unit to the poset (a foreign unit, i.e. not created by us)
@@ -1132,6 +1172,8 @@ class LogAnalyzer:
 
         - create_ord_del: the time between creating a unit and placing it in the linear order
 
+        - learn_level_quorum: time between learning about a new level and learning (2/3)N prime units at this level
+
         - add_ord_del: the same as create_ord_del, but now the unit is by another process and
                        the timer is started once the unit is received in a sync
 
@@ -1183,6 +1225,10 @@ class LogAnalyzer:
 
         - n_parents: number of parents of units created by this process
 
+        - n_maximal: number of maximal units in the poset just before creating a unit
+
+        - n_create_fail: ONE NUMBER: how many times the create failed (no choice of appropriate parents)
+
         '''
 
         lines = []
@@ -1216,6 +1262,10 @@ class LogAnalyzer:
         # delay between adding a new foreign unit and order
         data = self.get_delays_add_foreign_order()
         _append_stat_line(data, 'add_ord_del')
+
+        # delay between learning about a new level and learning (2/3)N prime units at this level
+        data = self.get_delays_learn_prime_quorum()
+        _append_stat_line(data, 'learn_level_quorum')
 
         # info about syncs
         sync_plot_file = os.path.join(dest_dir,'plot-dot-sync', 'dot-sync-' + str(self.process_id) + '.png')
@@ -1267,8 +1317,6 @@ class LogAnalyzer:
                                    sync_bar_plot_file_all,
                                    sync_bar_plot_cpu_io_network)
         _append_stat_line(times['t_prepare_units'], 'time_prepare')
-        _append_stat_line(times['t_compress_units'], 'time_compress')
-        _append_stat_line(times['t_decompress_units'], 'time_decompress')
         _append_stat_line(times['t_pickle_units'], 'time_pickle')
         _append_stat_line(times['t_unpickle_units'], 'time_unpickle')
         _append_stat_line(times['t_verify_signatures'], 'time_verify')
@@ -1280,6 +1328,12 @@ class LogAnalyzer:
 
         # n_parents
         _append_stat_line(self.get_n_parents(), 'n_parents')
+
+        # n_maximal
+        _append_stat_line(self.max_units_cnts, 'n_maximal')
+
+        # n_create_fail
+        _append_stat_line([self.n_create_fail], 'n_create_fail')
 
         # plot network statistics
         bar_plot_network_outbound = os.path.join(dest_dir,'plot-network-bar','network-outbound-' + str(self.process_id) + '.png')
