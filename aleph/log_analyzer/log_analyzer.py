@@ -422,8 +422,10 @@ class LogAnalyzer:
         parsed = self.pattern_decide_timing.parse(msg_body)
         level = parsed['level']
         timing_decided_level = parsed['level'] + parsed['plus_level']
+        timing_poset_decided_level = parsed['level'] + parsed['plus_poset_level']
 
         self.levels[level]['timing_decided_level'] = timing_decided_level
+        self.levels[level]['timing_poset_decided_level'] = timing_poset_decided_level
         self.levels[level]['timing_decided_date'] = event['date']
 
     def parse_receive_units_done(self, ev_params, msg_body, event):
@@ -801,12 +803,15 @@ class LogAnalyzer:
         [level],
         [n_units decided at this level],
         [+levels of timing decision at this level],
+        [+levels of poset at the time of decision],
         [time in sec to timing decision)
+        [number of transactions at this level]
         '''
         levels = []
         n_units_per_level = []
         n_txs_per_level = []
         levels_plus_decided = []
+        levels_poset_plus_decided = []
         level_delays = []
         for level in self.levels:
             if level == 0:
@@ -817,13 +822,15 @@ class LogAnalyzer:
                     n_units = self.levels[level]['n_units_decided']
                     delay = diff_in_seconds(self.levels[level]['date'], self.levels[level]['timing_decided_date'])
                     level_diff = self.levels[level]['timing_decided_level'] - level
+                    poset_level_diff = self.levels[level]['timing_poset_decided_level'] - level
                     levels.append(level)
                     n_units_per_level.append(n_units)
                     levels_plus_decided.append(level_diff)
+                    levels_poset_plus_decided.append(poset_level_diff)
                     level_delays.append(delay)
                     n_txs_per_level.append(self.levels[level]['n_txs_ordered'])
         print(n_units_per_level)
-        return levels, n_units_per_level, levels_plus_decided, level_delays, n_txs_per_level
+        return levels, n_units_per_level, levels_plus_decided, levels_poset_plus_decided, level_delays, n_txs_per_level
 
     def get_sync_info(self, plot_file = None):
         '''
@@ -1280,10 +1287,11 @@ class LogAnalyzer:
             lines.append(format_line(fields, stats))
 
         # timing_decision
-        levels, n_units_per_level, levels_plus_decided, level_delays, n_txs_per_level = self.get_timing_decision_stats()
+        levels, n_units_per_level, levels_plus_decided, levels_poset_plus_decided, level_delays, n_txs_per_level = self.get_timing_decision_stats()
         _append_stat_line(n_units_per_level, 'n_units_decision')
         _append_stat_line(level_delays, 'time_decision')
         _append_stat_line(levels_plus_decided, 'decision_height')
+        _append_stat_line(levels_poset_plus_decided, 'poset_decision_height')
         _append_stat_line(n_txs_per_level, 'n_txs_ordered')
 
         # new level
