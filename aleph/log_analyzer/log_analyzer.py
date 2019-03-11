@@ -649,7 +649,7 @@ class LogAnalyzer:
     def get_cpu_times(self,
                       cpu_plot_file = None,
                       cpu_io_plot_file = None,
-                      cpu_io_network_plot_file = None):
+                      cpu_network_rest_plot_file = None):
         timer_names = ['t_prepare_units', 't_compress_units', 't_decompress_units', 't_unpickle_units',
                      't_pickle_units', 't_verify_signatures', 't_add_units']
         cpu_time_summary = { name : [] for name in timer_names }
@@ -661,7 +661,8 @@ class LogAnalyzer:
 
         cpu_breakdown_entries = []
         cpu_io_breakdown = []
-        cpu_io_network_breakdown = []
+        # decomposition of time spent in sync between cpu/(sending operations)/rest
+        cpu_network_rest_breakdown = []
 
         for sync_id, sync_dict in sorted(self.syncs.items(), key = lambda x: x[0]):
             sync_tot_cpu_time = 0.0
@@ -686,9 +687,9 @@ class LogAnalyzer:
             if sync_tot_cpu_time > 0.0 and 'stop_date' in sync_dict:
                 sync_tot_time = diff_in_seconds(sync_dict['start_date'], sync_dict['stop_date'])
                 cpu_io_breakdown.append([sync_tot_cpu_time, sync_tot_time - sync_tot_cpu_time])
-                cpu_io_network_breakdown.append([sync_tot_cpu_time,
-                                                 sync_tot_time - sync_tot_cpu_time - sync_tot_network_time,
-                                                 sync_tot_network_time])
+                cpu_network_rest_breakdown.append([sync_tot_cpu_time,
+                                                 sync_tot_network_time,
+                                                 sync_tot_time - sync_tot_cpu_time - sync_tot_network_time])
 
         for level, level_dict in self.levels.items():
             if 't_lin_order' in level_dict:
@@ -713,7 +714,7 @@ class LogAnalyzer:
             plt.savefig(plot_file, dpi=800)
             plt.close()
 
-        # the plot with how the cpu time is divided between various tasks
+        # the plot showing how the cpu time is divided between various tasks
         if self.generate_plots and cpu_breakdown_entries != []:
             plot_io_breakdown(cpu_plot_file, *[(
                                                 timer_names[ind],
@@ -729,15 +730,15 @@ class LogAnalyzer:
             plot_io_breakdown(cpu_io_plot_file, ('cpu_time', y_series_cpu), ('io+rest', y_series_rest))
 
         # the plot showing how the sync time divides into cpu vs (network operations vs rest)
-        if self.generate_plots and cpu_io_network_breakdown:
+        if self.generate_plots and cpu_network_rest_breakdown:
             n_syncs = len(cpu_io_breakdown)
-            cpu_series = [cpu_io_network_breakdown[i][0] for i in range(n_syncs)]
-            io_series = [cpu_io_network_breakdown[i][1] for i in range(n_syncs)]
-            network_series = [cpu_io_network_breakdown[i][2] for i in range(n_syncs)]
-            plot_io_breakdown(cpu_io_network_plot_file,
+            cpu_series = [cpu_network_rest_breakdown[i][0] for i in range(n_syncs)]
+            network_series = [cpu_network_rest_breakdown[i][1] for i in range(n_syncs)]
+            rest_series = [cpu_network_rest_breakdown[i][2] for i in range(n_syncs)]
+            plot_io_breakdown(cpu_network_rest_plot_file,
                               ('cpu_time', cpu_series),
-                              ('io', io_series),
-                              ('network_send', network_series))
+                              ('network_send', network_series),
+                              ('rest', rest_series))
 
         return cpu_time_summary
 
@@ -1362,11 +1363,11 @@ class LogAnalyzer:
         # cpu time
         sync_bar_plot_file_cpu = os.path.join(dest_dir,'plot-sync-bar','cpu-sync-' + str(self.process_id) + '.png')
         sync_bar_plot_file_all = os.path.join(dest_dir,'plot-sync-bar','all-sync-' + str(self.process_id) + '.png')
-        sync_bar_plot_cpu_io_network = os.path.join(dest_dir,'plot-sync-bar','cpu-io-network-sync-' + str(self.process_id) + '.png')
+        sync_bar_plot_cpu_network_rest = os.path.join(dest_dir,'plot-sync-bar','cpu-network-rest-sync-' + str(self.process_id) + '.png')
         os.makedirs(os.path.dirname(sync_bar_plot_file_cpu), exist_ok=True)
         times = self.get_cpu_times(sync_bar_plot_file_cpu,
                                    sync_bar_plot_file_all,
-                                   sync_bar_plot_cpu_io_network)
+                                   sync_bar_plot_cpu_network_rest)
         _append_stat_line(times['t_prepare_units'], 'time_prepare')
         _append_stat_line(times['t_pickle_units'], 'time_pickle')
         _append_stat_line(times['t_unpickle_units'], 'time_unpickle')
