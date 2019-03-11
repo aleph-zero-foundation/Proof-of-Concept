@@ -15,21 +15,21 @@ import aleph.const as consts
 
 
 class Process:
-    '''This class is the main component of the Aleph protocol.'''
+    '''This class represents a single member of the committee in the Aleph protocol.'''
 
     def __init__(self, n_processes, process_id, secret_key, public_key, addresses, public_key_list, tx_receiver_address, userDB=None,
                 tx_source=tx_listener, gossip_strategy='unif_random'):
         '''
         :param int n_processes: the committee size
-        :param int process_id: the id of the current process
+        :param int process_id: the id of the process
         :param string secret_key: the private key of the current process
         :param string public_key: the public key of the current process
         :param list addresses: the list of length n_processes containing addresses (host, port) of all committee members
         :param list public_keys: the list of public keys of all committee members
-        :param tuple tx_receiver_address: address pair (host, port) on which the process listen for incomming txs
+        :param tuple tx_receiver_address: address pair (host, port) on which the process should listen for incoming transactions
         :param object userDB: initial state of user accounts
-        :param object tx_source: method used for listening for incomming txs
-        :param string gossip_strategy: name of gossip strategy to be used by the process
+        :param object tx_source: method used for listening for incomming transactions
+        :param string gossip_strategy: name of the gossip strategy to be used by the process
         '''
 
         self.n_processes = n_processes
@@ -81,7 +81,7 @@ class Process:
     def sign_unit(self, U):
         '''
         Signs the unit.
-        :param unit U: the unit to be signed.
+        :param Unit U: the unit to be signed.
         '''
         U.signature = self.secret_key.sign(U.bytestring())
 
@@ -89,6 +89,7 @@ class Process:
     def process_txs_in_unit_list(self, list_U):
         '''
         For now this just counts the transactions in all the units in list_U.
+        :param list list_U: the list of units containing the transactions to be counted
         :returns: The number of transactions
         '''
         n_txs = 0
@@ -99,7 +100,8 @@ class Process:
 
     def add_unit_and_extend_linear_order(self, U):
         '''
-        Add a (compliant) unit to the poset, try to find a new timing unit and if succeded, extend the linear order.
+        Add a (compliant) unit to the poset, try to find a new timing unit and in the case of success, extend the linear order.
+        :param Unit U: the unit to be added to the poset
         '''
         #NOTE: it is assumed at this point that U is not yet in the poset
         assert U.hash() not in self.poset.units, "A duplicate unit is being added to the poset."
@@ -141,8 +143,8 @@ class Process:
     def add_unit_to_poset(self, U):
         '''
         Checks compliance of the unit U and adds it to the poset (unless already in the poset). Subsequently validates transactions using U.
-        :param unit U: the unit to be added
-        :returns: boolean value: True if succesfully added, False if unit is not compliant
+        :param Unit U: the unit to be added
+        :returns: boolean value: True if the unit was succesfully added or was already in the poset, False if the unit is not compliant
         '''
 
         if U.hash() in self.poset.units.keys():
@@ -163,6 +165,10 @@ class Process:
         return True
 
     def choose_process_to_sync_with(self):
+        '''
+        Choses a process with which to sync using the relevant strategy.
+        :returns: the id of the process chosen
+        '''
         if self.gossip_strategy == 'unif_random':
             sync_candidates = list(range(self.n_processes))
             sync_candidates.remove(self.process_id)
@@ -184,10 +190,21 @@ class Process:
         return random.choice(sync_candidates)
 
     def create_unit(self, txs, prefer_maximal = None):
+        '''
+        Attempts to create a new unit in the poset.
+        :param list txs: the transactions to include in the unit
+        :param bool prefer_maximal: whether to prefer maximal elements of the poset as parents
+        :returns: A new unit if creation was successfull, None otherwise
+        '''
         prefer_maximal = prefer_maximal if prefer_maximal is not None else consts.USE_MAX_PARENTS
         return create_unit(self.poset, self.process_id, txs, prefer_maximal = prefer_maximal)
 
     async def create_add(self, txs_queue, server_started):
+        '''
+        A task that will keep creating new units.
+        :param multiprocessing.Queue txs_queue: a queue of transactions to be added to units
+        :param asyncio.Event server_started: a mutex to ensure that the basic connection server starts before we commence unit creation
+        '''
         await server_started.wait()
         created_count, max_level_reached = 0, False
         while created_count != consts.UNITS_LIMIT and not max_level_reached:
@@ -241,6 +258,10 @@ class Process:
 
 
     async def dispatch_syncs(self, server_started):
+        '''
+        A task that will keep initiating syncs with other processes.
+        :param asyncio.Event server_started: an event to ensure that the basic connection server starts before we commence syncing
+        '''
         await server_started.wait()
 
         sync_count = 0
@@ -261,6 +282,10 @@ class Process:
 
 
     async def start_listeners(self, server_started):
+        '''
+        A task that will start listeners for syncs from other processes.
+        :param asyncio.Event server_started: an event to ensure that the basic connection server starts before we commence syncing
+        '''
         await server_started.wait()
 
         listeners = [asyncio.create_task(self.network.listener(pid)) for pid in range(self.n_processes) if pid != self.process_id]
@@ -268,6 +293,9 @@ class Process:
 
 
     async def run(self):
+        '''
+        A task to run the process.
+        '''
         # start another process listening for incoming txs
         self.logger.info(f'start_process {self.process_id} | Starting a new process in committee of size {self.n_processes}')
         txs_queue = multiprocessing.Queue(1000)
