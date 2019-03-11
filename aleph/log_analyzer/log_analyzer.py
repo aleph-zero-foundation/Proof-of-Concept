@@ -872,6 +872,13 @@ class LogAnalyzer:
         -- establish_connection_times: the (list of) times to establish a connection when initiating a sync
         -- syncs_not_succeeded: one int - the number of syncs that started (i.e. n_recv_sync was incremented)
                                 but for some reason did not terminate succesfully
+        -- send_poset_info_not_succeeded: one int - the number of send_poset_info rounds that were started but for some reason
+           did not terminate successfully
+        -- send_units_not_succeeded: one int - the number of send_units rounds that were started but for some reason did not
+           terminate successfully
+        -- send_requests_not_succeeded: one int - the number of send_requests rounds that were started but for some reason did
+           not terminate successfully
+        -- bytes_sent_per_sync: the (list of) number of bytes sent by sync
         '''
         units_sent_per_sync = []
         units_received_per_sync = []
@@ -1048,17 +1055,22 @@ class LogAnalyzer:
 
         Meaning of the specific columns:
 
-        - sync_fail: the total number of failed syncs (incoming and outcoming included)
+        - sync_fail (poset_info, units, requests): the total number of failed syncs + decomposition on individual rounds of sync
+          (incoming and outcoming included)
 
-        - sync_succ: the total number of succesful syncs (incoming and outcoming included)
+        - sync_succ (poset_info, units, requests): the total number of succesful syncs + decomposition on individual rounds of
+          sync (incoming and outcoming included)
 
-        - avg_time: average time (per sync) spent on "talking" to a specific process
+        - avg_time (poset_info, units, requests): average time (per sync) spent on "talking" to a specific process +
+          decomposition on individual rounds of sync
 
         - n_conn: the number of outcoming connection attempts to a specific process
 
         - conn_est_t: the average time spent on establishing connections to a specific process
 
         - n_conn_fail: the number of attempted (outcoming) connections that failed to establish connection
+
+        - sent_bytes: the total number of bytes sent
         '''
 
         syncs_failed = [0] * self.n_processes
@@ -1232,6 +1244,24 @@ class LogAnalyzer:
         - est_conn_time: time to establish connection to another process
 
         - sync_fail: ONE NUMBER: total number of failed synchronizations
+
+        - send_poset_info_fail: ONE NUMBER: total number of failed invocations of send_poset_info
+
+        - send_units_fail: ONE NUMBER: total number of failed invocations of send_units
+
+        - send_requests_fail: ONE NUMBER: total number of failed invocations of send_requests
+
+        - bytes_sent_per_sync: bytes sent by invocations of sync
+
+        - bytes_sent_per_sec: time series describing amount of bytes sent per second by invocations of sync
+
+        - bytes_received_per_sec: time series describing amount of bytes received per second by invocations of sync
+
+        - send_poset_per_sync: time spent in sync by invocations of send_poset_info
+
+        - send_units_per_sync: time spent in sync by invocations of send_units
+
+        - send_requests_per_sync: time spent in sync by invocations of send_requests
 
         - create_freq: the difference in time between two consecutive create_unit
 
