@@ -14,7 +14,7 @@ def gen_label_from_dir_name(dir_name):
     if parsed is None:
         return None
     tc = 'TC' if parsed['tcoin'] else '  '
-    label = f"N={parsed['N']:<4} TX={parsed['txpu']:<4} DEL=({float(parsed['create_d']):.1f},{float(parsed['sync_d']):.2f})"
+    label = f"N={parsed['N']:<4} TX={parsed['txpu']:<4} PAR={parsed['parents']:<3} DEL=({float(parsed['create_d']):.1f},{float(parsed['sync_d']):.3f})"
     return label
 
 
@@ -61,7 +61,7 @@ def gen_plot(data, plot_info, file_name):
     labels = [p[0] for p in data]
     ax.set_yticks(bar_pos)
     ax.set_yticklabels(labels, fontsize=6)
-    plt.subplots_adjust(left=0.3)
+    plt.subplots_adjust(left=0.4)
     plt.title(plot_info['title'])
     ax.set(xlabel = plot_info['xlabel'])
 
@@ -90,14 +90,15 @@ def generate_plots():
             print(f'Processing {dir_name}.')
         stats = {}
         inner_dir = os.path.join(log_dir, dir_name, 'txt-basic')
-        f_name = os.listdir(inner_dir)[0]
-        a = pd.read_csv(os.path.join(inner_dir, f_name), delim_whitespace=True)
-        n_stats = len(a.iloc[:])
-        for i in range(n_stats):
-            #print(a.iloc[i])
-            stat_name = a.iloc[i]['name']
-            stat_val = a.iloc[i]['avg']
-            stats[stat_name] = stats.get(stat_name, [])+[stat_val]
+        for f_name in os.listdir(inner_dir):
+            a = pd.read_csv(os.path.join(inner_dir, f_name), delim_whitespace=True)
+            n_stats = len(a.iloc[:])
+            for i in range(n_stats):
+                stat_name = a.iloc[i]['name']
+                stat_val = a.iloc[i]['avg']
+                if stat_name not in stats:
+                    stats[stat_name] = []
+                stats[stat_name].append(stat_val)
 
         for name, list_vals in stats.items():
             if name not in global_stats:
@@ -177,9 +178,23 @@ def generate_plots():
                              'xlabel': 'Time [s]',
                              'order': 'inc',
                              },
-        'n_parents' : {'title':'Average number of parents of units in the poset.',
+        'n_parents' : {'title':'Average number of parents of units in the poset',
                              'xlabel': 'Number of parents',
                              'order': 'dec',
+                             },
+        'n_maximal' : {'title':'Average number of maximal units in the poset (before create)',
+                             'xlabel': 'Number of units',
+                             'order': 'dec',
+                             },
+
+        'n_create_fail' : {'title':'Number of failed create_unit',
+                             'xlabel': 'Number of fails',
+                             'order': 'inc',
+                             },
+
+        'learn_level_quorum' : {'title':'Time to learn >=(2/3) of prime units at a level',
+                             'xlabel': 'Time [s]',
+                             'order': 'inc',
                              },
     }
     for name, data in global_stats.items():

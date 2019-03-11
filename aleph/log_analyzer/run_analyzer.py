@@ -35,6 +35,7 @@ def print_help():
     print(  "Use one of:\n"
             "1) python run_analyzer.py ALL logs_dir reports_dir\n"
             "       Analyzes all logs in logs_dir and writes report to reports_dir\n"
+            "       If reports_dir is not provided it uses reports_dir = logs_dir\n"
             "2) python run_analyzer.py log_file [process_id]\n"
             "       Analyzes the log_file using process_id (optional)\n"
             "       Providing process_id is mandatory if the log is shared by multiple processes\n"
@@ -60,15 +61,26 @@ def analyze_one_log():
 
 def analyze_all_dir():
     log_dir = sys.argv[2]
-    rep_dir = sys.argv[3]
+    if len(sys.argv) > 3:
+        rep_dir = sys.argv[3]
+        same_dir = False
+    else:
+        rep_dir = log_dir
+        same_dir = True
 
     if not os.path.isdir(log_dir):
         print(f"No such directory {log_dir}.")
         sys.exit(0)
 
+    print("Entering.", log_dir)
+
     if not os.path.isdir(rep_dir):
         print(f"No such directory {rep_dir}. Creating.")
         os.makedirs(rep_dir, exist_ok=True)
+
+    if same_dir and os.path.isdir(os.path.join(rep_dir, 'txt-basic')):
+        print("Already analyzed. Skipping.")
+        return
 
     list_logs = os.listdir(log_dir)
     # do not parse other.log etc.
@@ -103,10 +115,10 @@ def analyze_all_dir():
 
 
 def parse_args_and_run():
-    if len(sys.argv) in [2,3]:
-        analyze_one_log()
-    elif len(sys.argv) == 4 and sys.argv[1] == 'ALL':
+    if len(sys.argv) >= 3 and sys.argv[1] == 'ALL':
         analyze_all_dir()
+    elif len(sys.argv) in [2,3]:
+        analyze_one_log()
     else:
         print_help()
 
