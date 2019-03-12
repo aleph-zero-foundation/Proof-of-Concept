@@ -1,0 +1,41 @@
+\documentclass[a4paper,11pt]{article}
+\usepackage[utf8]{inputenc}
+\usepackage{latexsym}
+\usepackage{amsmath}
+\usepackage{amsthm}
+\usepackage{amsfonts}
+\usepackage{enumerate}
+\usepackage{color}
+\usepackage{listings}
+\usepackage{todonotes}
+\lstset{language=Python}
+
+\title{PoC internal report}
+\author{The Aleph Zero team}
+\begin{document}
+ \maketitle
+	This is the internal report from the final round of tests we ran on the proof-of-concept implementation of the Aleph protocol.
+	The implementation is written in Python and can be accessed at \todo[inline]{Make a tag and link it here.}.
+	\section{General setup}
+	This sections gives an overview of the main experimental setup.
+		\subsection{Settings}
+			We experimented with various constants than can be set in the implementation. Short descriptions of them follow.
+			\begin{description}
+				\item[create delay] The minimum amount of time, in seconds, to wait between finishing a unit and initiating the creation of a new one. Values are $.5$, $1$, and $2$.
+				\item[sync delay] The minimum amount of time, in seconds, to wait between initiating a sync and initiating another one. Values are between $.015625$ and $.25$, doubling each step.
+				\item[committee size] The number of processes in the committee. Values are $32$, $64$, $128$, $256$ and $512$.
+				\item[transactions per unit] The number of transactions included in a single unit. Values are $1$, $100$, and $1000$.
+				\item[maximum number of parents] The maximal number of parents a unit can have. Values are $10$, $20$ and $128$, the latter simulating a lack of limit.
+				\item[maximum number of incoming/outgoing syncs] The maximal number of incoming and outgoing syncs happening at the same time.
+					These are separate constants but in our tests they share the same value. Values are $10$ and $32$.
+			\end{description}
+		\subsection{Main values}
+		The core values in the results are outlined below.
+		\begin{description}
+			\item[latency] How long it took for a newly created unit to be validated. Perhaps the most important number.
+			\item[transactions per second] How many transactions were validated per second.
+			\item[sync delay] How long it actually took to initiate a new sync after the previous one. Important for assessing whether the processes ``keep up''.
+			\item[create delay] How long it actually took to initiate a new unit creation after the previous one. Important for assessing whether the processes ``keep up''.
+			\item[number of parents] How many parents did a unit have. Important for assessing whether the processes have enough information when creating units.
+		\end{description}
+\end{document}
