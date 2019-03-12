@@ -103,14 +103,8 @@ class LogAnalyzer:
             self.parse_bytes_processed_in_sync('receive_requests',
                                                self.parse_bytes_received_requests,
                                                is_start=True),
-            'receive_poset_sync' :
-            self.parse_bytes_processed_in_sync('receive_poset_info',
-                                               self.parse_bytes_received_poset_info,
-                                               is_start=True),
-            'receive_poset_listener' :
-            self.parse_bytes_processed_in_sync('receive_poset_info',
-                                               self.parse_bytes_received_poset_info,
-                                               is_start=True)
+            'receive_poset_sync' : self.receive_poset_info_parser,
+            'receive_poset_listener' : self.receive_poset_info_parser
             }
 
     def create_msg_pattern(self):
@@ -225,6 +219,21 @@ class LogAnalyzer:
             self.parse_send_units_sent
         )
 
+        def parse_if_includes_message(msg_parser, guarded_parser):
+            def parser(ev_params, msg_body, event):
+                if not msg_parser(msg_body)[0]:
+                    return
+                guarded_parser(ev_params, msg_body, event)
+            return parser
+
+        self.receive_poset_info_parser = combine_parsers(
+            parse_if_includes_message(self.parse_bytes_received_poset_info, self.parse_network_operation('receive_poset_info', is_start=True)),
+            self.parse_bytes_processed_in_sync('receive_poset_info',
+                                               self.parse_bytes_received_poset_info,
+                                               is_start=True),
+            parse_if_includes_message(self.parse_bytes_received_poset_info, self.parse_network_operation('receive_poset_info'))
+        )
+
     # Functions for parsing specific types of log messages. Typically one function per log message type.
     # Although some functions support more of them at the same time
     # Each of these functions takes the same set of parameters, being:
@@ -260,6 +269,9 @@ class LogAnalyzer:
                 else:
                     report['stop_date'] = event['date']
 
+            # if event_name == 'receive_poset_info':
+            #     import pdb; pdb.set_trace()
+
             self.process_network_report(event_name, process_report)(ev_params, msg_body, event)
 
         return parse
@@ -269,6 +281,8 @@ class LogAnalyzer:
             sync_id = int(ev_params[1])
             sync_events = self.get_or_create_events(sync_id, event_name, event['date'])
             if is_start:
+                # if event_name == 'receive_poset_info':
+                #     import pdb; pdb.set_trace()
                 new_event = self.create_event(event_name)
                 new_event['start_date'] = event['date']
                 sync_events.append(new_event)
@@ -476,6 +490,11 @@ class LogAnalyzer:
             sync_id = int(ev_params[1])
             events = self.get_or_create_events(sync_id, event_name, event['date'])
             if (not events) or (events[-1]['event_name'] != event_name):
+                # new_event = self.create_event(event_name)
+                # new_event['start_date'] = event['date']
+                # events.append(new_event)
+                # if event_name == 'receive_poset_info':
+                #     import pdb; pdb.set_trace()
                 events.append(self.create_event(event_name))
             last_event = events[-1]
             report = last_event.get('network_report', None)
@@ -1175,6 +1194,77 @@ class LogAnalyzer:
 
             print(f'Report file written to {report_file}.')
 
+    def prepare_phases_report(self, events_per_sync, reporter):
+        phase_1_times = []
+        phase_2_times = []
+        phase_1_times_sync = []
+        phase_1_times_listener = []
+        phase_2_times_sync = []
+        phase_2_times_listener = []
+        sync_event_name = 'receive_poset_info'
+        listener_event_name = 'send_poset_info'
+        for events in zip(events_per_sync, [(s, sync_id) for sync_id, s in self.syncs.items()]):
+            # if 'stop_date' not in events[1]:
+            #     continue
+            ending_event = ''
+            start_date = events[1][0]['start_date']
+            end_date = start_date
+            event_name = events[0][0]['event_name']
+            if event_name.startswith(sync_event_name):
+                # search for matching 'send_poset_info' event
+                ending_event = listener_event_name
+            elif event_name.startswith(listener_event_name):
+                # search for matching 'receive_poset_info' event
+                ending_event = sync_event_name
+
+            if ending_event == '':
+                import sys
+                print('Unknown version of the protocol (sync_id = {events[1][1]:d})', file=sys.stderr)
+                continue
+
+            enclosing_event = None
+            for event in events[0]:
+                if event['event_name'].startswith(ending_event):
+                    enclosing_event = event
+                    break
+
+            if not enclosing_event:
+                import sys
+                print(f'Missing enclosing event for the first phase of a sync {events[1][1]:d}', file=sys.stderr)
+                continue
+
+            end_date = enclosing_event['stop_date']
+            phase_1_time = diff_in_seconds(start_date, end_date)
+
+            phase_1_times.append(phase_1_time)
+
+            if ending_event == sync_event_name:
+                phase_1_times_sync.append(phase_1_time)
+            else:
+                phase_1_times_listener.append(phase_1_time)
+
+            if 'stop_date' not in events[1]:
+                import sys
+                print(f'Missing enclosing event for the second phase of a sync {events[1][1]:d}', file=sys.stderr)
+                continue
+
+            start_date = end_date
+            end_date = events[1][0]['stop_date']
+            phase_2_time = diff_in_seconds(start_date, end_date)
+
+            phase_2_times.append(phase_2_time)
+
+            if ending_event == sync_event_name:
+                phase_2_times_sync.append(phase_2_time)
+            else:
+                phase_2_times_listener.append(phase_2_time)
+
+        reporter(phase_1_times, 'phase_1_times')
+        reporter(phase_2_times, 'phase_2_times')
+        reporter(phase_1_times_sync, 'sync_phase_1_times')
+        reporter(phase_2_times_sync, 'sync_phase_2_times')
+        reporter(phase_1_times_listener, 'listener_phase_1_times')
+        reporter(phase_2_times_listener, 'listener_phase_2_times')
 
     def prepare_basic_report(self, dest_dir = 'reports', file_name_prefix = 'report-basic-'):
         '''
@@ -1234,6 +1324,22 @@ class LogAnalyzer:
         - send_units_per_sync: time spent in sync by invocations of send_units
 
         - send_requests_per_sync: time spent in sync by invocations of send_requests
+
+        - phase_1_times: time spent in sync between its start and end of a first invocation of receive_poset_info phase (reverse
+          order in case of listener events)
+
+        - phase_2_times: time spent in sync between end of a first invocation of receive_poset_info (or send_poset_info in case
+          of a listener) and end of a sync
+
+        - sync_phase_1_times: analogous to phase_1_times but limited to only sync events (syncs started by this process)
+
+        - sync_phase_2_times: analogous to phase_2_times but limited to only sync events (syncs started by this process)
+
+        - listener_phase_1_times: analogous to phase_1_times but limited to only listener sync events (syncs started not
+          by this process)
+
+        - process) listener_phase_2_times: analogous to phase_2_times but limited to only listener sync events (syncs started
+          not by this process)
 
         - create_freq: the difference in time between two consecutive create_unit
 
@@ -1345,6 +1451,9 @@ class LogAnalyzer:
         send_requests_events = [[a for a in events if a['event_name'] == 'send_requests'] for events in events_per_sync]
         send_requests_times = [self.get_event_time(evs) for evs in send_requests_events]
         _append_stat_line(send_requests_times, 'send_requests_per_sync')
+
+        # info about phases of a sync
+        self.prepare_phases_report(events_per_sync, _append_stat_line)
 
         # gen plot on units exchanged vs time
         units_ex_plot_file = os.path.join(dest_dir, 'plot-units', f'units-{self.process_id}.png')
