@@ -1335,15 +1335,15 @@ class LogAnalyzer:
         events_per_sync = [s.get('events', []) for _, s in self.syncs.items()]
 
         send_poset_info_events = [[a for a in events if a['event_name'] == 'send_poset_info'] for events in events_per_sync]
-        send_poset_info_times = [t for t in [self.get_event_time(evs) for evs in send_poset_info_events] if t != 0]
+        send_poset_info_times = [self.get_event_time(evs) for evs in send_poset_info_events]
         _append_stat_line(send_poset_info_times, 'send_poset_per_sync')
 
         send_units_events = [[a for a in events if a['event_name'] == 'send_units'] for events in events_per_sync]
-        send_units_times = [t for t in [self.get_event_time(evs) for evs in send_units_events] if t != 0]
+        send_units_times = [self.get_event_time(evs) for evs in send_units_events]
         _append_stat_line(send_units_times, 'send_units_per_sync')
 
         send_requests_events = [[a for a in events if a['event_name'] == 'send_requests'] for events in events_per_sync]
-        send_requests_times = [t for t in [self.get_event_time(evs) for evs in send_requests_events] if t != 0]
+        send_requests_times = [self.get_event_time(evs) for evs in send_requests_events]
         _append_stat_line(send_requests_times, 'send_requests_per_sync')
 
         # gen plot on units exchanged vs time
