@@ -169,6 +169,7 @@ def run_protocol(conn):
         cmd = 'python main.py'
         conn.run('export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/local/lib &&'
                  'source /home/ubuntu/p37/bin/activate &&'
+                 'ulimit -n 2048 &&'
                  f'dtach -n `mktemp -u /tmp/dtach.XXXX` {cmd}')
 
 @task
