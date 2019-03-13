@@ -1056,10 +1056,6 @@ class LogAnalyzer:
 
         - n_conn: the number of outcoming connection attempts to a specific process
 
-        - conn_est_t: the average time spent on establishing connections to a specific process
-
-        - n_conn_fail: the number of attempted (outcoming) connections that failed to establish connection
-
         - sent_bytes: the total number of bytes sent
         '''
 
@@ -1076,21 +1072,15 @@ class LogAnalyzer:
         syncs_succeeded = [0] * self.n_processes
         syncs_sent_data = [0] * self.n_processes
         tot_time = [0.0] * self.n_processes
-        conn_est_time = [0.0] * self.n_processes
         n_conn_est = [0] * self.n_processes
-        n_conn_fail = [0] * self.n_processes
         for sync_id, sync in sorted(self.syncs.items(), key = lambda x: x[0]):
             if 'target' not in sync:
                 # this sync has no info on which process are we talking to, cannot do much
                 continue
             target = sync['target']
 
-            if 'tried' in sync and 'conn_est_time' not in sync:
-                n_conn_fail[target] += 1
-
             if 'conn_est_time' in sync:
                 n_conn_est[target] += 1
-                conn_est_time[target] += sync['conn_est_time']
 
             events = sync.get('events', [])
             send_poset_info_events = [a for a in events if a['event_name'] == 'send_poset_info']
@@ -1127,8 +1117,6 @@ class LogAnalyzer:
                   'sync_succ (poset_info, units, requests)',
                   'avg_time (poset_info, units, requests)',
                   'n_conn',
-                  'conn_est_t',
-                  'n_conn_fail',
                   'sent_bytes']
         lines = []
         lines.append(format_line(fields))
@@ -1174,13 +1162,7 @@ class LogAnalyzer:
                 send_units_avg[target],
                 send_requests_avg[target]
             )
-            if n_conn_est[target]:
-                conn_est_time[target] /= n_conn_est[target]
-            else:
-                conn_est_time[target] = -1.0
             data['n_conn'] = n_conn_est[target]
-            data['n_conn_fail'] = n_conn_fail[target]
-            data['conn_est_t'] = conn_est_time[target]
             data['sent_bytes'] = syncs_sent_data[target]
 
             lines.append(format_line(fields, data))
@@ -1194,7 +1176,7 @@ class LogAnalyzer:
 
             print(f'Report file written to {report_file}.')
 
-    def prepare_phases_report(self, events_per_sync, reporter):
+    def prepare_phases_report(self, reporter):
         phase_1_times = []
         phase_2_times = []
         phase_1_times_sync = []
@@ -1203,13 +1185,15 @@ class LogAnalyzer:
         phase_2_times_listener = []
         sync_event_name = 'receive_poset_info'
         listener_event_name = 'send_poset_info'
-        for events in zip(events_per_sync, [(s, sync_id) for sync_id, s in self.syncs.items()]):
-            # if 'stop_date' not in events[1]:
-            #     continue
+
+        for sync_id, sync in self.syncs.items():
+            events = sync.get('events', [])
+            if not events:
+                continue
             ending_event = ''
-            start_date = events[1][0]['start_date']
+            start_date = sync['start_date']
             end_date = start_date
-            event_name = events[0][0]['event_name']
+            event_name = events[0]['event_name']
             if event_name.startswith(sync_event_name):
                 # search for matching 'send_poset_info' event
                 ending_event = listener_event_name
@@ -1219,18 +1203,18 @@ class LogAnalyzer:
 
             if ending_event == '':
                 import sys
-                print('Unknown version of the protocol (sync_id = {events[1][1]:d})', file=sys.stderr)
+                print('Unknown version of the protocol (sync_id = {sync_id:d})', file=sys.stderr)
                 continue
 
             enclosing_event = None
-            for event in events[0]:
+            for event in events:
                 if event['event_name'].startswith(ending_event):
                     enclosing_event = event
                     break
 
             if not enclosing_event:
                 import sys
-                print(f'Missing enclosing event for the first phase of a sync {events[1][1]:d}', file=sys.stderr)
+                print(f'Missing enclosing event for the first phase of a sync {sync_id:d}', file=sys.stderr)
                 continue
 
             end_date = enclosing_event['stop_date']
@@ -1243,13 +1227,13 @@ class LogAnalyzer:
             else:
                 phase_1_times_listener.append(phase_1_time)
 
-            if 'stop_date' not in events[1]:
+            if 'stop_date' not in sync:
                 import sys
-                print(f'Missing enclosing event for the second phase of a sync {events[1][1]:d}', file=sys.stderr)
+                print(f'Missing enclosing event for the second phase of a sync {sync_id:d}', file=sys.stderr)
                 continue
 
             start_date = end_date
-            end_date = events[1][0]['stop_date']
+            end_date = sync['stop_date']
             phase_2_time = diff_in_seconds(start_date, end_date)
 
             phase_2_times.append(phase_2_time)
@@ -1319,11 +1303,11 @@ class LogAnalyzer:
 
         - bytes_received_per_sec: time series describing amount of bytes received per second by invocations of sync
 
-        - send_poset_per_sync: time spent in sync by invocations of send_poset_info
+        - time_send_poset: time spent in sync by invocations of send_poset_info
 
-        - send_units_per_sync: time spent in sync by invocations of send_units
+        - time_send_units: time spent in sync by invocations of send_units
 
-        - send_requests_per_sync: time spent in sync by invocations of send_requests
+        - time_send_requests: time spent in sync by invocations of send_requests
 
         - phase_1_times: time spent in sync between its start and end of a first invocation of receive_poset_info phase (reverse
           order in case of listener events)
@@ -1341,9 +1325,9 @@ class LogAnalyzer:
         - process) listener_phase_2_times: analogous to phase_2_times but limited to only listener sync events (syncs started
           not by this process)
 
-        - create_freq: the difference in time between two consecutive create_unit
+        - create_delay: the difference in time between two consecutive create_unit
 
-        - sync_freq: the difference in time between two consecutive synchronization attempts
+        - sync_delay: the difference in time between two consecutive synchronization attempts
 
         - n_recv_syncs: the number of simultaneous incoming connections (sampled when a new process is trying to connect)
 
@@ -1442,18 +1426,18 @@ class LogAnalyzer:
 
         send_poset_info_events = [[a for a in events if a['event_name'] == 'send_poset_info'] for events in events_per_sync]
         send_poset_info_times = [self.get_event_time(evs) for evs in send_poset_info_events]
-        _append_stat_line(send_poset_info_times, 'send_poset_per_sync')
+        _append_stat_line(send_poset_info_times, 'time_send_poset')
 
         send_units_events = [[a for a in events if a['event_name'] == 'send_units'] for events in events_per_sync]
         send_units_times = [self.get_event_time(evs) for evs in send_units_events]
-        _append_stat_line(send_units_times, 'send_units_per_sync')
+        _append_stat_line(send_units_times, 'time_send_units')
 
         send_requests_events = [[a for a in events if a['event_name'] == 'send_requests'] for events in events_per_sync]
         send_requests_times = [self.get_event_time(evs) for evs in send_requests_events]
-        _append_stat_line(send_requests_times, 'send_requests_per_sync')
+        _append_stat_line(send_requests_times, 'time_send_requests')
 
         # info about phases of a sync
-        self.prepare_phases_report(events_per_sync, _append_stat_line)
+        self.prepare_phases_report(_append_stat_line)
 
         # gen plot on units exchanged vs time
         units_ex_plot_file = os.path.join(dest_dir, 'plot-units', f'units-{self.process_id}.png')
@@ -1462,8 +1446,8 @@ class LogAnalyzer:
 
         # delay stats
         create_delays, sync_delays = self.get_delay_stats()
-        _append_stat_line(create_delays, 'create_freq')
-        _append_stat_line(sync_delays, 'sync_freq')
+        _append_stat_line(create_delays, 'create_delay')
+        _append_stat_line(sync_delays, 'sync_delay')
 
         # number of concurrent received syncs
         data = self.current_recv_sync_no
@@ -1558,7 +1542,7 @@ def format_line(field_list, data=None):
         else:
             entry = str(value)
 
-        just_len = 25 if field == 'name' else len(field) + 10
+        just_len = 25 if field == 'name' else len(field) + 15
         entry = entry.ljust(just_len)
         line += entry
     return line
