@@ -188,24 +188,18 @@ def create_unit(poset, creator_id, txs, num_parents = None, restrictions=[expand
     return U
 
 
-def greedly_order_max_units(poset, min_level, skip):
+def max_level_max_units(poset, skip):
     '''
-    Order the list of maximal units in poset in which they are then considered as parents of a new unit.
-    :param Poset poset:
-    :param int min_level:
-    :param list skip:
-    :returns: A list of maximal units in poset with level >= min_level, with units in skip skipped order according to:
-              - primary order key is level (increasing)
-              - secondary key is the time (from most recent to least recent) when the unit was added to the poset
+    The units in the poset that are both maximal level and maximal in the poset order.
+    :param Poset poset: The poset we are working with
+    :param list skip: Units to omit in the result
+    :returns: A list of maximal units in poset with level equal to the maximal level reached, with units in skip skipped.
     '''
-    greedy_list = []
-    for level in range(min_level, poset.level_reached + 1):
-        greedy_list += reversed([V for V in poset.max_units if V.level == level and V not in skip])
-    return greedy_list
+    return [V for V in poset.max_units if V.level == poset.level_reached and V not in skip]
 
 
 
-def create_unit_greedy(poset, creator_id, txs, num_parents = None, force_parents = None):
+def create_unit_greedy(poset, creator_id, txs, num_parents = None):
     '''
     Creates a new unit and stores txs in it. It uses only maximal units in the poset as parents (with the possible exception for the self_predecessor).
     This parent selection strategy has the following properties:
@@ -217,7 +211,6 @@ def create_unit_greedy(poset, creator_id, txs, num_parents = None, force_parents
     :param int creator_id: id of process creating the new unit
     :param list txs: list of correct transactions
     :param int num_parents: maximum number of distinct parents (lower bound is always 2)
-    :param list force_parents: (ONLY FOR DEBUGGING/TESTING) parents (units) for the created unit
     :returns: the new-created unit, or None if it is not possible to create a compliant unit using this strategy
               NOTE: this does not rule out that the standard create_unit can create a unit since it is not restricted to use maximal units only
     '''
@@ -227,8 +220,6 @@ def create_unit_greedy(poset, creator_id, txs, num_parents = None, force_parents
 
     if not poset.max_units_per_process[creator_id]:
         # this is going to be our dealing unit
-        if force_parents is not None:
-            assert force_parents == [], "A dealing unit should be created first."
         U = Unit(creator_id, [], txs)
         if poset.use_tcoin:
             poset.add_tcoin_to_dealing_unit(U)
@@ -238,39 +229,29 @@ def create_unit_greedy(poset, creator_id, txs, num_parents = None, force_parents
 
     assert len(poset.max_units_per_process[creator_id]) == 1, "It appears we have created a fork."
 
-    if force_parents is not None:
-        assert len(force_parents) <= num_parents and len(force_parents) > 1, "Incorrect number of parents chosen."
+    # choose parents for the new unit
+    U_self_predecessor = poset.max_units_per_process[creator_id][0]
+    level = U_self_predecessor.level
 
-    if force_parents is None:
-        # choose parents for the new unit
-        U_self_predecessor = poset.max_units_per_process[creator_id][0]
-        level = U_self_predecessor.level
+    parent_candidates = [U_self_predecessor] + max_level_max_units(poset, skip = [U_self_predecessor])
+    parents = []
+    non_visible_primes = poset.get_all_prime_units_by_level(level)
 
-        parent_candidates = [U_self_predecessor] + greedly_order_max_units(poset, min_level = level, skip = [U_self_predecessor])
-        parents = []
-        non_visible_primes = poset.get_all_prime_units_by_level(level)
+    # the below faithfully implements the expand_primes rule
+    for V in parent_candidates:
+        if len(parents) == num_parents:
+            break
+        if V.level > level:
+            level = V.level
+            non_visible_primes = poset.get_all_prime_units_by_level(level)
+        # the 3 lines below can be optimized (by a constant factor) but it is left as it is for simplicity and to avoid premature optimization
+        if any(poset.below(W, V) for W in non_visible_primes):
+            parents.append(V)
+            non_visible_primes = [W for W in non_visible_primes if not poset.below(W, V)]
+    if len(parents) < 2:
+        return None
 
-        # the below faithfully implements the expand_primes rule
-        for V in parent_candidates:
-            if len(parents) == num_parents:
-                break
-            if V.level > level:
-                level = V.level
-                non_visible_primes = poset.get_all_prime_units_by_level(level)
-            # the 3 lines below can be optimized (by a constant factor) but it is left as it is for simplicity and to avoid premature optimization
-            if any(poset.below(W, V) for W in non_visible_primes):
-                parents.append(V)
-                non_visible_primes = [W for W in non_visible_primes if not poset.below(W, V)]
-        if len(parents) < 2:
-            return None
-
-        U = Unit(creator_id, parents, txs)
-    else:
-        # force_parents is set
-        assert all(V.hash() in poset.units for V in force_parents)
-        # compliance might still fail here -- but it will be detected later
-        # force_parents should be used for debugging and testing purposes only
-        U = Unit(creator_id, force_parents, txs)
+    U = Unit(creator_id, parents, txs)
 
     if poset.use_tcoin:
         # TODO: calling prepare unit here is a bit confusing, maybe we can move it somewhere
