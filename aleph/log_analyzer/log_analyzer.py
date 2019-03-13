@@ -38,75 +38,9 @@ class LogAnalyzer:
 
         self.generate_plots = generate_plots
 
-        # initialize a bunch of parsing patterns
-        # doing parse.compile() beforehand once is to speed-up the parsing
-        self.msg_pattern = self.create_msg_pattern()
-        self.split_on_bar = parse.compile("{left}|{right}")
-
-        self.pattern_create = parse.compile("Created a new unit <{unit}> with {n_parents:d} parents")
-        self.pattern_memory = parse.compile("{usage:f} MiB")
-        self.pattern_level = parse.compile("Level {level:d} reached")
-        self.pattern_add_line = parse.compile("At lvl {timing_level:d} added {n_units:d} units and {n_txs:d} txs to the linear order {unit_list}")
-        self.pattern_decide_timing = parse.compile("Timing unit for lvl {level:d} decided at lvl + {plus_level:d}, poset lvl + {plus_poset_level:d}")
-        self.pattern_sync_establish = parse.compile("Established connection to {process_id:d}")
-        self.pattern_listener_succ = parse.compile("Syncing with {process_id:d} succesful")
-        self.pattern_receive_units_done = parse.compile("Received {n_bytes:d} bytes and {n_units:d} units")
-        self.pattern_send_units_sent = parse.compile("Sent {n_units:d} units and {n_bytes:d} bytes to {ex_id:d}")
-        self.pattern_try_sync = parse.compile("Establishing connection to {target:d}")
-        self.pattern_listener_sync_no = parse.compile("Number of syncs is {n_recv_syncs:d}")
-        self.pattern_add_run_time = parse.compile("Added {n_units:d} in {tot_time:f} sec")
-        self.pattern_start_process = parse.compile("Starting a new process in committee of size {n_processes:d}")
-        self.pattern_receive_units_start = parse.compile("Receiving units from {target:d}")
-        self.pattern_add_done = parse.compile("units from {target:d} were added succesfully {unit_list}")
-        self.pattern_timer = parse.compile("{timer_name} took {time_spent:f} s")
-        self.pattern_send_poset_info_bytes = parse.compile("sent heights {to_send} ({n_bytes:d} bytes) to {process_id:d}")
-        self.pattern_send_requests_bytes = parse.compile("sent requests {to_send} ({n_bytes:d} bytes) to {process_id:d}")
-        self.pattern_receive_requests_bytes = parse.compile("received requests {requests_received} ({n_bytes:d} bytes) from {process_id:d}")
-        self.pattern_receive_poset_info_bytes = parse.compile("Got heights {info} ({n_bytes:d} bytes) from {process_id:d}")
-        self.pattern_max_units = parse.compile("There are {n_maximal:d} maximal units just before create_unit")
-        self.pattern_create_fail = parse.compile("Failed to create a new unit")
-        self.pattern_prime_unit = parse.compile("New prime unit at level {level:d} : {unit}")
+        self.prepare_parsers()
 
         # create the mapping between event types and the functions used for parsing this types of events
-
-        receive_units_done_parser = self.combine_parsers(
-            self.parse_receive_units_done,
-            self.parse_bytes_processed_in_sync('receive_units', self.parse_bytes_received_units)
-        )
-
-        send_poset_done_parser = self.combine_parsers(
-            self.parse_network_operation('send_poset_info'),
-            self.parse_await_time('send_poset_info'),
-            self.parse_bytes_processed_in_sync('send_poset_info', self.parse_bytes_send_poset_info),
-        )
-
-        send_poset_wait_parser = self.combine_parsers(
-            self.parse_await_time('send_poset_info', is_start=True),
-            self.parse_bytes_processed_in_sync('send_poset_info', lambda _: (True, 0), is_start=True)
-        )
-
-        send_requests_wait_parser = self.combine_parsers(
-            self.parse_bytes_processed_in_sync('send_requests', lambda _: (True, 0), is_start=True),
-            self.parse_await_time('send_requests', is_start=True)
-        )
-
-        send_requests_done_parser = self.combine_parsers(
-            self.parse_bytes_processed_in_sync('send_requests', self.parse_bytes_send_requests),
-            self.parse_await_time('send_requests'),
-            self.parse_network_operation('send_requests'),
-        )
-
-        send_units_wait_parser = self.combine_parsers(
-            self.parse_await_time('send_units', is_start=True),
-            self.parse_bytes_processed_in_sync('send_units', lambda _: (True, 0), is_start=True)
-        )
-
-        send_units_sent_parser = self.combine_parsers(
-            self.parse_bytes_processed_in_sync('send_units', self.parse_bytes_send_units),
-            self.parse_await_time('send_units'),
-            self.parse_send_units_sent
-        )
-
         self.parse_mapping = {
             'create_add' : self.parse_create,
             'memory_usage' : self.parse_mem_usg,
@@ -118,8 +52,8 @@ class LogAnalyzer:
             'sync_succ' : self.parse_listener_succ,
             'listener_succ' : self.parse_listener_succ,
 
-            'receive_units_done_sync' : receive_units_done_parser,
-            'receive_units_done_listener' : receive_units_done_parser,
+            'receive_units_done_sync' : self.receive_units_done_parser,
+            'receive_units_done_listener' : self.receive_units_done_parser,
 
             'sync_establish_try' : self.parse_try_sync,
             'listener_sync_no' : self.parse_listener_sync_no,
@@ -135,54 +69,173 @@ class LogAnalyzer:
             'prime_unit' : self.parse_prime_unit,
 
             'send_poset_sync' : self.parse_network_operation('send_poset_info', is_start=True),
-            'send_poset_wait_sync' : send_poset_wait_parser,
-            'send_poset_done_sync' : send_poset_done_parser,
+            'send_poset_wait_sync' : self.send_poset_wait_parser,
+            'send_poset_done_sync' : self.send_poset_done_parser,
 
             'send_poset_listener' : self.parse_network_operation('send_poset_info', is_start=True),
-            'send_poset_wait_listener' : send_poset_wait_parser,
-            'send_poset_done_listener' : send_poset_done_parser,
+            'send_poset_wait_listener' : self.send_poset_wait_parser,
+            'send_poset_done_listener' : self.send_poset_done_parser,
 
             'send_requests_start_sync' : self.parse_network_operation('send_requests', is_start=True),
-            'send_requests_wait_sync' : send_requests_wait_parser,
-            'send_requests_done_sync' : send_requests_done_parser,
+            'send_requests_wait_sync' : self.send_requests_wait_parser,
+            'send_requests_done_sync' : self.send_requests_done_parser,
 
             'send_requests_start_listener' : self.parse_network_operation('send_requests', is_start=True),
-            'send_requests_wait_listener' : send_requests_wait_parser,
-            'send_requests_done_listener' : send_requests_done_parser,
+            'send_requests_wait_listener' : self.send_requests_wait_parser,
+            'send_requests_done_listener' : self.send_requests_done_parser,
 
             'send_units_start_sync' : self.parse_network_operation('send_units', is_start=True),
-            'send_units_wait_sync' : send_units_wait_parser,
-            'send_units_sent_sync' : send_units_sent_parser,
+            'send_units_wait_sync' : self.send_units_wait_parser,
+            'send_units_sent_sync' : self.send_units_sent_parser,
             'send_units_done_sync' : self.parse_network_operation('send_units'),
 
             'send_units_start_listener' : self.parse_network_operation('send_units', is_start=True),
-            'send_units_wait_listener' : send_units_wait_parser,
-            'send_units_sent_listener' : send_units_sent_parser,
+            'send_units_wait_listener' : self.send_units_wait_parser,
+            'send_units_sent_listener' : self.send_units_sent_parser,
             'send_units_done_listener' : self.parse_network_operation('send_units'),
 
 
             'receive_requests_done_sync' :
             self.parse_bytes_processed_in_sync('receive_requests',
-                                               self.parse_bytes_received_requests, is_start=True),
+                                               self.parse_bytes_received_requests,
+                                               is_start=True),
             'receive_requests_done_listener' :
             self.parse_bytes_processed_in_sync('receive_requests',
-                                               self.parse_bytes_received_requests, is_start=True),
-            'receive_poset_sync' :
-            self.parse_bytes_processed_in_sync('receive_poset_info',
-                                               self.parse_bytes_received_poset_info, is_start=True),
-            'receive_poset_listener' :
-            self.parse_bytes_processed_in_sync('receive_poset_info',
-                                               self.parse_bytes_received_poset_info, is_start=True)
+                                               self.parse_bytes_received_requests,
+                                               is_start=True),
+            'receive_poset_sync' : self.receive_poset_info_parser,
+            'receive_poset_listener' : self.receive_poset_info_parser
             }
 
     def create_msg_pattern(self):
+        # NOTE: 'parse' always matches the shortest text necessary (from left to right) to fulfill the parse pattern due to this
+        #       behavior some logs are not parsed correctly, e.g. ones including pretty printed lists (file pattern is not
+        #       parsed correctly). The following code is a 'dirty' fix for this behavior.
+
+        # try to parse a file name included in every log line, i.e. a pattern of the form [filename.py:linenumber] (e.g.
+        # process.py:1)
         @parse.with_pattern(r'[a-zA-Z0-9_]+\.py:\d+')
         def file_line_parser(text):
             return text
         return parse.compile("[{date}] [{msg_level}] [{name}] {msg} [{file_line:file_line_type}]",
                              dict(file_line_type=file_line_parser))
 
-    # Functions for parsing specific types of log messages. Typically one function per log lessage type.
+    def prepare_parsers(self):
+        # initialize a bunch of parsing patterns
+        # doing parse.compile() beforehand once is to speed-up the parsing
+        self.msg_pattern = self.create_msg_pattern()
+        self.split_on_bar = parse.compile("{left}|{right}")
+
+        self.pattern_create = parse.compile("Created a new unit <{unit}> with {n_parents:d} parents")
+        self.pattern_memory = parse.compile("{usage:f} MiB")
+        self.pattern_level = parse.compile("Level {level:d} reached")
+        self.pattern_add_line = parse.compile("At lvl {timing_level:d} added {n_units:d} units and {n_txs:d} txs to the linear "
+                                              "order {unit_list}")
+        self.pattern_decide_timing = parse.compile("Timing unit for lvl {level:d} decided at lvl + {plus_level:d}, poset lvl + "
+                                                   "{plus_poset_level:d}")
+        self.pattern_sync_establish = parse.compile("Established connection to {process_id:d}")
+        self.pattern_listener_succ = parse.compile("Syncing with {process_id:d} succesful")
+        self.pattern_receive_units_done = parse.compile("Received {n_bytes:d} bytes and {n_units:d} units")
+        self.pattern_send_units_sent = parse.compile("Sent {n_units:d} units and {n_bytes:d} bytes to {ex_id:d}")
+        self.pattern_try_sync = parse.compile("Establishing connection to {target:d}")
+        self.pattern_listener_sync_no = parse.compile("Number of syncs is {n_recv_syncs:d}")
+        self.pattern_add_run_time = parse.compile("Added {n_units:d} in {tot_time:f} sec")
+        self.pattern_start_process = parse.compile("Starting a new process in committee of size {n_processes:d}")
+        self.pattern_receive_units_start = parse.compile("Receiving units from {target:d}")
+        self.pattern_add_done = parse.compile("units from {target:d} were added succesfully {unit_list}")
+        self.pattern_timer = parse.compile("{timer_name} took {time_spent:f} s")
+        self.pattern_send_poset_info_bytes = parse.compile("sent heights {to_send} ({n_bytes:d} bytes) to {process_id:d}")
+        self.pattern_send_requests_bytes = parse.compile("sent requests {to_send} ({n_bytes:d} bytes) to {process_id:d}")
+        self.pattern_receive_requests_bytes = parse.compile("received requests {requests_received} ({n_bytes:d} bytes) from "
+                                                            "{process_id:d}")
+        self.pattern_receive_poset_info_bytes = parse.compile("Got heights {info} ({n_bytes:d} bytes) from {process_id:d}")
+        self.pattern_max_units = parse.compile("There are {n_maximal:d} maximal units just before create_unit")
+        self.pattern_create_fail = parse.compile("Failed to create a new unit")
+        self.pattern_prime_unit = parse.compile("New prime unit at level {level:d} : {unit}")
+
+        # helper functions related with parsing
+        def parse_value_using_parser(parser, tag):
+            def parser_method(msg_body):
+                parsed = parser.parse(msg_body)
+                if parsed is None:
+                    return (False, None)
+                return True, parsed[tag]
+            return parser_method
+
+        self.parse_bytes_send_units = parse_value_using_parser(self.pattern_send_units_sent, 'n_bytes')
+
+        self.parse_bytes_send_poset_info = parse_value_using_parser(self.pattern_send_poset_info_bytes, 'n_bytes')
+
+        self.parse_bytes_send_requests = parse_value_using_parser(self.pattern_send_requests_bytes, 'n_bytes')
+
+        self.parse_bytes_received_units = parse_value_using_parser(self.pattern_receive_units_done, 'n_bytes')
+
+        self.parse_bytes_received_requests = parse_value_using_parser(self.pattern_receive_requests_bytes, 'n_bytes')
+
+        self.parse_bytes_received_poset_info = parse_value_using_parser(self.pattern_receive_poset_info_bytes, 'n_bytes')
+
+        def combine_parsers(*parsers):
+            def parse(ev_params, msg_body, event):
+                for parser in parsers:
+                    parser(ev_params, msg_body, event)
+            return parse
+
+        # prepare some common parsers used in the following parts of the initialization
+        self.receive_units_done_parser = combine_parsers(
+            self.parse_receive_units_done,
+            self.parse_bytes_processed_in_sync('receive_units', self.parse_bytes_received_units)
+        )
+
+        self.send_poset_done_parser = combine_parsers(
+            self.parse_network_operation('send_poset_info'),
+            self.parse_await_time('send_poset_info'),
+            self.parse_bytes_processed_in_sync('send_poset_info', self.parse_bytes_send_poset_info),
+        )
+
+        self.send_poset_wait_parser = combine_parsers(
+            self.parse_await_time('send_poset_info', is_start=True),
+            self.parse_bytes_processed_in_sync('send_poset_info', lambda _: (True, 0), is_start=True)
+        )
+
+        self.send_requests_wait_parser = combine_parsers(
+            self.parse_bytes_processed_in_sync('send_requests', lambda _: (True, 0), is_start=True),
+            self.parse_await_time('send_requests', is_start=True)
+        )
+
+        self.send_requests_done_parser = combine_parsers(
+            self.parse_bytes_processed_in_sync('send_requests', self.parse_bytes_send_requests),
+            self.parse_await_time('send_requests'),
+            self.parse_network_operation('send_requests'),
+        )
+
+        self.send_units_wait_parser = combine_parsers(
+            self.parse_await_time('send_units', is_start=True),
+            self.parse_bytes_processed_in_sync('send_units', lambda _: (True, 0), is_start=True)
+        )
+
+        self.send_units_sent_parser = combine_parsers(
+            self.parse_bytes_processed_in_sync('send_units', self.parse_bytes_send_units),
+            self.parse_await_time('send_units'),
+            self.parse_send_units_sent
+        )
+
+        def parse_if_includes_message(msg_parser, guarded_parser):
+            def parser(ev_params, msg_body, event):
+                if not msg_parser(msg_body)[0]:
+                    return
+                guarded_parser(ev_params, msg_body, event)
+            return parser
+
+        self.receive_poset_info_parser = combine_parsers(
+            parse_if_includes_message(self.parse_bytes_received_poset_info,
+                                      self.parse_network_operation('receive_poset_info', is_start=True)),
+            self.parse_bytes_processed_in_sync('receive_poset_info',
+                                               self.parse_bytes_received_poset_info,
+                                               is_start=True),
+            parse_if_includes_message(self.parse_bytes_received_poset_info, self.parse_network_operation('receive_poset_info'))
+        )
+
+    # Functions for parsing specific types of log messages. Typically one function per log message type.
     # Although some functions support more of them at the same time
     # Each of these functions takes the same set of parameters, being:
     # -- ev_params: parameters of the log event, typically process_id or/and sync_id
@@ -190,79 +243,6 @@ class LogAnalyzer:
     # -- event: this is the partial result of parsing of the current line, it has a date field etc.
 
     # ----------- START PARSING FUNCTIONS ---------------
-
-    def parse_bytes_send_units(self, msg_body):
-        return self.parse_value_using_parser(self.pattern_send_units_sent, 'n_bytes')(msg_body)
-
-    def parse_bytes_send_poset_info(self, msg_body):
-        return self.parse_value_using_parser(self.pattern_send_poset_info_bytes, 'n_bytes')(msg_body)
-
-    def parse_bytes_send_requests(self, msg_body):
-        return self.parse_value_using_parser(self.pattern_send_requests_bytes, 'n_bytes')(msg_body)
-
-    def parse_bytes_received_units(self, msg_body):
-        return self.parse_value_using_parser(self.pattern_receive_units_done, 'n_bytes')(msg_body)
-
-    def parse_bytes_received_requests(self, msg_body):
-        return self.parse_value_using_parser(self.pattern_receive_requests_bytes, 'n_bytes')(msg_body)
-
-    def parse_bytes_received_poset_info(self, msg_body):
-        return self.parse_value_using_parser(self.pattern_receive_poset_info_bytes, 'n_bytes')(msg_body)
-
-    def parse_value_using_parser(self, parser, tag):
-        def parser_method(msg_body):
-            parsed = parser.parse(msg_body)
-            if parsed is None:
-                return (False, None)
-            return True, parsed[tag]
-        return parser_method
-
-    def combine_parsers(self, *parsers):
-        def parse(ev_params, msg_body, event):
-            for parser in parsers:
-                parser(ev_params, msg_body, event)
-        return parse
-
-    def create_sync_event(self, start_date, target=None, events=None, tried=None):
-        if events is None:
-            events = []
-        result = {'start_date': start_date, 'events': events}
-        if target:
-            result['target'] = target
-        if tried:
-            result['tried'] = tried
-        return result
-
-    def create_network_report(self, n_bytes, start_date):
-        return dict(n_bytes=n_bytes, start_date=start_date)
-
-    def get_or_create_events(self, sync_id, event_name, start_date):
-        sync = self.syncs.get(sync_id, None)
-        if sync is None:
-            sync = self.create_sync_event(start_date)
-            self.syncs[sync_id] = sync
-        return sync['events']
-
-    def create_event(self, event_name):
-        return dict(event_name=event_name)
-
-    def create_await(self, start_date):
-        return dict(start_date=start_date)
-
-    def process_network_report(self, event_name, report_handler=lambda _: None):
-        def parse(ev_params, msg_body, event):
-            sync_id = int(ev_params[1])
-            events = self.get_or_create_events(sync_id, event_name, event['date'])
-            if (not events) or (events[-1]['event_name'] != event_name):
-                events.append(self.create_event(event_name))
-            last_event = events[-1]
-            report = last_event.get('network_report', None)
-            if report is None:
-                report = self.create_network_report(0, start_date=event['date'])
-                last_event['network_report'] = report
-            report_handler(report)
-
-        return parse
 
     def parse_await_time(self, event_name, is_start=False):
         def parse(ev_params, msg_body, event):
@@ -276,7 +256,6 @@ class LogAnalyzer:
             self.process_network_report(event_name, process_report)(ev_params, msg_body, event)
 
         return parse
-
 
     def parse_bytes_processed_in_sync(self, event_name, retrieve_bytes=lambda msg: (False, 0), is_start=False):
         def parse(ev_params, msg_body, event):
@@ -305,6 +284,7 @@ class LogAnalyzer:
                 sync_events.append(new_event)
             else:
                 assert sync_events, f"There was no starting event for {event_name}"
+                assert sync_events[-1]['event_name'] == event_name, f'Wrong name of the last event'
                 sync_events[-1]['stop_date'] = event['date']
 
         return parse
@@ -314,7 +294,8 @@ class LogAnalyzer:
         self.max_units_cnts.append(parsed['n_maximal'])
 
     def parse_create_fail(self, ev_params, msg_body, event):
-        parsed = self.pattern_max_units.parse(msg_body)
+        parsed = self.pattern_create_fail.parse(msg_body)
+        assert parsed, "Failed to parse a message of an 'create_fail' event"
         self.n_create_fail += 1
 
     def parse_prime_unit(self, ev_params, msg_body, event):
@@ -347,10 +328,9 @@ class LogAnalyzer:
             elif timer_name == "attempt_timing":
                 self.timing_attempt_times.append(time_spent)
             else:
-            # this is 'linear_order_L' where L is the level
+                # this is 'linear_order_L' where L is the level
                 level = parse.parse("linear_order_{level:d}", timer_name)['level']
                 self.levels[level]['t_lin_order'] = time_spent
-
 
     def parse_mem_usg(self, ev_params, msg_body, event):
         parsed = self.pattern_memory.parse(msg_body)
@@ -452,8 +432,10 @@ class LogAnalyzer:
         parsed = self.pattern_decide_timing.parse(msg_body)
         level = parsed['level']
         timing_decided_level = parsed['level'] + parsed['plus_level']
+        timing_poset_decided_level = parsed['level'] + parsed['plus_poset_level']
 
         self.levels[level]['timing_decided_level'] = timing_decided_level
+        self.levels[level]['timing_poset_decided_level'] = timing_poset_decided_level
         self.levels[level]['timing_decided_date'] = event['date']
 
     def parse_receive_units_done(self, ev_params, msg_body, event):
@@ -462,7 +444,6 @@ class LogAnalyzer:
         sync_id = int(ev_params[1])
         self.syncs[sync_id]['units_received'] = parsed['n_units']
         self.syncs[sync_id]['bytes_received'] = parsed['n_bytes']
-
 
 
     def parse_send_units_sent(self, ev_params, msg_body, event):
@@ -474,7 +455,46 @@ class LogAnalyzer:
 
     # ----------- END PARSING FUNCTIONS ---------------
 
+    def create_sync_event(self, start_date, target=None, events=None, tried=None):
+        if events is None:
+            events = []
+        result = {'start_date': start_date, 'events': events}
+        if target:
+            result['target'] = target
+        if tried:
+            result['tried'] = tried
+        return result
 
+    def create_network_report(self, n_bytes, start_date):
+        return dict(n_bytes=n_bytes, start_date=start_date)
+
+    def get_or_create_events(self, sync_id, event_name, start_date):
+        sync = self.syncs.get(sync_id, None)
+        if sync is None:
+            sync = self.create_sync_event(start_date)
+            self.syncs[sync_id] = sync
+        return sync['events']
+
+    def create_event(self, event_name):
+        return dict(event_name=event_name)
+
+    def create_await(self, start_date):
+        return dict(start_date=start_date)
+
+    def process_network_report(self, event_name, report_handler=lambda _: None):
+        def parse(ev_params, msg_body, event):
+            sync_id = int(ev_params[1])
+            events = self.get_or_create_events(sync_id, event_name, event['date'])
+            if (not events) or (events[-1]['event_name'] != event_name):
+                events.append(self.create_event(event_name))
+            last_event = events[-1]
+            report = last_event.get('network_report', None)
+            if report is None:
+                report = self.create_network_report(0, start_date=event['date'])
+                last_event['network_report'] = report
+            report_handler(report)
+
+        return parse
 
     def parse_and_handle_log_line(self, line):
         '''
@@ -531,8 +551,6 @@ class LogAnalyzer:
 
         return True
 
-
-
     def analyze(self):
         '''
         Reads lines from the log, parses them and updates the analyzer's state.
@@ -586,26 +604,42 @@ class LogAnalyzer:
         secs_till_max_level_timing = diff_in_seconds(self.levels[0]['date'], self.levels[max_level]['timing_decided_date'])
         return tot_txs/secs_till_max_level_timing
 
+    def build_bytes_per_second_stats(self, events, window_in_seconds=1):
+        events = sorted(events, key=lambda x: x['start_date'])
+        series = [0]
+        last_timestamp = events[0]['start_date']
+        for event in events:
+            while not (diff_in_seconds(last_timestamp, event['start_date']) <= window_in_seconds):
+                series.append(0)
+                last_timestamp += timedelta(0, window_in_seconds)
+            series[-1] += event['n_bytes']
+
+        return series
+
+    def get_outbound_network_events(self):
+        return [event['network_report']
+                for _, sync in self.syncs.items()
+                for event in sync.get('events', [])
+                if 'network_report' in event and event['event_name'].startswith('send')]
+
+    def get_inbound_network_events(self):
+        return [event['network_report']
+                for _, sync in self.syncs.items()
+                for event in sync.get('events', [])
+                if 'network_report' in event and event['event_name'].startswith('receive')]
+
     def plot_network_utilization(self, network_plot_outbound_file=None, network_plot_inbound_file=None):
         if not self.generate_plots:
             return
-        window_in_seconds = 1
-
-        def is_in_window(event1, event2):
-            return diff_in_seconds(event1['start_date'], event2['start_date']) < window_in_seconds
 
         def plot_network(events, y_label='bytes sent', network_plot_file=network_plot_outbound_file):
             if not events:
                 return
-            events = sorted(events, key=lambda x: x['start_date'])
-            series = [dict(n_bytes=0, start_date=events[0]['start_date'])]
-            for event in events:
-                while not is_in_window(series[-1], event):
-                    series.append(dict(n_bytes=0, start_date=(series[-1]['start_date'] + timedelta(0, window_in_seconds))))
-                series[-1]['n_bytes'] += event['n_bytes']
 
-            x_series = [diff_in_seconds(series[0]['start_date'], value['start_date']) for value in series]
-            y_series = [val['n_bytes'] for val in series]
+            series = self.build_bytes_per_second_stats(events, window_in_seconds=1)
+
+            x_series = list(range(len(series)))
+            y_series = series
             plt.bar(x_series, y_series)
             plt.xlabel('time in seconds')
             plt.ylabel(y_label)
@@ -615,26 +649,18 @@ class LogAnalyzer:
 
         # plotting outbound traffic
         if network_plot_outbound_file is not None:
-            events = [event['network_report']
-                      for _, sync in self.syncs.items()
-                      for event in sync.get('events', [])
-                      if 'network_report' in event and event['event_name'].startswith('send')]
-
+            events = self.get_outbound_network_events()
             plot_network(events, network_plot_file=network_plot_outbound_file)
 
-        # plotting outbound traffic
+        # plotting inbound traffic
         if network_plot_inbound_file is not None:
-            events = [event['network_report']
-                      for _, sync in self.syncs.items()
-                      for event in sync.get('events', [])
-                      if 'network_report' in event and event['event_name'].startswith('receive')]
-
+            events = self.get_inbound_network_events()
             plot_network(events, 'bytes received', network_plot_file=network_plot_inbound_file)
 
     def get_cpu_times(self,
                       cpu_plot_file = None,
                       cpu_io_plot_file = None,
-                      cpu_io_network_plot_file = None):
+                      cpu_network_rest_plot_file = None):
         timer_names = ['t_prepare_units', 't_compress_units', 't_decompress_units', 't_unpickle_units',
                      't_pickle_units', 't_verify_signatures', 't_add_units']
         cpu_time_summary = { name : [] for name in timer_names }
@@ -646,7 +672,8 @@ class LogAnalyzer:
 
         cpu_breakdown_entries = []
         cpu_io_breakdown = []
-        cpu_io_network_breakdown = []
+        # decomposition of time spent in sync between cpu/(sending operations)/rest
+        cpu_network_rest_breakdown = []
 
         for sync_id, sync_dict in sorted(self.syncs.items(), key = lambda x: x[0]):
             sync_tot_cpu_time = 0.0
@@ -671,9 +698,9 @@ class LogAnalyzer:
             if sync_tot_cpu_time > 0.0 and 'stop_date' in sync_dict:
                 sync_tot_time = diff_in_seconds(sync_dict['start_date'], sync_dict['stop_date'])
                 cpu_io_breakdown.append([sync_tot_cpu_time, sync_tot_time - sync_tot_cpu_time])
-                cpu_io_network_breakdown.append([sync_tot_cpu_time,
-                                                 sync_tot_time - sync_tot_cpu_time - sync_tot_network_time,
-                                                 sync_tot_network_time])
+                cpu_network_rest_breakdown.append([sync_tot_cpu_time,
+                                                 sync_tot_network_time,
+                                                 sync_tot_time - sync_tot_cpu_time - sync_tot_network_time])
 
         for level, level_dict in self.levels.items():
             if 't_lin_order' in level_dict:
@@ -682,57 +709,47 @@ class LogAnalyzer:
         cpu_time_summary['t_create'] = self.create_times
         cpu_time_summary['t_attempt_timing'] = self.timing_attempt_times
 
-
-        # the plot with how the cpu time is divided between various tasks
-        if self.generate_plots and cpu_breakdown_entries != []:
+        def plot_io_breakdown(plot_file, *data):
+            if not data:
+                return
             layers = []
-            n_syncs = len(cpu_breakdown_entries)
+            n_syncs = len(data[0][1])
+            x_series = range(n_syncs)
             heights = [0.0] * n_syncs
-            for ind in range(len(timer_names)):
-                y_series = [cpu_breakdown_entries[i][ind] for i in range(n_syncs)]
-                x_series = range(n_syncs)
-                # the width of the bars
-                width = 0.5
-                layer = plt.bar(x_series, y_series, width, bottom=heights)
-                layers.append(layer)
-                heights = [y_series[i] + heights[i] for i in range(n_syncs)]
-            plt.legend([layer[0] for layer in layers], timer_names)
-            plt.savefig(cpu_plot_file, dpi=800)
+            width = 0.5
+            for plot_data in data:
+                plot = plt.bar(x_series, plot_data[1], width, label=plot_data[0], bottom=heights)
+                layers.append(plot)
+                heights = [plot_data[1][i] + heights[i] for i in range(n_syncs)]
+            plt.legend(handles=layers)
+            plt.savefig(plot_file, dpi=800)
             plt.close()
+
+        # the plot showing how the cpu time is divided between various tasks
+        if self.generate_plots and cpu_breakdown_entries != []:
+            plot_io_breakdown(cpu_plot_file, *[(
+                                                timer_names[ind],
+                                                [cpu_breakdown_entries[i][ind] for i in range(len(cpu_breakdown_entries))]
+                                               )
+                                               for ind in range(len(timer_names))])
 
         # the plot showing how the sync time divides into cpu vs non-cpu
         if self.generate_plots and cpu_io_breakdown != []:
-            layers = []
             n_syncs = len(cpu_io_breakdown)
-            heights = [0.0] * n_syncs
             y_series_cpu = [cpu_io_breakdown[i][0] for i in range(n_syncs)]
             y_series_rest = [cpu_io_breakdown[i][1] for i in range(n_syncs)]
-            x_series = range(n_syncs)
-            # the width of the bars
-            width = 0.5
-            layer_cpu = plt.bar(x_series, y_series_cpu, width)
-            layer_rest = plt.bar(x_series, y_series_rest, width, bottom=y_series_cpu)
-            plt.legend([layer_cpu[0], layer_rest[0]], ('cpu_time', 'io+rest'))
-            plt.savefig(cpu_io_plot_file, dpi=800)
-            plt.close()
+            plot_io_breakdown(cpu_io_plot_file, ('cpu_time', y_series_cpu), ('io+rest', y_series_rest))
 
         # the plot showing how the sync time divides into cpu vs (network operations vs rest)
-        if self.generate_plots and cpu_io_network_breakdown:
-            layers = []
+        if self.generate_plots and cpu_network_rest_breakdown:
             n_syncs = len(cpu_io_breakdown)
-            heights = [0.0] * n_syncs
-            y_series_cpu = [cpu_io_network_breakdown[i][0] for i in range(n_syncs)]
-            y_series_io = [cpu_io_network_breakdown[i][1] for i in range(n_syncs)]
-            y_series_network = [cpu_io_network_breakdown[i][2] for i in range(n_syncs)]
-            x_series = range(n_syncs)
-            # the width of the bars
-            width = 0.5
-            layer_cpu = plt.bar(x_series, y_series_cpu, width)
-            layer_io = plt.bar(x_series, y_series_io, width, bottom=y_series_cpu)
-            layer_network = plt.bar(x_series, y_series_network, width, bottom=y_series_cpu)
-            plt.legend([layer_cpu[0], layer_io[0], layer_network[0]], ('cpu_time', 'io', 'network'))
-            plt.savefig(cpu_io_network_plot_file, dpi=800)
-            plt.close()
+            cpu_series = [cpu_network_rest_breakdown[i][0] for i in range(n_syncs)]
+            network_series = [cpu_network_rest_breakdown[i][1] for i in range(n_syncs)]
+            rest_series = [cpu_network_rest_breakdown[i][2] for i in range(n_syncs)]
+            plot_io_breakdown(cpu_network_rest_plot_file,
+                              ('cpu_time', cpu_series),
+                              ('network_send', network_series),
+                              ('rest', rest_series))
 
         return cpu_time_summary
 
@@ -796,12 +813,15 @@ class LogAnalyzer:
         [level],
         [n_units decided at this level],
         [+levels of timing decision at this level],
+        [+levels of poset at the time of decision],
         [time in sec to timing decision)
+        [number of transactions at this level]
         '''
         levels = []
         n_units_per_level = []
         n_txs_per_level = []
         levels_plus_decided = []
+        levels_poset_plus_decided = []
         level_delays = []
         for level in self.levels:
             if level == 0:
@@ -812,13 +832,14 @@ class LogAnalyzer:
                     n_units = self.levels[level]['n_units_decided']
                     delay = diff_in_seconds(self.levels[level]['date'], self.levels[level]['timing_decided_date'])
                     level_diff = self.levels[level]['timing_decided_level'] - level
+                    poset_level_diff = self.levels[level]['timing_poset_decided_level'] - level
                     levels.append(level)
                     n_units_per_level.append(n_units)
                     levels_plus_decided.append(level_diff)
+                    levels_poset_plus_decided.append(poset_level_diff)
                     level_delays.append(delay)
                     n_txs_per_level.append(self.levels[level]['n_txs_ordered'])
-        print(n_units_per_level)
-        return levels, n_units_per_level, levels_plus_decided, level_delays, n_txs_per_level
+        return levels, n_units_per_level, levels_plus_decided, levels_poset_plus_decided, level_delays, n_txs_per_level
 
     def get_sync_info(self, plot_file = None):
         '''
@@ -831,6 +852,13 @@ class LogAnalyzer:
         -- establish_connection_times: the (list of) times to establish a connection when initiating a sync
         -- syncs_not_succeeded: one int - the number of syncs that started (i.e. n_recv_sync was incremented)
                                 but for some reason did not terminate succesfully
+        -- send_poset_info_not_succeeded: one int - the number of send_poset_info rounds that were started but for some reason
+           did not terminate successfully
+        -- send_units_not_succeeded: one int - the number of send_units rounds that were started but for some reason did not
+           terminate successfully
+        -- send_requests_not_succeeded: one int - the number of send_requests rounds that were started but for some reason did
+           not terminate successfully
+        -- bytes_sent_per_sync: the (list of) number of bytes sent by sync
         '''
         units_sent_per_sync = []
         units_received_per_sync = []
@@ -1007,64 +1035,57 @@ class LogAnalyzer:
 
         Meaning of the specific columns:
 
-        - sync_fail: the total number of failed syncs (incoming and outcoming included)
+        - sync_fail (poset_info, units, requests): the total number of failed syncs + decomposition on individual rounds of sync
+          (incoming and outcoming included)
 
-        - sync_succ: the total number of succesful syncs (incoming and outcoming included)
+        - sync_succ (poset_info, units, requests): the total number of succesful syncs + decomposition on individual rounds of
+          sync (incoming and outcoming included)
 
-        - avg_time: average time (per sync) spent on "talking" to a specific process
+        - avg_time (poset_info, units, requests): average time (per sync) spent on "talking" to a specific process +
+          decomposition on individual rounds of sync
 
         - n_conn: the number of outcoming connection attempts to a specific process
 
-        - conn_est_t: the average time spent on establishing connections to a specific process
-
-        - n_conn_fail: the number of attempted (outcoming) connections that failed to establish connection
+        - sent_bytes: the total number of bytes sent
         '''
 
         syncs_failed = [0] * self.n_processes
         send_poset_info_failed = [0] * self.n_processes
-        send_poset_info_succeded = [0] * self.n_processes
-        send_poset_info_avg = [0] * self.n_processes
+        send_poset_info_succeeded = [0] * self.n_processes
         send_poset_info_avg = [0] * self.n_processes
         send_units_failed = [0] * self.n_processes
-        send_units_succeded = [0] * self.n_processes
-        send_units_avg = [0] * self.n_processes
+        send_units_succeeded = [0] * self.n_processes
         send_units_avg = [0] * self.n_processes
         send_requests_failed = [0] * self.n_processes
-        send_requests_succeded = [0] * self.n_processes
+        send_requests_succeeded = [0] * self.n_processes
         send_requests_avg = [0] * self.n_processes
-        syncs_succeded = [0] * self.n_processes
+        syncs_succeeded = [0] * self.n_processes
         syncs_sent_data = [0] * self.n_processes
         tot_time = [0.0] * self.n_processes
-        conn_est_time = [0.0] * self.n_processes
         n_conn_est = [0] * self.n_processes
-        n_conn_fail = [0] * self.n_processes
         for sync_id, sync in sorted(self.syncs.items(), key = lambda x: x[0]):
             if 'target' not in sync:
                 # this sync has no info on which process are we talking to, cannot do much
                 continue
             target = sync['target']
 
-            if 'tried' in sync and 'conn_est_time' not in sync:
-                n_conn_fail[target] += 1
-
             if 'conn_est_time' in sync:
                 n_conn_est[target] += 1
-                conn_est_time[target] += sync['conn_est_time']
 
             events = sync.get('events', [])
             send_poset_info_events = [a for a in events if a['event_name'] == 'send_poset_info']
             poset_info_result = self.get_successes_failures_count(send_poset_info_events)
-            send_poset_info_succeded[target] += poset_info_result[0]
+            send_poset_info_succeeded[target] += poset_info_result[0]
             send_poset_info_failed[target] += poset_info_result[1]
 
             send_units_events = [a for a in events if a['event_name'] == 'send_units']
             send_units_results = self.get_successes_failures_count(send_units_events)
-            send_units_succeded[target] += send_units_results[0]
+            send_units_succeeded[target] += send_units_results[0]
             send_units_failed[target] += send_units_results[1]
 
             send_requests_events = [a for a in events if a['event_name'] == 'send_request ==\'send_requests']
             send_requests_result = self.get_successes_failures_count(send_requests_events)
-            send_requests_succeded[target] += send_requests_result[0]
+            send_requests_succeeded[target] += send_requests_result[0]
             send_requests_failed[target] += send_requests_result[1]
 
             send_poset_info_avg[target] += self.get_event_time(send_poset_info_events)
@@ -1078,7 +1099,7 @@ class LogAnalyzer:
 
                 continue
 
-            syncs_succeded[target] += 1
+            syncs_succeeded[target] += 1
             tot_time[target] += diff_in_seconds(sync['start_date'], sync['stop_date'])
 
         fields = ['name',
@@ -1086,59 +1107,52 @@ class LogAnalyzer:
                   'sync_succ (poset_info, units, requests)',
                   'avg_time (poset_info, units, requests)',
                   'n_conn',
-                  'conn_est_t',
-                  'n_conn_fail',
                   'sent_bytes']
         lines = []
         lines.append(format_line(fields))
 
         for target in range(self.n_processes):
-            if syncs_succeded[target]:
-                tot_time[target] /= syncs_succeded[target]
+            if syncs_succeeded[target]:
+                tot_time[target] /= syncs_succeeded[target]
             else:
                 tot_time[target] = -1.0
-            if send_poset_info_succeded[target]:
-                send_poset_info_avg[target] /= send_poset_info_succeded[target]
+            if send_poset_info_succeeded[target]:
+                send_poset_info_avg[target] /= send_poset_info_succeeded[target]
             else:
                 send_poset_info_avg[target] = -1.0
-            if send_units_succeded[target]:
-                send_units_avg[target] /= send_units_succeded[target]
+            if send_units_succeeded[target]:
+                send_units_avg[target] /= send_units_succeeded[target]
             else:
                 send_units_avg[target] = -1.0
-            if send_requests_succeded[target]:
-                send_requests_avg[target] /= send_requests_succeded[target]
+            if send_requests_succeeded[target]:
+                send_requests_avg[target] /= send_requests_succeeded[target]
             else:
                 send_requests_avg[target] = -1.0
             data = {'name' : f'proc_{target}'}
 
+            data['sync_fail (poset_info, units, requests)'] = (
+                f'{syncs_failed[target]} ('
+                f'{send_poset_info_failed[target]}, '
+                f'{send_units_failed[target]}, '
+                f'{send_requests_failed[target]})'
+            )
+            data['sync_succ (poset_info, units, requests)'] = (
+                f'{syncs_succeeded[target]} ('
+                f'{send_poset_info_succeeded[target]}, '
+                f'{send_units_succeeded[target]}, '
+                f'{send_requests_succeeded[target]})'
+            )
+
             def custom_float_format(main_value, *values):
                 return f"{main_value:.4f}" + ' (' + ', '.join([f"{v:.4f}" for v in values]) + ')'
 
-            data['sync_fail (poset_info, units, requests)'] = custom_float_format(
-                syncs_failed[target],
-                send_poset_info_failed[target],
-                send_units_failed[target],
-                send_requests_failed[target]
-            )
-            data['sync_succ (poset_info, units, requests)'] = custom_float_format(
-                syncs_succeded[target],
-                send_poset_info_succeded[target],
-                send_units_succeded[target],
-                send_requests_succeded[target]
-            )
             data['avg_time (poset_info, units, requests)'] = custom_float_format(
                 tot_time[target],
                 send_poset_info_avg[target],
                 send_units_avg[target],
                 send_requests_avg[target]
             )
-            if n_conn_est[target]:
-                conn_est_time[target] /= n_conn_est[target]
-            else:
-                conn_est_time[target] = -1.0
             data['n_conn'] = n_conn_est[target]
-            data['n_conn_fail'] = n_conn_fail[target]
-            data['conn_est_t'] = conn_est_time[target]
             data['sent_bytes'] = syncs_sent_data[target]
 
             lines.append(format_line(fields, data))
@@ -1152,6 +1166,104 @@ class LogAnalyzer:
 
             print(f'Report file written to {report_file}.')
 
+    def prepare_phases_report(self, reporter):
+        '''
+        Outputs a report describing time spent in particular phases of a sync operation, where first phase is defined as time
+        between start of a sync and end of the first receive_poset_info operation, and second as from end of the first phase
+        till end of a sync. It enumerates all "events" of a sync and searches for specific sequence of events trying to figure
+        out if a given sync was locally initiated or one initialized by some connected process. It also tries to divide time
+        between those two types of syncs.
+
+        Rows included in the report:
+        - phase_1_times: time spent in sync between its start and end of a first invocation of receive_poset_info phase (reverse
+          order in case of listener events)
+
+        - phase_2_times: time spent in sync between end of a first invocation of receive_poset_info (or send_poset_info in case
+          of a listener) and end of a sync
+
+        - sync_phase_1_times: analogous to phase_1_times but limited to only sync events (syncs started by this process)
+
+        - sync_phase_2_times: analogous to phase_2_times but limited to only sync events (syncs started by this process)
+
+        - listener_phase_1_times: analogous to phase_1_times but limited to only listener sync events (syncs started not
+          by this process)
+
+        - listener_phase_2_times: analogous to phase_2_times but limited to only listener sync events (syncs started
+          not by this process)
+
+        '''
+        phase_1_times = []
+        phase_2_times = []
+        phase_1_times_sync = []
+        phase_1_times_listener = []
+        phase_2_times_sync = []
+        phase_2_times_listener = []
+        sync_event_name = 'receive_poset_info'
+        listener_event_name = 'send_poset_info'
+
+        for sync_id, sync in self.syncs.items():
+            events = sync.get('events', [])
+            if not events:
+                continue
+            ending_event = ''
+            start_date = sync['start_date']
+            end_date = start_date
+            event_name = events[0]['event_name']
+            if event_name.startswith(sync_event_name):
+                # search for matching 'send_poset_info' event
+                ending_event = listener_event_name
+            elif event_name.startswith(listener_event_name):
+                # search for matching 'receive_poset_info' event
+                ending_event = sync_event_name
+
+            if ending_event == '':
+                import sys
+                print('Unknown version of the protocol (sync_id = {sync_id:d})', file=sys.stderr)
+                continue
+
+            enclosing_event = None
+            for event in events:
+                if event['event_name'].startswith(ending_event):
+                    enclosing_event = event
+                    break
+
+            if not enclosing_event:
+                # import sys
+                # print(f'Missing enclosing event for the first phase of a sync {sync_id:d}', file=sys.stderr)
+                continue
+
+            end_date = enclosing_event['stop_date']
+            phase_1_time = diff_in_seconds(start_date, end_date)
+
+            phase_1_times.append(phase_1_time)
+
+            if ending_event == sync_event_name:
+                phase_1_times_sync.append(phase_1_time)
+            else:
+                phase_1_times_listener.append(phase_1_time)
+
+            if 'stop_date' not in sync:
+                # import sys
+                # print(f'Missing enclosing event for the second phase of a sync {sync_id:d}', file=sys.stderr)
+                continue
+
+            start_date = end_date
+            end_date = sync['stop_date']
+            phase_2_time = diff_in_seconds(start_date, end_date)
+
+            phase_2_times.append(phase_2_time)
+
+            if ending_event == sync_event_name:
+                phase_2_times_sync.append(phase_2_time)
+            else:
+                phase_2_times_listener.append(phase_2_time)
+
+        reporter(phase_1_times, 'phase_1_times')
+        reporter(phase_2_times, 'phase_2_times')
+        reporter(phase_1_times_sync, 'sync_phase_1_times')
+        reporter(phase_2_times_sync, 'sync_phase_2_times')
+        reporter(phase_1_times_listener, 'listener_phase_1_times')
+        reporter(phase_2_times_listener, 'listener_phase_2_times')
 
     def prepare_basic_report(self, dest_dir = 'reports', file_name_prefix = 'report-basic-'):
         '''
@@ -1194,9 +1306,43 @@ class LogAnalyzer:
 
         - sync_fail: ONE NUMBER: total number of failed synchronizations
 
-        - create_freq: the difference in time between two consecutive create_unit
+        - send_poset_info_fail: ONE NUMBER: total number of failed invocations of send_poset_info
 
-        - sync_freq: the difference in time between two consecutive synchronization attempts
+        - send_units_fail: ONE NUMBER: total number of failed invocations of send_units
+
+        - send_requests_fail: ONE NUMBER: total number of failed invocations of send_requests
+
+        - bytes_sent_per_sync: bytes sent by invocations of sync
+
+        - bytes_sent_per_sec: time series describing amount of bytes sent per second by invocations of sync
+
+        - bytes_received_per_sec: time series describing amount of bytes received per second by invocations of sync
+
+        - time_send_poset: time spent in sync by invocations of send_poset_info
+
+        - time_send_units: time spent in sync by invocations of send_units
+
+        - time_send_requests: time spent in sync by invocations of send_requests
+
+        - phase_1_times: time spent in sync between its start and end of a first invocation of receive_poset_info phase (reverse
+          order in case of listener events)
+
+        - phase_2_times: time spent in sync between end of a first invocation of receive_poset_info (or send_poset_info in case
+          of a listener) and end of a sync
+
+        - sync_phase_1_times: analogous to phase_1_times but limited to only sync events (syncs started by this process)
+
+        - sync_phase_2_times: analogous to phase_2_times but limited to only sync events (syncs started by this process)
+
+        - listener_phase_1_times: analogous to phase_1_times but limited to only listener sync events (syncs started not
+          by this process)
+
+        - listener_phase_2_times: analogous to phase_2_times but limited to only listener sync events (syncs started
+          not by this process)
+
+        - create_delay: the difference in time between two consecutive create_unit
+
+        - sync_delay: the difference in time between two consecutive synchronization attempts
 
         - n_recv_syncs: the number of simultaneous incoming connections (sampled when a new process is trying to connect)
 
@@ -1246,10 +1392,11 @@ class LogAnalyzer:
             lines.append(format_line(fields, stats))
 
         # timing_decision
-        levels, n_units_per_level, levels_plus_decided, level_delays, n_txs_per_level = self.get_timing_decision_stats()
+        levels, n_units_per_level, levels_plus_decided, levels_poset_plus_decided, level_delays, n_txs_per_level = self.get_timing_decision_stats()
         _append_stat_line(n_units_per_level, 'n_units_decision')
         _append_stat_line(level_delays, 'time_decision')
         _append_stat_line(levels_plus_decided, 'decision_height')
+        _append_stat_line(levels_poset_plus_decided, 'poset_decision_height')
         _append_stat_line(n_txs_per_level, 'n_txs_ordered')
 
         # new level
@@ -1286,6 +1433,26 @@ class LogAnalyzer:
         _append_stat_line([send_units_not_succeeded], 'send_units_fail')
         _append_stat_line([send_requests_not_succeeded], 'send_requests_fail')
         _append_stat_line(bytes_sent_per_sync, 'bytes_sent_per_sync')
+        _append_stat_line(self.build_bytes_per_second_stats(self.get_outbound_network_events()), 'bytes_sent_per_sec')
+        _append_stat_line(self.build_bytes_per_second_stats(self.get_inbound_network_events()), 'bytes_received_per_sec')
+
+        # info about rounds of syncs
+        events_per_sync = [s.get('events', []) for _, s in self.syncs.items()]
+
+        send_poset_info_events = [[a for a in events if a['event_name'] == 'send_poset_info'] for events in events_per_sync]
+        send_poset_info_times = [self.get_event_time(evs) for evs in send_poset_info_events]
+        _append_stat_line(send_poset_info_times, 'time_send_poset')
+
+        send_units_events = [[a for a in events if a['event_name'] == 'send_units'] for events in events_per_sync]
+        send_units_times = [self.get_event_time(evs) for evs in send_units_events]
+        _append_stat_line(send_units_times, 'time_send_units')
+
+        send_requests_events = [[a for a in events if a['event_name'] == 'send_requests'] for events in events_per_sync]
+        send_requests_times = [self.get_event_time(evs) for evs in send_requests_events]
+        _append_stat_line(send_requests_times, 'time_send_requests')
+
+        # info about phases of a sync
+        self.prepare_phases_report(_append_stat_line)
 
         # gen plot on units exchanged vs time
         units_ex_plot_file = os.path.join(dest_dir, 'plot-units', f'units-{self.process_id}.png')
@@ -1294,8 +1461,8 @@ class LogAnalyzer:
 
         # delay stats
         create_delays, sync_delays = self.get_delay_stats()
-        _append_stat_line(create_delays, 'create_freq')
-        _append_stat_line(sync_delays, 'sync_freq')
+        _append_stat_line(create_delays, 'create_delay')
+        _append_stat_line(sync_delays, 'sync_delay')
 
         # number of concurrent received syncs
         data = self.current_recv_sync_no
@@ -1312,11 +1479,11 @@ class LogAnalyzer:
         # cpu time
         sync_bar_plot_file_cpu = os.path.join(dest_dir,'plot-sync-bar','cpu-sync-' + str(self.process_id) + '.png')
         sync_bar_plot_file_all = os.path.join(dest_dir,'plot-sync-bar','all-sync-' + str(self.process_id) + '.png')
-        sync_bar_plot_cpu_io_network = os.path.join(dest_dir,'plot-sync-bar','cpu-io-network-sync-' + str(self.process_id) + '.png')
+        sync_bar_plot_cpu_network_rest = os.path.join(dest_dir,'plot-sync-bar','cpu-network-rest-sync-' + str(self.process_id) + '.png')
         os.makedirs(os.path.dirname(sync_bar_plot_file_cpu), exist_ok=True)
         times = self.get_cpu_times(sync_bar_plot_file_cpu,
                                    sync_bar_plot_file_all,
-                                   sync_bar_plot_cpu_io_network)
+                                   sync_bar_plot_cpu_network_rest)
         _append_stat_line(times['t_prepare_units'], 'time_prepare')
         _append_stat_line(times['t_pickle_units'], 'time_pickle')
         _append_stat_line(times['t_unpickle_units'], 'time_unpickle')
@@ -1337,14 +1504,12 @@ class LogAnalyzer:
         _append_stat_line([self.n_create_fail], 'n_create_fail')
 
         # plot network statistics
-        bar_plot_network_outbound = os.path.join(dest_dir,'plot-network-bar','network-outbound-' + str(self.process_id) + '.png')
-        bar_plot_network_inbound = os.path.join(dest_dir,'plot-network-bar','network-inbound-' + str(self.process_id) + '.png')
+        bar_plot_network_outbound = os.path.join(dest_dir, 'plot-network-bar','network-outbound-' + str(self.process_id) + '.png')
+        bar_plot_network_inbound = os.path.join(dest_dir, 'plot-network-bar','network-inbound-' + str(self.process_id) + '.png')
         os.makedirs(os.path.dirname(bar_plot_network_outbound), exist_ok=True)
         self.plot_network_utilization(bar_plot_network_outbound, bar_plot_network_inbound)
 
-
-
-        report_file = os.path.join(dest_dir,'txt-basic', file_name_prefix+str(self.process_id)+'.txt')
+        report_file = os.path.join(dest_dir, 'txt-basic', file_name_prefix+str(self.process_id)+'.txt')
         os.makedirs(os.path.dirname(report_file), exist_ok=True)
 
         with open(report_file, "w") as rep_file:
@@ -1354,14 +1519,11 @@ class LogAnalyzer:
             print(f'Report file written to {report_file}.')
 
 
-
-
-
-
 # ------------- Helper Functions for the Log Analyzer ------------------
 
 def diff_in_seconds(date_from, date_to):
     return (date_to-date_from).total_seconds()
+
 
 def compute_basic_stats(list_of_numbers):
     '''
@@ -1376,6 +1538,7 @@ def compute_basic_stats(list_of_numbers):
     summ['max'] = np.max(np_array)
 
     return summ
+
 
 def format_line(field_list, data=None):
     '''
@@ -1394,7 +1557,7 @@ def format_line(field_list, data=None):
         else:
             entry = str(value)
 
-        just_len = 25 if field == 'name' else len(field) + 10
+        just_len = 25 if field == 'name' else len(field) + 15
         entry = entry.ljust(just_len)
         line += entry
     return line
@@ -1405,7 +1568,6 @@ def format_line(field_list, data=None):
 def get_tokens(space_separated_string):
     return [s.strip() for s in space_separated_string.split()]
 
+
 def parse_unit_list(space_separated_units):
     return [s[1:-1] for s in space_separated_units.split()]
-
-
