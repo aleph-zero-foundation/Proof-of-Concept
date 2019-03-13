@@ -4,3 +4,7 @@ __*
 .cache
 *.png
 *.txt
+*.aux
+*.bbl
+*.blg
+*.pdf
