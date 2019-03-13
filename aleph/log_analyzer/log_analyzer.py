@@ -269,9 +269,6 @@ class LogAnalyzer:
                 else:
                     report['stop_date'] = event['date']
 
-            # if event_name == 'receive_poset_info':
-            #     import pdb; pdb.set_trace()
-
             self.process_network_report(event_name, process_report)(ev_params, msg_body, event)
 
         return parse
@@ -281,8 +278,6 @@ class LogAnalyzer:
             sync_id = int(ev_params[1])
             sync_events = self.get_or_create_events(sync_id, event_name, event['date'])
             if is_start:
-                # if event_name == 'receive_poset_info':
-                #     import pdb; pdb.set_trace()
                 new_event = self.create_event(event_name)
                 new_event['start_date'] = event['date']
                 sync_events.append(new_event)
@@ -490,11 +485,6 @@ class LogAnalyzer:
             sync_id = int(ev_params[1])
             events = self.get_or_create_events(sync_id, event_name, event['date'])
             if (not events) or (events[-1]['event_name'] != event_name):
-                # new_event = self.create_event(event_name)
-                # new_event['start_date'] = event['date']
-                # events.append(new_event)
-                # if event_name == 'receive_poset_info':
-                #     import pdb; pdb.set_trace()
                 events.append(self.create_event(event_name))
             last_event = events[-1]
             report = last_event.get('network_report', None)
