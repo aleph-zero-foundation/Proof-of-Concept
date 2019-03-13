@@ -817,6 +817,7 @@ class LogAnalyzer:
                     levels_plus_decided.append(level_diff)
                     level_delays.append(delay)
                     n_txs_per_level.append(self.levels[level]['n_txs_ordered'])
+        print(n_units_per_level)
         return levels, n_units_per_level, levels_plus_decided, level_delays, n_txs_per_level
 
     def get_sync_info(self, plot_file = None):
