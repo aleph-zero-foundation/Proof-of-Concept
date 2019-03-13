@@ -37,8 +37,8 @@ class Poset:
 
         self.units = {}
         self.max_units_per_process = [[] for _ in range(n_processes)]
-        # the set of globally maximal units in the poset
-        self.max_units = set()
+        # the list of globally maximal units in the poset -- sorted from the least recent to most recent
+        self.max_units = []
         self.forking_height = [float('inf')] * n_processes
 
         #common random permutation
@@ -118,11 +118,12 @@ class Poset:
         if len(U.parents) == 0:
             assert self.max_units_per_process[U.creator_id] == [], "A second dealing unit is attempted to be added to the poset"
             self.max_units_per_process[U.creator_id] = [U]
-            self.max_units.add(U)
+            self.max_units.append(U)
         else:
             # from max_units remove the ones that are U's parents, and add U as a new maximal unit
-            self.max_units = self.max_units - set(U.parents)
-            self.max_units.add(U)
+            set_U_parents = set(U.parents)
+            self.max_units = [W for W in self.max_units if W not in set_U_parents]
+            self.max_units.append(U)
 
             if U.self_predecessor in self.max_units_per_process[U.creator_id]:
                 self.max_units_per_process[U.creator_id].remove(U.self_predecessor)

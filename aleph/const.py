@@ -12,6 +12,8 @@ SYNC_INIT_DELAY = 0.5          # delay after initianing a sync with other proces
 N_RECV_SYNC     = 10           # number of allowed parallel received syncs
 N_INIT_SYNC     = 10           # number of allowed parallel initiated syncs
 
+SMART_CREATE    = 1            # use the create strategy where we wait until 2/3N prime units are available, and use create_unit_greedy
+
 TXPU            = 10           # number of transactions per unit
 TX_LIMIT        = 1000000
 

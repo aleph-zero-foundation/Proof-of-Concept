@@ -50,7 +50,7 @@ def analyze_one_log():
         print('No process id provided -- assuming that the log comes from one process only.')
         process_id = None
 
-    analyzer = LogAnalyzer(path, process_id, generate_plots = True)
+    analyzer = LogAnalyzer(path, process_id, generate_plots = False)
     if not analyzer.analyze():
         print('Failed because the log does not even contain the Process start message.')
         sys.exit(0)

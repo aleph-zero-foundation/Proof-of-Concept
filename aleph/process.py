@@ -9,7 +9,7 @@ import psutil
 from aleph.data_structures import Poset, UserDB
 from aleph.crypto import CommonRandomPermutation
 from aleph.network import Network, tx_listener
-from aleph.actions import create_unit
+from aleph.actions import create_unit, create_unit_greedy
 from aleph.utils import timer
 import aleph.const as consts
 
@@ -189,15 +189,38 @@ class Process:
 
         return random.choice(sync_candidates)
 
-    def create_unit(self, txs, prefer_maximal = None):
+
+    def check_create_trigger(self):
+        '''
+        Returns whether we should attempt creating a new unit, i.e., whether there are >=(2/3)N prime units at the level,
+            where our previously created unit lies.
+        '''
+        if self.poset.max_units_per_process[self.process_id] == []:
+            # we have not created our dealing unit yet
+            return True
+
+        level_previous_unit = self.poset.max_units_per_process[self.process_id][0].level
+        n_primes = len(self.poset.get_all_prime_units_by_level(level_previous_unit))
+        return self.poset.is_quorum(n_primes)
+
+    def create_unit(self, txs, prefer_maximal):
         '''
         Attempts to create a new unit in the poset.
         :param list txs: the transactions to include in the unit
         :param bool prefer_maximal: whether to prefer maximal elements of the poset as parents
         :returns: A new unit if creation was successfull, None otherwise
         '''
-        prefer_maximal = prefer_maximal if prefer_maximal is not None else consts.USE_MAX_PARENTS
-        return create_unit(self.poset, self.process_id, txs, prefer_maximal = prefer_maximal)
+        if consts.SMART_CREATE:
+            if not self.check_create_trigger():
+                return None
+            with timer(self.process_id, 'create_unit'):
+                U = create_unit_greedy(self.poset, self.process_id, txs)
+        else:
+            with timer(self.process_id, 'create_unit'):
+                U = create_unit(self.poset, self.process_id, txs, prefer_maximal = prefer_maximal)
+
+        return U
+
 
     async def create_add(self, txs_queue, server_started):
         '''
@@ -215,8 +238,9 @@ class Process:
             self.logger.info(f'max_units {self.process_id} | There are {len(self.poset.max_units)} maximal units just before create_unit')
 
             txs = self.prepared_txs
-            with timer(self.process_id, 'create_unit'):
-                new_unit = self.create_unit(txs, prefer_maximal = consts.USE_MAX_PARENTS)
+
+
+            new_unit = self.create_unit(txs, prefer_maximal = consts.USE_MAX_PARENTS)
             created_count += 1
 
             if new_unit is not None:
