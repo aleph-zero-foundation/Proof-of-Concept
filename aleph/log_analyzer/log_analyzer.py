@@ -227,7 +227,8 @@ class LogAnalyzer:
             return parser
 
         self.receive_poset_info_parser = combine_parsers(
-            parse_if_includes_message(self.parse_bytes_received_poset_info, self.parse_network_operation('receive_poset_info', is_start=True)),
+            parse_if_includes_message(self.parse_bytes_received_poset_info,
+                                      self.parse_network_operation('receive_poset_info', is_start=True)),
             self.parse_bytes_processed_in_sync('receive_poset_info',
                                                self.parse_bytes_received_poset_info,
                                                is_start=True),
@@ -1167,6 +1168,31 @@ class LogAnalyzer:
             print(f'Report file written to {report_file}.')
 
     def prepare_phases_report(self, reporter):
+        '''
+        Outputs a report describing time spent in particular phases of a sync operation, where first phase is defined as time
+        between start of a sync and end of the first receive_poset_info operation, and second as from end of the first phase
+        till end of a sync. It enumerates all "events" of a sync and searches for specific sequence of events trying to figure
+        out if a given sync was locally initiated or one initialized by some connected process. It also tries to divide time
+        between those two types of syncs.
+
+        Rows included in the report:
+        - phase_1_times: time spent in sync between its start and end of a first invocation of receive_poset_info phase (reverse
+          order in case of listener events)
+
+        - phase_2_times: time spent in sync between end of a first invocation of receive_poset_info (or send_poset_info in case
+          of a listener) and end of a sync
+
+        - sync_phase_1_times: analogous to phase_1_times but limited to only sync events (syncs started by this process)
+
+        - sync_phase_2_times: analogous to phase_2_times but limited to only sync events (syncs started by this process)
+
+        - listener_phase_1_times: analogous to phase_1_times but limited to only listener sync events (syncs started not
+          by this process)
+
+        - listener_phase_2_times: analogous to phase_2_times but limited to only listener sync events (syncs started
+          not by this process)
+
+        '''
         phase_1_times = []
         phase_2_times = []
         phase_1_times_sync = []
@@ -1203,8 +1229,8 @@ class LogAnalyzer:
                     break
 
             if not enclosing_event:
-                import sys
-                print(f'Missing enclosing event for the first phase of a sync {sync_id:d}', file=sys.stderr)
+                # import sys
+                # print(f'Missing enclosing event for the first phase of a sync {sync_id:d}', file=sys.stderr)
                 continue
 
             end_date = enclosing_event['stop_date']
@@ -1218,8 +1244,8 @@ class LogAnalyzer:
                 phase_1_times_listener.append(phase_1_time)
 
             if 'stop_date' not in sync:
-                import sys
-                print(f'Missing enclosing event for the second phase of a sync {sync_id:d}', file=sys.stderr)
+                # import sys
+                # print(f'Missing enclosing event for the second phase of a sync {sync_id:d}', file=sys.stderr)
                 continue
 
             start_date = end_date
@@ -1312,7 +1338,7 @@ class LogAnalyzer:
         - listener_phase_1_times: analogous to phase_1_times but limited to only listener sync events (syncs started not
           by this process)
 
-        - process) listener_phase_2_times: analogous to phase_2_times but limited to only listener sync events (syncs started
+        - listener_phase_2_times: analogous to phase_2_times but limited to only listener sync events (syncs started
           not by this process)
 
         - create_delay: the difference in time between two consecutive create_unit
