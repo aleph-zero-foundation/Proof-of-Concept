@@ -742,7 +742,7 @@ class Poset:
             vote = int(self.proves_popularity(U, U_c))
         else:
             votes_level_below = []
-            for V in self.get_all_prime_units_by_level(U.level-1):
+            for V in self.get_prime_units_at_level_below_unit(U.level-1, U):
                 vote_V = self.compute_vote(V, U_c)
                 if vote_V == -1:
                     # NOTE: this should never happen at r=1, it will trigger an assert in default_vote if so
