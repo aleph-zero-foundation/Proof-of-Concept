@@ -692,6 +692,34 @@ class Poset:
         memo[('proof', V_hash)] = self.is_quorum(len(seen_processes))
         return memo[('proof', V_hash)]
 
+    def precompute_popularity_proof(self, V):
+        '''
+        Precomputes the popularity proof for V, to avoid computing many popularity proofs at once.
+        Tries to prove the popularity of the first unit in the common random permutation that is below V.
+        :param Unit V: the "prover" unit
+        '''
+        for level in range(V.level - consts.VOTING_LEVEL + 1, V.level - 1):
+            if level < 0:
+                continue
+            sigma = self.crp[level]
+
+            for process_id in sigma:
+                #In case there are multiple (more than one) units to consider (forking) we sort them by hashes (to break ties)
+                prime_units_by_curr_process = sorted(self.prime_units_by_level[level][process_id], key = lambda U: U.hash())
+
+                U_c = None
+                for U in prime_units_by_curr_process:
+                    if self.below(U, V):
+                        U_c = U
+                        break
+                if U_c is not None:
+                    break
+
+            if U_c.hash() not in self.timing_partial_results:
+                # set up memoization for this unit
+                self.timing_partial_results[U_c.hash()] = {}
+            self.proves_popularity(V, U_c)
+
 
     def default_vote(self, U, U_c):
         '''
@@ -742,7 +770,7 @@ class Poset:
             vote = int(self.proves_popularity(U, U_c))
         else:
             votes_level_below = []
-            for V in self.get_all_prime_units_by_level(U.level-1):
+            for V in self.get_prime_units_at_level_below_unit(U.level-1, U):
                 vote_V = self.compute_vote(V, U_c)
                 if vote_V == -1:
                     # NOTE: this should never happen at r=1, it will trigger an assert in default_vote if so
