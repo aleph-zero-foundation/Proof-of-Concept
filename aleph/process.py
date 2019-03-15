@@ -110,7 +110,8 @@ class Process:
         if self.poset.is_prime(U):
 
             with timer(self.process_id, 'attempt_timing'):
-                self.poset.precompute_popularity_proof(U)
+                if consts.PRECOMPUTE_POPULARITY:
+                    self.poset.precompute_popularity_proof(U)
                 new_timing_units = self.poset.attempt_timing_decision()
             timer.write_summary(where=self.logger, groups=[self.process_id])
             timer.reset(self.process_id)
