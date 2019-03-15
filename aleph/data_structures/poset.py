@@ -810,7 +810,7 @@ class Poset:
                 if self.proves_popularity(U, U_c):
                     memo['decision'] = 1
                     process_id = (-1) if (self.process_id is None) else self.process_id
-                    logger.info(f'decide_timing {process_id} | Timing unit for lvl {U_c.level} decided at lvl + {level - U_c.level}'
+                    logger.info(f'decide_timing {process_id} | Timing unit for lvl {U_c.level} fast decided at lvl + {level - U_c.level}'
                                 f', poset lvl + {self.level_reached - U_c.level}')
                     return 1
 
@@ -825,7 +825,7 @@ class Poset:
 
                     if decision == 1:
                         process_id = (-1) if (self.process_id is None) else self.process_id
-                        logger.info(f'decide_timing {process_id} | Timing unit for lvl {U_c.level} decided at lvl + {level - U_c.level}'
+                        logger.info(f'decide_timing {process_id} | Timing unit for lvl {U_c.level} slow decided at lvl + {level - U_c.level}'
                                     f', poset lvl + {self.level_reached - U_c.level}')
 
                     return decision
@@ -846,7 +846,7 @@ class Poset:
                     memo['decision'] = decision
                     if decision == 1:
                         process_id = (-1) if (self.process_id is None) else self.process_id
-                        logger.info(f'decide_timing {process_id} | Timing unit for lvl {U_c.level} decided at lvl + {level - U_c.level}'
+                        logger.info(f'decide_timing {process_id} | Timing unit for lvl {U_c.level} pi_delta decided at lvl + {level - U_c.level}'
                                     f', poset lvl + {self.level_reached - U_c.level}')
                     return decision
 
