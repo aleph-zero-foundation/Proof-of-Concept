@@ -1,7 +1,12 @@
 N_PARENTS             = 10                  # maximal number of parents a unit can have
 
 CREATE_DELAY          = 2.0                 # delay after creating a new unit
+ADAPTIVE_DELAY        = 1                   # whether to use the adaptive strategy of determining create_delay
+STEP_SIZE             = 0.14                # a number in (0,1) describing how aggresive is the create_delay adjusting mechanism, large = aggresive
+
 SYNC_INIT_DELAY       = 0.015625            # delay after initianing a sync with other processes
+
+
 N_RECV_SYNC           = 10                  # number of allowed parallel received syncs
 N_INIT_SYNC           = 10                  # number of allowed parallel initiated syncs
 
