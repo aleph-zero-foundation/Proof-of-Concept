@@ -52,6 +52,11 @@ class Process:
 
         self.poset = Poset(self.n_processes, self.process_id, self.crp, use_tcoin = consts.USE_TCOIN)
 
+        self.create_delay = consts.CREATE_DELAY
+
+        # step size for adaptively changing create_delay
+        self.step_size = consts.STEP_SIZE
+
         self.userDB = userDB
         if self.userDB is None:
             self.userDB = UserDB()
@@ -64,6 +69,9 @@ class Process:
 
         # hashes of units in linear order
         self.linear_order = []
+
+        # list of units (from least recent to most recent) created by out process
+        self.our_units = []
 
         # we number all the syncs performed by process with unique ids (both outcoming and incoming)
         self.sync_id = 0
@@ -191,6 +199,20 @@ class Process:
 
         return random.choice(sync_candidates)
 
+    def adjust_create_delay(self):
+        '''
+        Looks at the 3 last units created by our process and based on their levels modifies the create_delay.
+        '''
+        if len(self.our_units) >= 3:
+            recent_levels = [U.level for U in self.our_units[-3:]]
+            if recent_levels[2] == recent_levels[1]:
+                # we have created two units on the same level, increase delay
+                self.create_delay *= 1 + self.step_size
+            elif recent_levels[0] <= recent_levels[2] - 2:
+                # we are creating units too infrequently, reduce delay
+                self.create_delay /= 1 + self.step_size
+
+
 
     def check_create_trigger(self):
         '''
@@ -254,6 +276,11 @@ class Process:
 
                 n_parents = len(new_unit.parents)
                 self.logger.info(f"create_add {self.process_id} | Created a new unit {new_unit.short_name()} with {n_parents} parents")
+
+                self.our_units.append(new_unit)
+                if consts.ADAPTIVE_DELAY:
+                    self.adjust_create_delay()
+
                 if new_unit.level == consts.LEVEL_LIMIT:
                     max_level_reached = True
 
@@ -267,7 +294,7 @@ class Process:
             timer.write_summary(where=self.logger, groups=[self.process_id])
             timer.reset(self.process_id)
 
-            await asyncio.sleep(consts.CREATE_DELAY)
+            await asyncio.sleep(self.create_delay)
 
 
         self.keep_syncing = False
