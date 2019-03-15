@@ -1,4 +1,4 @@
-\documentclass[a4paper,11pt]{article}
+\documentclass[a4paper,10pt]{article}
 \usepackage[utf8]{inputenc}
 \usepackage{latexsym}
 \usepackage{amsmath}
@@ -8,7 +8,7 @@
 \usepackage{color}
 \usepackage{listings}
 \usepackage{todonotes}
-\lstset{language=Python}
+\lstset{basicstyle=\ttfamily,language=Python}
 
 \title{PoC internal report}
 \author{The Aleph Zero team}
@@ -30,12 +30,94 @@
 					These are separate constants but in our tests they share the same value. Values are $10$ and $32$.
 			\end{description}
 		\subsection{Main values}
-		The core values in the results are outlined below.
-		\begin{description}
-			\item[latency] How long it took for a newly created unit to be validated. Perhaps the most important number.
-			\item[transactions per second] How many transactions were validated per second.
-			\item[sync delay] How long it actually took to initiate a new sync after the previous one. Important for assessing whether the processes ``keep up''.
-			\item[create delay] How long it actually took to initiate a new unit creation after the previous one. Important for assessing whether the processes ``keep up''.
-			\item[number of parents] How many parents did a unit have. Important for assessing whether the processes have enough information when creating units.
-		\end{description}
+			The core values in the results are outlined below.
+			\begin{description}
+				\item[latency] How long it took for a newly created unit to be validated. Perhaps the most important number.
+				\item[transactions per second] How many transactions were introduced into the system every second.
+				\item[sync delay] How long it actually took to initiate a new sync after the previous one. Important for assessing whether the processes ``keep up''.
+				\item[create delay] How long it actually took to initiate a new unit creation after the previous one. Important for assessing whether the processes ``keep up''.
+				\item[number of parents] How many parents did a unit have. Important for assessing whether the processes have enough information when creating units.
+			\end{description}
+	\section{Algorithms}
+		A single process does many things:
+		\begin{itemize}
+			\item Creating units.
+			\item Adding units to the poset.
+			\item Sending and receiving units.
+			\item Computing decisions for timing units.
+		\end{itemize}
+		A short description of the algorithms involved and their complexity follows.
+		\subsection{Expensive operations}
+		 Before we detail the algorithms we point out several important optimization details that we will refer to in further parts of this section.
+			For purposes of complexity estimation let $N$ denote the number of processes in the committee and $p$ the number of parents a single unit has.
+			The latter might vary per unit, but we usually have an upper bound.
+
+			The most important feature of the poset we maintain in the algorithm is of course its order.
+			For comparing units we use the \lstinline{below} method. In the absence of forks (which is the case in all the tests) this method works in constant time.
+			This, however, requires maintaining a helper structure in every unit $U$ called \lstinline{floor}.
+			This structure is a list of lists, a list at position $k$ contains the maximal units made by process $k$ that are below $U$.
+			To check whether $V$ is below $U$ we check if \lstinline{U.floor[V.creator_id][0].height >= V.height}.
+			Maintaining \lstinline{floor} requires more work. When adding a unit to the poset we combine the floors of its parents.
+			This operation runs in $O(N*p)$ time and is one of the more expensive ones.
+		\subsection{Creating units}
+			The most expensive part of creating a unit $U$ is choosing its parents. Because of historical reasons we do this somewhat suboptimally.
+			We set the first parent to the last unit created by the process creating $U$. Every subsequent parent we choose as follows.
+			A list is created by taking all the maximal units of the poset and finding the ones which \emph{do not} satisfy the expand primes rule (described in section \ref{sec:adding}).
+			We then take the list of maximal units and remove the members of the previous list and all the previous parents.
+			We choose a random unit from this list and add it as a parent. This is repeated until we either cannot add any more parents or reach the limit of parents.
+
+			\todo[inline]{Make sure we don't use greedy for any experiments or describe it here.}
+
+			Checking whether a unit satisfies the expand primes rule takes $O(N)$ time and we have to do this for at most $N$ units.
+			The whole process is repeated $p$ times, giving us a final time of $O(N^2*p)$.
+			This is relatively slow, but it is worth pointing out that creation happens relatively rarely, so it shouldn't have big effects on the overall run time.
+		\subsection{Adding units to the poset}
+		 \label{sec:adding}
+		 Adding units to the poset consists of several potentially computationally expensive steps:
+			\begin{enumerate}
+				\item Checking unit compliance.
+				\item Computing the level of a unit.
+			\end{enumerate}
+
+			Compliance checking consists of multiple parts, but in this document we restrict the discussion to the ones that might be computationally expensive.
+			For a more through list of steps see the \lstinline{check_compliance} documentation.
+			\begin{enumerate}
+				\item We check whether the unit proves that its creator produced a fork. This requires combining floors, which takes $O(N*p)$ time.
+				\item We check whether any of its parents proves that the creator of any other parent is a forker. This takes $O(p^2)$ time,
+					because the parents are already in the poset, so no floor combining is needed.
+				\item We check whether the ``expand primes'' rule is satisfied. This should take (as described below) at most $O(N*p)$ time.
+			\end{enumerate}
+			All in all compliance should take about $O(N*p)$ time, which at worst can degenerate to $O(N^2)$ if we don't restrict the number of parents.
+
+			The ``expand primes'' rule means that every parent after the first has to satisfy one of the conditions:
+			\begin{itemize}
+				\item Have level greater than the previous one.
+				\item Be above more prime units of level equal to the previous parent's level, than all the previous parents combined.
+			\end{itemize}
+			Checking the former condition requires constant time, but the latter requires iterating over at most all prime units of the specified level.
+			Since we do it for every parent this takes $O(N*p)$ time, as asserted above.
+
+			Computing the level consists of iterating over all prime units of the level of the unit's predecessor and checking whether a sufficient number of them is below the unit.
+			It takes only about $O(N)$ time, but if the number of parents is restricted this is comparable to compliance checking.
+		\subsection{Sending and receiving units}
+		 Determining which units to send only takes time linear with respect to the number of units that actually have to be sent.
+			Then we have to order the units topologically -- we do this before sending them, but it has to be done at some point so there is no time to be saved here.
+			This takes at most $O(k*p)$ time, where $k$ is the number of units to send.
+
+			This is mostly relevant when $k$ is big, i.e. when the processes syncing are significantly desynchronised.
+			This sometimes happens in our tests, because the machines don't start at once.
+			However after a while the effects are negligible.
+		\subsection{Computing decisions for timing units}
+		 The most time expensive part of timing decisions is checking for popularity proofs.
+			To check if a unit proves the popularity of another we traverse the poset graph between the two units and check whether
+			we encounter units created by sufficiently many processes. This takes time linear with the number of edges encountered,
+			which is $p$, times the number of units encountered. This is only ran between units differing by $3$ levels, so the number of units
+			is about $3*N*t$, where $t$ is the average number of units created by a single process at a single level (the ``thickness'' of a level).
+			It is worth pointing out that in many of our experiments	$t = 1$.
+
+			The attempt at proving popularity can be ran for up to $N$ unit consecutively, so this single operation can take $O(N*N*p*t)$ time.
+			When $p$ is close to $N$ this turns into $O(N^3*t)$, which is much more expensive than any other single operation we use.
+			However, we memoize the results, so this should only happen very infrequently, at most for one unit per level in the whole poset.
+
+			Other methods relating to timing decisions take about $O(N)$ time, so much faster.
 \end{document}
