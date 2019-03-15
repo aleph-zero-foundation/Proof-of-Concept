@@ -131,7 +131,7 @@ class LogAnalyzer:
         self.pattern_level = parse.compile("Level {level:d} reached")
         self.pattern_add_line = parse.compile("At lvl {timing_level:d} added {n_units:d} units and {n_txs:d} txs to the linear "
                                               "order {unit_list}")
-        self.pattern_decide_timing = parse.compile("Timing unit for lvl {level:d} decided at lvl + {plus_level:d}, poset lvl + "
+        self.pattern_decide_timing = parse.compile("Timing unit for lvl {level:d} {method} decided at lvl + {plus_level:d}, poset lvl + "
                                                    "{plus_poset_level:d}")
         self.pattern_sync_establish = parse.compile("Established connection to {process_id:d}")
         self.pattern_listener_succ = parse.compile("Syncing with {process_id:d} succesful")
@@ -437,6 +437,7 @@ class LogAnalyzer:
         self.levels[level]['timing_decided_level'] = timing_decided_level
         self.levels[level]['timing_poset_decided_level'] = timing_poset_decided_level
         self.levels[level]['timing_decided_date'] = event['date']
+        self.levels[level]['timing_decided_method'] = parsed['method']
 
     def parse_receive_units_done(self, ev_params, msg_body, event):
         parsed = self.pattern_receive_units_done.parse(msg_body)
@@ -809,12 +810,12 @@ class LogAnalyzer:
 
     def get_timing_decision_stats(self):
         '''
-        Returns 4 lists:
+        Returns lists:
         [level],
         [n_units decided at this level],
         [+levels of timing decision at this level],
         [+levels of poset at the time of decision],
-        [time in sec to timing decision)
+        [time in sec to timing decision]
         [number of transactions at this level]
         '''
         levels = []
@@ -840,6 +841,30 @@ class LogAnalyzer:
                     level_delays.append(delay)
                     n_txs_per_level.append(self.levels[level]['n_txs_ordered'])
         return levels, n_units_per_level, levels_plus_decided, levels_poset_plus_decided, level_delays, n_txs_per_level
+
+    def get_decision_methods(self):
+        '''
+        Returns 3 integers: the number of timing_units decided using:
+            - fast proof
+            - regular proof
+            - pi_delta
+        '''
+        fast, regular, pi_delta = 0, 0, 0
+        for level in self.levels:
+            if level == 0:
+                # timing is not decided on level
+                continue
+            else:
+                if 'n_units_decided' in self.levels[level]:
+                    if self.levels[level]['timing_decided_method'] == 'fast':
+                        fast += 1
+                    elif self.levels[level]['timing_decided_method'] == 'slow':
+                        regular += 1
+                    elif self.levels[level]['timing_decided_method'] == 'pi_delta':
+                        pi_delta += 1
+                    else:
+                        assert False, "Unsupported decision method."
+        return fast, regular, pi_delta
 
     def get_sync_info(self, plot_file = None):
         '''
@@ -1278,8 +1303,15 @@ class LogAnalyzer:
         - time_decision: the time (in sec) between creating a new level and deciding on a timing unit on this level
 
         - decision_height: the difference in levels between the timing unit and the unit which decided it (i.e. had Delta=1)
+
         - n_txs_ordered: the number of unique transactions added in a batch between two timing units
                          NOTE: there might be duplicate txs counted here, between different batches
+
+        - n_fast_decided: the number of timing units decided using the fast proof method
+
+        - n_regular_decided: the number of timing units decided using the standard voting mechanism
+
+        - n_pidelta_decided: the number of timing units decided in the pi_delta phase
 
         - new_level_times: the time needed to create a new level
 
@@ -1368,7 +1400,7 @@ class LogAnalyzer:
 
         - time_create: cpu time to create a unit
 
-        - time_decision: cpu time spent on attempting to decide popularity after adding a new prime unit
+        - time_attempt_t: cpu time spent on attempting to decide popularity after adding a new prime unit
 
         - n_parents: number of parents of units created by this process
 
@@ -1398,6 +1430,12 @@ class LogAnalyzer:
         _append_stat_line(levels_plus_decided, 'decision_height')
         _append_stat_line(levels_poset_plus_decided, 'poset_decision_height')
         _append_stat_line(n_txs_per_level, 'n_txs_ordered')
+
+        # decision method
+        fast, regular, pi_delta = self.get_decision_methods()
+        _append_stat_line([fast], 'n_fast_decided')
+        _append_stat_line([regular], 'n_regular_decided')
+        _append_stat_line([pi_delta], 'n_pidelta_decided')
 
         # new level
         data = self.get_new_level_times()
@@ -1492,7 +1530,7 @@ class LogAnalyzer:
         _append_stat_line(times['t_tot_sync'], 'time_cpu_sync')
         _append_stat_line(times['t_order_level'], 'time_order')
         _append_stat_line(times['t_create'], 'time_create')
-        _append_stat_line(times['t_attempt_timing'], 'time_decision')
+        _append_stat_line(times['t_attempt_timing'], 'time_attempt_t')
 
         # n_parents
         _append_stat_line(self.get_n_parents(), 'n_parents')
