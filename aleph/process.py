@@ -207,18 +207,16 @@ class Process:
     def create_unit(self, txs, prefer_maximal):
         '''
         Attempts to create a new unit in the poset.
+        TODO: the create_unit_greedy method does not yet support forks in the poset.
         :param list txs: the transactions to include in the unit
         :param bool prefer_maximal: whether to prefer maximal elements of the poset as parents
         :returns: A new unit if creation was successfull, None otherwise
         '''
-        if consts.SMART_CREATE:
-            if not self.check_create_trigger():
-                return None
-            with timer(self.process_id, 'create_unit'):
-                U = create_unit_greedy(self.poset, self.process_id, txs)
-        else:
-            with timer(self.process_id, 'create_unit'):
-                U = create_unit(self.poset, self.process_id, txs, prefer_maximal = prefer_maximal)
+        if consts.SMART_CREATE and not self.check_create_trigger():
+            return None
+
+        with timer(self.process_id, 'create_unit'):
+            U = create_unit_greedy(self.poset, self.process_id, txs)
 
         return U
 

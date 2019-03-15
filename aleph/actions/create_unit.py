@@ -195,7 +195,7 @@ def max_level_max_units(poset, skip):
     :param list skip: Units to omit in the result
     :returns: A list of maximal units in poset with level equal to the maximal level reached, with units in skip skipped.
     '''
-    return [V for V in poset.max_units if V.level == poset.level_reached and V not in skip]
+    return list(reversed([V for V in poset.max_units if V.level == poset.level_reached and V not in skip]))
 
 
 
