@@ -209,11 +209,9 @@ class Process:
                 # we have created two units on the same level, increase delay
                 self.create_delay *= 1 + self.step_size
             elif recent_levels[0] <= recent_levels[2] - 2:
-                # we are creating units too frequently, reduce delay
+                # we are creating units too infrequently, reduce delay
                 self.create_delay /= 1 + self.step_size
 
-        if self.process_id == 0:
-            print(self.process_id, self.create_delay)
 
 
     def check_create_trigger(self):
