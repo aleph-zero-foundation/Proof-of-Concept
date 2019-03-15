@@ -85,9 +85,17 @@
 				\item We check whether the unit proves that its creator produced a fork. This requires combining floors, which takes $O(N*p)$ time.
 				\item We check whether any of its parents proves that the creator of any other parent is a forker. This takes $O(p^2)$ time,
 					because the parents are already in the poset, so no floor combining is needed.
-				\item We check whether the ``expand primes'' rule is satisfied. This should take at most $O(N*p)$ time.
+				\item We check whether the ``expand primes'' rule is satisfied. This should take (as described below) at most $O(N*p)$ time.
 			\end{enumerate}
 			All in all compliance should take about $O(N*p)$ time, which at worst can degenerate to $O(N^2)$ if we don't restrict the number of parents.
+
+			The ``expand primes'' rule means that every parent after the first has to satisfy one of the conditions:
+			\begin{itemize}
+				\item Have level greater than the previous one.
+				\item Be above more prime units of level equal to the previous parent's level, than all the previous parents combined.
+			\end{itemize}
+			Checking the former condition requires constant time, but the latter requires iterating over at most all prime units of the specified level.
+			Since we do it for every parent this takes $O(N*p)$ time, as asserted above.
 
 			Computing the level consists of iterating over all prime units of the level of the unit's predecessor and checking whether a sufficient number of them is below the unit.
 			It takes only about $O(N)$ time, but if the number of parents is restricted this is comparable to compliance checking.
