@@ -188,17 +188,6 @@ def create_unit(poset, creator_id, txs, num_parents = None, restrictions=[expand
     return U
 
 
-def max_level_max_units(poset, skip):
-    '''
-    The units in the poset that are both maximal level and maximal in the poset order.
-    :param Poset poset: The poset we are working with
-    :param list skip: Units to omit in the result
-    :returns: A list of maximal units in poset with level equal to the maximal level reached, with units in skip skipped.
-    '''
-    return list(reversed([V for V in poset.max_units if V.level == poset.level_reached and V not in skip]))
-
-
-
 def create_unit_greedy(poset, creator_id, txs, num_parents = None):
     '''
     Creates a new unit and stores txs in it. It uses only maximal units in the poset as parents (with the possible exception for the self_predecessor).
@@ -231,23 +220,50 @@ def create_unit_greedy(poset, creator_id, txs, num_parents = None):
 
     # choose parents for the new unit
     U_self_predecessor = poset.max_units_per_process[creator_id][0]
-    level = U_self_predecessor.level
+    level_predecessor = U_self_predecessor.level
+    level_poset = poset.level_reached
+    parent_candidates_max_level = list(reversed([V for V in poset.max_units if V.level == level_poset and V is not U_self_predecessor]))
+    if level_predecessor == level_poset:
+        parent_candidates_max_level = [U_self_predecessor] + parent_candidates_max_level
 
-    parent_candidates = [U_self_predecessor] + max_level_max_units(poset, skip = [U_self_predecessor])
+    # we start by picking parents of level = level_poset
+    non_visible_primes = poset.get_all_prime_units_by_level(level_poset)
     parents = []
-    non_visible_primes = poset.get_all_prime_units_by_level(level)
-
-    # the below faithfully implements the expand_primes rule
-    for V in parent_candidates:
+    for V in parent_candidates_max_level:
         if len(parents) == num_parents:
             break
-        if V.level > level:
-            level = V.level
-            non_visible_primes = poset.get_all_prime_units_by_level(level)
         # the 3 lines below can be optimized (by a constant factor) but it is left as it is for simplicity and to avoid premature optimization
         if any(poset.below(W, V) for W in non_visible_primes):
             parents.append(V)
             non_visible_primes = [W for W in non_visible_primes if not poset.below(W, V)]
+
+    if level_poset > level_predecessor:
+        # We expect here that level_poset = level_predecessor + 1.
+        # We will add a bunch of parents of level = level_predecessor, the reason to do that is to make the new unit "see" as many
+        # units as possible. This in turn is to make the poset "better connected" which helps in fast proofs of popularity for timing units.
+        if len(parents) == num_parents:
+            # too many parents picked from max_level, we need room for U_self_predecessor
+            parents = parents[:num_parents-1]
+
+        # we consider candidates at level = level_predecessor
+        parent_candidates = list(reversed([V for V in poset.max_units if V.level == level_predecessor and V is not U_self_predecessor]))
+        # we would like to "expand primes" w.r.t level_predecessor
+        non_visible_primes = poset.get_all_prime_units_by_level(level_predecessor)
+        # filter out all primes visible by the parents we picked so far
+        for U_p in parents + [U_self_predecessor]:
+            non_visible_primes = [W for W in non_visible_primes if not poset.below(W, U_p)]
+        old_len = len(non_visible_primes)
+        low_parents = []
+        for V in parent_candidates:
+            if len(parents) + 1 + len(low_parents) == num_parents:
+                break
+            if any(poset.below(W, V) for W in non_visible_primes):
+                low_parents.append(V)
+                non_visible_primes = [W for W in non_visible_primes if not poset.below(W, V)]
+        # the below order of parents is for the expand_primes rule to be satisfied (see the implementation in Poset)
+        parents = [U_self_predecessor] + low_parents + parents
+
+
     if len(parents) < 2:
         return None
 
