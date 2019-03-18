@@ -120,4 +120,49 @@
 			However, we memoize the results, so this should only happen very infrequently, at most for one unit per level in the whole poset.
 
 			Other methods relating to timing decisions take about $O(N)$ time, so much faster.
+	\section{Known bottlenecks}
+		The main thing to note before we begin discussing bottlenecks is what we are actually trying to optimise.
+		Running time of specific operations is not particularly important to us, what we care about is mostly the latency,
+		i.e. how much time passes between a unit being added to the poset and it being included in the linear order.
+		Due to that the structure of the poset that our algorithm builds might often be more important than how long various operations take.
+
+		Another important point is that every CPython program has a singular event log, which is completely synchronous, so it cannot run anything in a truly separate thread.
+		Due to that, even though the code is written in an ``asynchronous'' manner, any CPU intensive operation will block everything until it completes.
+		It can, however, run network operations, like waiting for sending/receiving data, in the background by deferring them to the OS.
+
+		This brings us to our first and most obvious bottleneck, network operations.
+		\subsection{Network capacity and latency}
+			During the execution of our algorithm we have to send quite big amounts of data through the network.
+			In a rough overview our sync protocol has the following steps:
+			\begin{enumerate}
+				\item Initiate the sync by sending the state of our poset in the form of heights and hashes of maximal units per process.
+				\item Receive similar information from the other process, followed by units it inferred we don't know about.
+				\item Send the units we infer the other process doesn't know about.
+			\end{enumerate}
+			This description omits anything related to fork handling, as those are not present in the tests.
+			The full protocol can be found in the documentation of \lstinline{aleph.network}.
+
+			Because of these operations being almost properly parallelized it is hard to tell how much of a bottleneck they really are.
+			We expect that sending many units through the network can take a long time, so if two processes are heavily desynchronised this might be noticeable.
+			However, in such cases adding the units takes a significant amount of time and is probably a bigger bottleneck.
+		\subsection{Adding units}
+			As detailed in Section \ref{sec:adding} adding units after a sync can take a significant amount of time if the processes are sufficiently desynchronised.
+			Because of the way parallelism is handled in Python this can block for a long time and delay crucial operations such as unit creation and syncing.
+			Such desynchronisation should only occur at the start of experiments, when some machines begin participating in the algorithm much later than others.
+			However, this problem might cause a vicious circle, by causing delays sufficient to desynchronise processes again.
+			This might be the case in some of the most intensive tests.
+		\subsection{Poset shape}
+			As mentioned at the beginning of this section the shape of the poset has crucial influence over the final validation latency.
+			There are two crucial components influencing this speed:
+			\begin{enumerate}
+				\item Thickness of a level, i.e. how many units made by a process were at that level.
+				\item How quickly units become popular, i.e. how quickly they are below units made by $2/3$ of the processes.
+			\end{enumerate}
+			The former should be as low as possible, because a unit can only be included in a linear order after at least three levels are build on top of it.
+			Since we limit how often new units are created, making level unnecessarily thick wastes time.
+
+			The latter should be as quick as possible, because when a unit is being considered for a timing unit its popularity determines how many levels it will take to decide.
+		 Therefore, we are once again bound by rate limiting unit creation.
+
+			The results were best for posets in which most levels had thickness $1$ (one unit per process at every level) and almost every unit was popular very quickly.
 \end{document}
