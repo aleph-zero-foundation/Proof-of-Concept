@@ -419,12 +419,10 @@ def run_protocol(n_processes, regions, restricted, instance_type):
     #wait('ssh ready', regions)
     sleep(120)
 
-    # TODO try to prevent output of apt spoiling to console
     print('installing dependencies')
     # install dependencies on hosts
     run_task('inst-dep', regions, parallel)
 
-    # TODO check if it works of more than 1 machine per region
     print('wait till installation finishes')
     # wait till installing finishes
     sleep(60)
@@ -452,7 +450,7 @@ def run_protocol(n_processes, regions, restricted, instance_type):
     run_task('run-protocol', regions, parallel)
 
 
-def get_logs(n_processes, regions, n_parents, use_tcoin, create_delay, sync_init_delay, txpu):
+def get_logs(n_processes, regions, n_parents, adaptive, create_delay, sync_init_delay, txpu):
     '''Retrieves all logs from instances.'''
 
     if not os.path.exists('../results'):
@@ -512,7 +510,7 @@ def get_logs(n_processes, regions, n_parents, use_tcoin, create_delay, sync_init
         pid = ip_addresses.index(fp.split(f'-{name}.log')[0].replace('-', '.'))
         os.rename(f'../results/{fp}', f'../results/{pid}.{name}.log.zip')
 
-    result_path = f'../{n_processes}_{n_parents}_{use_tcoin}_{create_delay}_{sync_init_delay}_{txpu}'
+    result_path = f'../{n_processes}_{n_parents}_{adaptive}_{create_delay}_{sync_init_delay}_{txpu}'
 
     print('renaming dir')
     os.rename('../results', result_path)
