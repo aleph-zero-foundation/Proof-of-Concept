@@ -66,11 +66,16 @@
 			We then take the list of maximal units and remove the members of the previous list and all the previous parents.
 			We choose a random unit from this list and add it as a parent. This is repeated until we either cannot add any more parents or reach the limit of parents.
 
-			\todo[inline]{Make sure we don't use greedy for any experiments or describe it here.}
-
 			Checking whether a unit satisfies the expand primes rule takes $O(N)$ time and we have to do this for at most $N$ units.
 			The whole process is repeated $p$ times, giving us a final time of $O(N^2*p)$.
 			This is relatively slow, but it is worth pointing out that creation happens relatively rarely, so it shouldn't have big effects on the overall run time.
+
+			After initial tests another, more efficient, algorithm for choosing parents was implemented.
+			We first pick all maximal units of maximal level in the poset, ones that were added latest first.
+			Then we add them greedily as parents as long as they satisfy the expand primes rule.
+			Afterwards we check maximal units of level equal to the predecessor's level and if they could be added before the previously chosen parents.
+			Once again we choose greedily and add as much as is legal. The whole process only takes $O(N*p)$ time.
+			These two steps more or less correspond to the two requirements on optimal poset structure, see Section \ref{ssec:posetShape}.
 		\subsection{Adding units to the poset}
 		 \label{sec:adding}
 		 Adding units to the poset consists of several potentially computationally expensive steps:
@@ -152,6 +157,7 @@
 			However, this problem might cause a vicious circle, by causing delays sufficient to desynchronise processes again.
 			This might be the case in some of the most intensive tests.
 		\subsection{Poset shape}
+		 \label{ssec:posetShape}
 			As mentioned at the beginning of this section the shape of the poset has crucial influence over the final validation latency.
 			There are two crucial components influencing this speed:
 			\begin{enumerate}
