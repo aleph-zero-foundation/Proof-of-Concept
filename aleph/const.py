@@ -17,8 +17,6 @@ UNITS_LIMIT           = None                # maximal number of units that are c
 SYNCS_LIMIT           = None                # maximal number of syncs that are performed
 
 USE_TCOIN             = 1                   # whether to use threshold coin
-SMART_CREATE          = 0                   # use the create strategy where we wait until 2/3N prime units are available, and use create_unit_greedy
-USE_MAX_PARENTS       = 1                   # prefer maximal units (globally maximal in poset) when choosing parents
 PRECOMPUTE_POPULARITY = 0                   # precompute popularity proof to ease computational load of Poset.compute_vote procedure
 ADAPTIVE_DELAY        = 1                   # whether to use the adaptive strategy of determining create_delay
 
