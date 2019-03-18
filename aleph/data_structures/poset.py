@@ -371,11 +371,11 @@ class Poset:
     def check_expand_primes(self, U):
         '''
         Checks if the unit U respects the "expand primes" rule.
-        Let L be the level of U's predecessor and P the set of
-        prime units of level L below the predecessor.
-        Every parent of U that is not its predecessor must have
-        more prime units of level L below it than all the previous
-        parents combined.
+        Parents are checked consecutively. The first is just accepted.
+        Then let L be the level of the last checked parent and P the set of
+        prime units of level L below all the parents checked up to now.
+        The next parent must must either have prime units of level L below it that are
+        not in P, or have level greater than L.
         :param Unit U: unit that is tested against the expand primes rule
         :returns: Boolean value, True if U respects the rule, False otherwise.
         '''
