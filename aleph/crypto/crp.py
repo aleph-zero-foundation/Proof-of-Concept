@@ -35,6 +35,16 @@ class CommonRandomPermutation:
             # remove all but cache_size largest indices
             self.cache = dict(cache_items[:self.cache_size])
 
+    def index_of(self, item, level):
+        '''
+        Outputs the position in the permutation crp[level] of item.
+        :param int item: the number whose position we seek
+        :param int level: the level of the permutation of interest
+        :returns: the position of item in the permutation at this level
+        '''
+        sigma = self.__getitem__(level)
+        return sigma.index(item)
+
     def __getitem__(self, level):
         '''
         Returns common random permutation for level level.
