@@ -132,7 +132,7 @@ class LogAnalyzer:
         self.pattern_add_line = parse.compile("At lvl {timing_level:d} added {n_units:d} units and {n_txs:d} txs to the linear "
                                               "order {unit_list}")
         self.pattern_decide_timing = parse.compile("Timing unit for lvl {level:d} {method} decided at lvl + {plus_level:d}, poset lvl + "
-                                                   "{plus_poset_level:d}")
+                                                   "{plus_poset_level:d}, skipped {skipped:d}")
         self.pattern_sync_establish = parse.compile("Established connection to {process_id:d}")
         self.pattern_listener_succ = parse.compile("Syncing with {process_id:d} succesful")
         self.pattern_receive_units_done = parse.compile("Received {n_bytes:d} bytes and {n_units:d} units")
@@ -438,6 +438,7 @@ class LogAnalyzer:
         self.levels[level]['timing_poset_decided_level'] = timing_poset_decided_level
         self.levels[level]['timing_decided_date'] = event['date']
         self.levels[level]['timing_decided_method'] = parsed['method']
+        self.levels[level]['timing_decided_skipped'] = parsed['skipped']
 
     def parse_receive_units_done(self, ev_params, msg_body, event):
         parsed = self.pattern_receive_units_done.parse(msg_body)
@@ -817,6 +818,7 @@ class LogAnalyzer:
         [+levels of poset at the time of decision],
         [time in sec to timing decision]
         [number of transactions at this level]
+        [number of units skipped (with negative decision) in the common random permutation]
         '''
         levels = []
         n_units_per_level = []
@@ -824,6 +826,7 @@ class LogAnalyzer:
         levels_plus_decided = []
         levels_poset_plus_decided = []
         level_delays = []
+        n_skipped = []
         for level in self.levels:
             if level == 0:
                 # timing is not decided on level
@@ -835,12 +838,13 @@ class LogAnalyzer:
                     level_diff = self.levels[level]['timing_decided_level'] - level
                     poset_level_diff = self.levels[level]['timing_poset_decided_level'] - level
                     levels.append(level)
+                    n_skipped.append(self.levels[level]['timing_decided_skipped'])
                     n_units_per_level.append(n_units)
                     levels_plus_decided.append(level_diff)
                     levels_poset_plus_decided.append(poset_level_diff)
                     level_delays.append(delay)
                     n_txs_per_level.append(self.levels[level]['n_txs_ordered'])
-        return levels, n_units_per_level, levels_plus_decided, levels_poset_plus_decided, level_delays, n_txs_per_level
+        return levels, n_units_per_level, levels_plus_decided, levels_poset_plus_decided, level_delays, n_txs_per_level, n_skipped
 
     def get_decision_methods(self):
         '''
@@ -1424,11 +1428,13 @@ class LogAnalyzer:
             lines.append(format_line(fields, stats))
 
         # timing_decision
-        levels, n_units_per_level, levels_plus_decided, levels_poset_plus_decided, level_delays, n_txs_per_level = self.get_timing_decision_stats()
+        levels, n_units_per_level, levels_plus_decided, levels_poset_plus_decided,\
+            level_delays, n_txs_per_level, n_skipped = self.get_timing_decision_stats()
         _append_stat_line(n_units_per_level, 'n_units_decision')
         _append_stat_line(level_delays, 'time_decision')
         _append_stat_line(levels_plus_decided, 'decision_height')
         _append_stat_line(levels_poset_plus_decided, 'poset_decision_height')
+        _append_stat_line(n_skipped, 'n_decision_skipped')
         _append_stat_line(n_txs_per_level, 'n_txs_ordered')
 
         # decision method
