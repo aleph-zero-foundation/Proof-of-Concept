@@ -441,9 +441,9 @@ class LogAnalyzer:
         self.levels[level]['timing_decided_level'] = timing_decided_level
         self.levels[level]['timing_poset_decided_level'] = timing_poset_decided_level
         self.levels[level]['timing_decided_date'] = event['date']
-        if 'method' in parsed:
+        if 'method' in parsed.named:
             self.levels[level]['timing_decided_method'] = parsed['method']
-        if 'skipped' in parsed:
+        if 'skipped' in parsed.named:
             self.levels[level]['timing_decided_skipped'] = parsed['skipped']
 
     def parse_receive_units_done(self, ev_params, msg_body, event):
@@ -600,7 +600,7 @@ class LogAnalyzer:
 
     def get_txps_till_last_timing_unit(self):
         '''
-        Returns the number of transactions per second averaged from start till deciding on the timing unit at lvl 1.
+        Returns the number of transactions per second averaged from start till last timing unit.
         '''
         levels_with_timing = [level for level in self.levels if 'timing_decided_date' in self.levels[level]]
         if levels_with_timing == []:
@@ -1446,6 +1446,7 @@ class LogAnalyzer:
         _append_stat_line(levels_poset_plus_decided, 'poset_decision_height')
         _append_stat_line(n_skipped, 'n_decision_skipped')
         _append_stat_line(n_txs_per_level, 'n_txs_ordered')
+        _append_stat_line([self.get_txps_till_last_timing_unit()], 'txps')
 
         # decision method
         fast, regular, pi_delta = self.get_decision_methods()
