@@ -59,33 +59,6 @@ def test_small_random_compliance():
 
 
 
-def test_small_random_legacy_compliance():
-    '''
-    The same as test_small_random_compliance() but using the "old" set of compliance rules (better suited for slow poset).
-    '''
-    random.seed(123456789)
-    repetitions = 80
-    properties = ['forker_muting', 'growth', 'parent_diversity']
-    for violated_property in properties:
-        for rep in range(repetitions):
-            n_processes = random.randint(4, 5)
-            n_units = random.randint(0, n_processes*2)
-            if violated_property == 'forker_muting':
-                n_forkers = random.randint(1, n_processes)
-            else:
-                n_forkers = random.randint(0, n_processes)
-            constraints_ensured = {property : True for property in properties}
-            constraints_ensured['distinct_parents'] = True
-            constraints_violated = {violated_property  : False}
-            constraints_violated['distinct_parents'] = True
-            dag, topological_list = dag_utils.generate_random_violation(n_processes, n_units, n_forkers,
-                                    constraints_ensured, constraints_violated)
-            pattern = [True] * len(topological_list)
-            pattern[-1] = False
-            check_compliance_vs_pattern(dag, topological_list, pattern, compliance_rules = {'parent_diversity': True, 'growth': True, 'expand_primes': False})
-
-
-
 def test_large_random_compliance():
     '''
     The same as test_small_random_compliance() but tests larger posets.
@@ -112,29 +85,3 @@ def test_large_random_compliance():
             pattern = [True] * len(topological_list)
             pattern[-1] = False
             check_compliance_vs_pattern(dag, topological_list, pattern)
-
-
-def test_large_random_legacy_compliance():
-    '''
-    The same as test_small_random_legacy_compliance() but tests larger posets.
-    '''
-    random.seed(123456789)
-    repetitions = 2
-    properties = ['forker_muting', 'growth', 'parent_diversity']
-    for violated_property in properties:
-        for rep in range(repetitions):
-            n_processes = random.randint(30, 80)
-            n_units = random.randint(0, n_processes*2)
-            if violated_property == 'forker_muting':
-                n_forkers = random.randint(1, n_processes)
-            else:
-                n_forkers = random.randint(0, n_processes)
-            constraints_ensured = {property : True for property in properties}
-            constraints_ensured['distinct_parents'] = True
-            constraints_violated = {violated_property  : False}
-            constraints_violated['distinct_parents'] = True
-            dag, topological_list = dag_utils.generate_random_violation(n_processes, n_units, n_forkers,
-                                    constraints_ensured, constraints_violated)
-            pattern = [True] * len(topological_list)
-            pattern[-1] = False
-            check_compliance_vs_pattern(dag, topological_list, pattern, compliance_rules = {'parent_diversity': True, 'growth': True, 'expand_primes': False})

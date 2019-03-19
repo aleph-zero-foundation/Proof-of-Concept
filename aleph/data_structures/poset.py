@@ -29,7 +29,7 @@ class Poset:
         :param dict compliance_rules: a dictionary describing which compliance_rules to use
         '''
         self.n_processes = n_processes
-        self.default_compliance_rules = {'forker_muting': True, 'parent_diversity': False, 'growth': False, 'expand_primes': True, 'threshold_coin': use_tcoin}
+        self.default_compliance_rules = {'forker_muting': True, 'expand_primes': True, 'threshold_coin': use_tcoin}
         self.compliance_rules = compliance_rules
         self.use_tcoin = use_tcoin if use_tcoin is not None else consts.USE_TCOIN
         # process_id is used only to support tcoin (i.e. in case self.use_tcoin = True), to know which shares to add and which tcoin to pick from dealing units
@@ -255,7 +255,7 @@ class Poset:
 
     def should_check_rule(self, rule):
         '''
-        Check whether the rule (a string) "forker_muting", "parent_diversity", etc. should be checked in the check_compliance function.
+        Check whether the rule (a string) "forker_muting", "expand_primes", etc. should be checked in the check_compliance function.
         Based on the combination of default values and the compliance_rules dictionary provided as a parameter to the constructor.
         :param str rule: the name of the rule to check
         :returns: whether to check the rule
@@ -275,10 +275,8 @@ class Poset:
             1. Parents of U are correct (exist in the poset, etc.)
             2. U does not provide evidence of its creator forking
             3. Satisfies forker-muting policy.
-            4. Satisfies parent diversity rule. (optionally)
-            5. Check "growth" rule. (optionally)
-            6. Satisfies the expand primes rule.
-            7. The coinshares are OK, i.e., U contains exactly the coinshares it is supposed to contain.
+            4. Satisfies the expand primes rule.
+            5. The coinshares are OK, i.e., U contains exactly the coinshares it is supposed to contain.
         :param Unit U: unit whose compliance is being tested
         :returns: True if all the checks passed, False otherwise
         '''
@@ -304,22 +302,12 @@ class Poset:
             if not self.check_forker_muting(U):
                 return False
 
-        # 4. Satisfies parent diversity rule.
-        if self.should_check_rule('parent_diversity'):
-            if not self.check_parent_diversity(U):
-                return False
-
-        # 5. Check "growth" rule.
-        if self.should_check_rule('growth'):
-            if not self.check_growth(U):
-                return False
-
-        # 6. Sastisfies the expand primes rule
+        # 4. Sastisfies the expand primes rule
         if self.should_check_rule('expand_primes'):
             if not self.check_expand_primes(U):
                 return False
 
-        # 7. Coinshares are OK.
+        # 5. Coinshares are OK.
         if self.should_check_rule('threshold_coin'):
             if self.is_prime(U) and not self.check_coin_shares(U):
                 return False
@@ -371,11 +359,11 @@ class Poset:
     def check_expand_primes(self, U):
         '''
         Checks if the unit U respects the "expand primes" rule.
-        Let L be the level of U's predecessor and P the set of
-        prime units of level L below the predecessor.
-        Every parent of U that is not its predecessor must have
-        more prime units of level L below it than all the previous
-        parents combined.
+        Parents are checked consecutively. The first is just accepted.
+        Then let L be the level of the last checked parent and P the set of
+        prime units of level L below all the parents checked up to now.
+        The next parent must must either have prime units of level L below it that are
+        not in P, or have level greater than L.
         :param Unit U: unit that is tested against the expand primes rule
         :returns: Boolean value, True if U respects the rule, False otherwise.
         '''
@@ -399,22 +387,6 @@ class Poset:
             prime_below_parents.update(prime_below_V)
 
         return True
-
-    def check_growth(self, U):
-        '''
-        Checks if the unit U, created by process j, respects the "growth" rule.
-        No parent of U can be below the self predecessor of U.
-        :param Unit U: unit that is tested against the growth rule
-        :returns: Boolean value, True if U respects the rule, False otherwise.
-        '''
-        if len(U.parents) == 0:
-            return True
-
-        for V in U.parents:
-            if (V is not U.self_predecessor) and self.below(V, U.self_predecessor):
-                return False
-        return True
-
 
     def check_forker_muting(self, U):
         '''
@@ -464,64 +436,6 @@ class Poset:
 
         return True
 
-
-    def check_parent_diversity(self, U):
-        '''
-        Checks if unit U satisfies the parent diversity rule:
-        Let j be the creator process of unit U,
-        if U wants to use a process i as a parent for U and:
-        - previously it created a unit U_1 at height h_1 with parent i,
-        - unit U has height h_2 with h_1<h_2.
-        then consider the set P of all processes that were used as parents
-        of nodes created by j at height h, s.t. h_1 <= h < h_2,
-        (i can be used as a parent for U) iff (|P|>=n_processes/3)
-        Note that j is not counted in P.
-        :param Unit U: unit whose parent diversity is being tested
-        :returns: Boolean value, True if U did not reause a parent process too early, False otherwise.
-        '''
-
-        # Special case: U is a dealing unit
-        if len(U.parents) == 0:
-            return True
-
-        proposed_parent_processes = [V.creator_id for V in U.parents]
-        # in case U's creator is among parent processes we can ignore it
-        if U.creator_id in proposed_parent_processes:
-            proposed_parent_processes.remove(U.creator_id)
-        # bitmap for checking whether a given process was among parents
-        was_parent_process = [False for _ in range(self.n_processes)]
-        # counter for maintaining sum(was_parent_process)
-        n_parent_processes = 0
-
-        W = U.self_predecessor
-        # traverse the poset down from U, through self_predecessor
-        while True:
-            # W is a bottom unit -> STOP
-            if len(W.parents) == 0:
-                break
-            # flag for whether at the current level there is any occurence of a parent process proposed by U
-            proposed_parent_process_occurence = False
-
-            for V in W.parents:
-                if V.creator_id != U.creator_id:
-                    if V.creator_id in proposed_parent_processes:
-                        # V's creator is among proposed parent processes
-                        proposed_parent_process_occurence = True
-
-                    if not was_parent_process[V.creator_id]:
-                        was_parent_process[V.creator_id] = True
-                        n_parent_processes += 1
-
-            if n_parent_processes*3 >= self.n_processes:
-                break
-
-            if proposed_parent_process_occurence:
-                # a proposed parent process repeated too early!
-                return False
-
-            W = W.self_predecessor
-
-        return True
 
 #===============================================================================================================================
 # FLOOR

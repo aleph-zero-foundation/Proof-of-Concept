@@ -5,32 +5,6 @@ from aleph.data_structures import Poset, Unit
 
 
 
-def check_parent_diversity(dag, pid, parents, threshold):
-    '''
-    Checks whether the parent diversity rule is satisfied in dag for a node created by a given process with given parents.
-    :param DAG dag: the dag of interest
-    :param int pid: the creator_id of the node being checked
-    :param list parents: the parents of the node being checked
-    :param int threshold: the threshold to be used in the parent diversity rule (by default it's (2/3)*N)
-                          see also the docstring of check_parent_diversity in poset.py
-    :returns: True or False
-    '''
-    proposed_parents_processes = [dag.pid(node) for node in parents if dag.pid(node) != pid]
-    ancestor_processes = set()
-    W = dag.self_predecessor(pid, parents)
-    while W is not None:
-        new_processes = [dag.pid(node) for node in dag.parents(W) if dag.pid(node) != pid]
-        ancestor_processes.update(new_processes)
-        if len(ancestor_processes) >= threshold:
-            return True
-        for new_pid in new_processes:
-            if new_pid in proposed_parents_processes:
-                return False
-        W = dag.self_predecessor(pid, dag.parents(W))
-    return True
-
-
-
 def forking_processes_in_lower_cone(dag, node):
     '''
     :returns: the list of all process_ids of processes that can be proved forking in dag given the lower cone of node.
@@ -66,17 +40,6 @@ def check_distinct_parent_processes(dag, parents):
     return len(parents) == len(set(dag.pid(parent) for parent in parents))
 
 
-def check_growth(dag, node_self_predecessor, node_parents):
-    '''
-    Checks whether the growth rule (see the comment under check_growth in poset.py) is satisfied.
-    '''
-    assert node_self_predecessor is not None
-
-    for parent in node_parents:
-        if parent != node_self_predecessor and dag.is_reachable(parent, node_self_predecessor):
-            return False
-    return True
-
 def check_expand_primes(dag, node_self_predecessor, node_parents):
     '''
     Checks whether the expand_primes rules is satisfied for a given node. See the comment under check_expand_primes in poset.py.
@@ -110,7 +73,7 @@ def check_introduce_new_fork(dag, pid, self_predecessor):
 
 def check_new_unit_correctness(dag, new_unit_pid, new_unit_parents, forkers):
     '''
-    Check whether the new unit does not introduce a diamond structure and whether the growth rule is preserved.
+    Check whether the new unit does not introduce a diamond structure.
     :returns: the self_predecessor of new_unit if adding new_unit is correct and False otherwise.
     '''
 
@@ -126,9 +89,6 @@ def check_new_unit_correctness(dag, new_unit_pid, new_unit_parents, forkers):
         parent_ids.add(dag.pid(parent))
 
     if new_unit_pid not in forkers and check_introduce_new_fork(dag, new_unit_pid, self_predecessor):
-        return False
-
-    if not check_growth(dag, self_predecessor, new_unit_parents):
         return False
 
     return self_predecessor
@@ -168,8 +128,7 @@ def generate_random_nonforking(n_processes, n_units, file_name = None):
 def generate_random_forking(n_processes, n_units, n_forkers, file_name = None):
     '''
     Generates a random poset with n_processes processes, of which n_forkers are forking and saves it to file_name.
-    The growth property is guaranteed to be satisfied and there are no "diamonds" within forking processes.
-    In other words, the forking processes can only create trees.
+    There are no "diamonds" within forking processes, in other words the forking processes can only create trees.
     :param int n_processes: the number of processes in poset
     :param int n_forkers: the number of forking processes
     :param int n_units: the number of units in the process beyond genesis + n_processes initial units,
@@ -213,26 +172,20 @@ def generate_random_forking(n_processes, n_units, n_forkers, file_name = None):
     return dag
 
 
-def generate_random_compliant_unit(dag, n_processes, process_id = None, forking = False, only_maximal_parents = False, checks='expand_primes'):
+def generate_random_compliant_unit(dag, n_processes, process_id = None):
     '''
     Generates a random compliant unit created by a given process_id (or random process if no process_id provided).
     :param DAG dag: the dag of interest
     :param int n_processes: the number of processes in dag
     :param int process_id: the process_id of the unit creator
-    :param bool forking: whether it is allowed for the new unit to fork
-    :param bool only_maximal_parents: always pick parents to be maximal (within their processes)
-    :param str checks: either 'expand_primes' or 'growth_diversity' depending on which set of rules to enforce
     :returns: a pair (node, parents) -- the name of the new unit and its list of parents
     '''
     if process_id is None:
         process_id = random.choice(range(n_processes))
-    if only_maximal_parents:
-        maximal_nodes = []
-        for process_gen_id in range(n_processes):
-            maximal_nodes.extend(dag.maximal_units_per_process(process_gen_id))
-        unit_pairs = list(product(maximal_nodes, repeat=2))
-    else:
-        unit_pairs = list(product(dag.nodes.keys(), repeat=2))
+    maximal_nodes = []
+    for process_gen_id in range(n_processes):
+        maximal_nodes.extend(dag.maximal_units_per_process(process_gen_id))
+    unit_pairs = list(product(maximal_nodes, repeat=2))
 
     random.shuffle(unit_pairs)
 
@@ -242,19 +195,11 @@ def generate_random_compliant_unit(dag, n_processes, process_id = None, forking 
         if self_predecessor is None:
             continue
 
-        if not forking and check_introduce_new_fork(dag, process_id, self_predecessor):
+        if check_introduce_new_fork(dag, process_id, self_predecessor):
             continue
 
-        if checks == 'expand_primes':
-            if not check_expand_primes(dag, self_predecessor, new_unit_parents):
-                continue
-
-        if checks == 'growth_diversity':
-            if not check_growth(dag, self_predecessor, new_unit_parents):
-                continue
-
-            if not check_parent_diversity(dag, process_id, new_unit_parents, (n_processes + 2)//3):
-                continue
+        if not check_expand_primes(dag, self_predecessor, new_unit_parents):
+            continue
 
         if not check_forker_muting(dag, new_unit_parents):
             continue
@@ -306,8 +251,6 @@ def generate_random_violation(n_processes, n_correct_units, n_forkers, ensure, v
             continue
 
         property_table = {}
-        property_table['growth'] = check_growth(dag, self_predecessor, new_unit_parents)
-        property_table['parent_diversity'] = check_parent_diversity(dag, process_id, new_unit_parents, (n_processes + 2)//3)
         property_table['forker_muting'] = check_forker_muting(dag, new_unit_parents)
         property_table['distinct_parents'] = check_distinct_parent_processes(dag, new_unit_parents)
         property_table['expand_primes'] = check_expand_primes(dag, self_predecessor, new_unit_parents)

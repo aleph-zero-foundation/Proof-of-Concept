@@ -41,7 +41,6 @@ def generate_unit(dag, posets, creator_id, unit_to_name):
     :returns: a triple (U, dag_name, dag_parents) where U is the created unit in posets[creator_id], dag_name is the name of the unit in dag
               and dag_parents is the list of parents (names) of the unit in dag
     '''
-    n_processes = len(posets)
     U = create_unit(posets[creator_id], creator_id, [])
     if U is None:
         return None
@@ -94,7 +93,7 @@ def verify_nonforker_fails(dag, n_processes, creator_id):
     A function called when the process creator_id is not able to create a unit (by create_unit).
     It verifies whether the create_unit function implemented in DAG also cannot create one.
     '''
-    res = dag_utils.generate_random_compliant_unit(dag, n_processes, creator_id, forking = False, only_maximal_parents=True)
+    res = dag_utils.generate_random_compliant_unit(dag, n_processes, creator_id)
     assert res is None, f"Impossibly generated {res[0]}, with parents {res[1]}"
 
 def simulate_with_checks(

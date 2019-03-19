@@ -2,11 +2,9 @@ import asyncio
 import multiprocessing
 import random
 
-from aleph.data_structures import Unit, Poset, UserDB
+from aleph.data_structures import Unit
 from aleph.process import Process
 from aleph.crypto.keys import SigningKey, VerifyKey
-from aleph.utils.dag_utils import generate_random_forking, poset_from_dag, generate_random_compliant_unit
-from aleph.utils import DAG, dag_utils
 from aleph.actions import create_unit
 
 
