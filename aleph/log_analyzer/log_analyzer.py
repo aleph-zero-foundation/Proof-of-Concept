@@ -755,15 +755,18 @@ class LogAnalyzer:
 
         return cpu_time_summary
 
-    def get_delays_create_order(self):
+    def get_delays_create_order(self, skip_initial_fraction = 0.2):
         '''
         Computes delays between all consecutive create_unit events.
+        :param float skip_initial_fraction: how many initial units to skip in this statistic -- this is to ignore the "startup" phase
         '''
         delay_list = []
-        for U, U_dict in self.units.items():
-            if 'created' in U_dict and 'ordered' in U_dict:
-                diff = diff_in_seconds(U_dict['created'], U_dict['ordered'])
-                delay_list.append(diff)
+        created_units = [U_dict for _, U_dict in self.units.items() if 'created' in U_dict and 'ordered' in U_dict]
+        created_units.sort(key = lambda U_dict: U_dict['created'])
+        n_skip = int(skip_initial_fraction * len(created_units))
+        for U_dict in created_units[n_skip:]:
+            diff = diff_in_seconds(U_dict['created'], U_dict['ordered'])
+            delay_list.append(diff)
 
         return delay_list
 
@@ -1450,6 +1453,7 @@ class LogAnalyzer:
         # delay between create and order
         data = self.get_delays_create_order()
         _append_stat_line(data, 'create_ord_del')
+
 
         # delay between adding a new foreign unit and order
         data = self.get_delays_add_foreign_order()

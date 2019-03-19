@@ -10,11 +10,11 @@ import parse
 
 def gen_label_from_dir_name(dir_name):
     # create_f and sync_f are parsed as strings and not floats because of some strange issue with parse
-    parsed = parse.parse("{N:d}_{parents:d}_{tcoin:d}_{create_d}_{sync_d}_{txpu:d}",dir_name)
+    parsed = parse.parse("{N:d}_{parents:d}_{adaptive:d}_{create_d}_{sync_d}_{txpu:d}",dir_name)
     if parsed is None:
         return None
-    tc = 'TC' if parsed['tcoin'] else '  '
-    label = f"N={parsed['N']:<4} TX={parsed['txpu']:<4} PAR={parsed['parents']:<3} DEL=({float(parsed['create_d']):.1f},{float(parsed['sync_d']):.3f})"
+    ad = 'AD' if parsed['adaptive'] else '  '
+    label = f"N={parsed['N']:<4} TX={parsed['txpu']:<4} PAR={parsed['parents']:<3} DEL=({float(parsed['create_d']):.1f},{float(parsed['sync_d']):.3f}) {ad}"
     return label
 
 
