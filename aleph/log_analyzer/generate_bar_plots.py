@@ -10,11 +10,11 @@ import parse
 
 def gen_label_from_dir_name(dir_name):
     # create_f and sync_f are parsed as strings and not floats because of some strange issue with parse
-    parsed = parse.parse("{N:d}_{parents:d}_{tcoin:d}_{create_d}_{sync_d}_{txpu:d}",dir_name)
+    parsed = parse.parse("{N:d}_{parents:d}_{adaptive:d}_{create_d}_{sync_d}_{txpu:d}",dir_name)
     if parsed is None:
         return None
-    tc = 'TC' if parsed['tcoin'] else '  '
-    label = f"N={parsed['N']:<4} TX={parsed['txpu']:<4} PAR={parsed['parents']:<3} DEL=({float(parsed['create_d']):.1f},{float(parsed['sync_d']):.3f})"
+    ad = 'AD' if parsed['adaptive'] else '  '
+    label = f"N={parsed['N']:<4} TX={parsed['txpu']:<4} PAR={parsed['parents']:<3} DEL=({float(parsed['create_d']):.1f},{float(parsed['sync_d']):.3f}) {ad}"
     return label
 
 
@@ -154,11 +154,11 @@ def generate_plots():
                              'xlabel': 'Number of fails',
                              'order': 'inc',
                              },
-        'create_freq': {'title':'Actual average create frequency.',
+        'create_delay': {'title':'Actual average create delay.',
                              'xlabel': 'Time [s]',
                              'order': 'dec',
                              },
-        'sync_freq': {'title':'Actual average sync frequency',
+        'sync_delay': {'title':'Actual average sync delay',
                              'xlabel': 'Time [s]',
                              'order': 'dec',
                              },
@@ -194,6 +194,21 @@ def generate_plots():
 
         'learn_level_quorum' : {'title':'Time to learn >=(2/3) of prime units at a level',
                              'xlabel': 'Time [s]',
+                             'order': 'inc',
+                             },
+
+        'bytes_sent_per_sec' : {'title':'Bytes sent per second',
+                             'xlabel': 'Bytes per sec.',
+                             'order': 'inc',
+                             },
+
+        'poset_decision_height' : {'title':'Poset height when decided.',
+                             'xlabel': '+lvls',
+                             'order': 'inc',
+                             },
+
+        'n_decision_skipped' : {'title':'The number of units with negative decision on a lvl.',
+                             'xlabel': 'The number of units',
                              'order': 'inc',
                              },
     }

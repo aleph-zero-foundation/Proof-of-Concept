@@ -131,6 +131,8 @@ class LogAnalyzer:
         self.pattern_level = parse.compile("Level {level:d} reached")
         self.pattern_add_line = parse.compile("At lvl {timing_level:d} added {n_units:d} units and {n_txs:d} txs to the linear "
                                               "order {unit_list}")
+        self.pattern_decide_timing_old = parse.compile("Timing unit for lvl {level:d} decided at lvl + {plus_level:d}, poset lvl + "
+                                                   "{plus_poset_level:d}")
         self.pattern_decide_timing = parse.compile("Timing unit for lvl {level:d} {method} decided at lvl + {plus_level:d}, poset lvl + "
                                                    "{plus_poset_level:d}, skipped {skipped:d}")
         self.pattern_sync_establish = parse.compile("Established connection to {process_id:d}")
@@ -430,6 +432,8 @@ class LogAnalyzer:
 
     def parse_decide_timing(self, ev_params, msg_body, event):
         parsed = self.pattern_decide_timing.parse(msg_body)
+        if parsed is None:
+            parsed = self.pattern_decide_timing_old.parse(msg_body)
         level = parsed['level']
         timing_decided_level = parsed['level'] + parsed['plus_level']
         timing_poset_decided_level = parsed['level'] + parsed['plus_poset_level']
@@ -437,8 +441,10 @@ class LogAnalyzer:
         self.levels[level]['timing_decided_level'] = timing_decided_level
         self.levels[level]['timing_poset_decided_level'] = timing_poset_decided_level
         self.levels[level]['timing_decided_date'] = event['date']
-        self.levels[level]['timing_decided_method'] = parsed['method']
-        self.levels[level]['timing_decided_skipped'] = parsed['skipped']
+        if 'method' in parsed:
+            self.levels[level]['timing_decided_method'] = parsed['method']
+        if 'skipped' in parsed:
+            self.levels[level]['timing_decided_skipped'] = parsed['skipped']
 
     def parse_receive_units_done(self, ev_params, msg_body, event):
         parsed = self.pattern_receive_units_done.parse(msg_body)
@@ -755,15 +761,18 @@ class LogAnalyzer:
 
         return cpu_time_summary
 
-    def get_delays_create_order(self):
+    def get_delays_create_order(self, skip_initial_fraction = 0.2):
         '''
         Computes delays between all consecutive create_unit events.
+        :param float skip_initial_fraction: how many initial units to skip in this statistic -- this is to ignore the "startup" phase
         '''
         delay_list = []
-        for U, U_dict in self.units.items():
-            if 'created' in U_dict and 'ordered' in U_dict:
-                diff = diff_in_seconds(U_dict['created'], U_dict['ordered'])
-                delay_list.append(diff)
+        created_units = [U_dict for _, U_dict in self.units.items() if 'created' in U_dict and 'ordered' in U_dict]
+        created_units.sort(key = lambda U_dict: U_dict['created'])
+        n_skip = int(skip_initial_fraction * len(created_units))
+        for U_dict in created_units[n_skip:]:
+            diff = diff_in_seconds(U_dict['created'], U_dict['ordered'])
+            delay_list.append(diff)
 
         return delay_list
 
@@ -838,7 +847,8 @@ class LogAnalyzer:
                     level_diff = self.levels[level]['timing_decided_level'] - level
                     poset_level_diff = self.levels[level]['timing_poset_decided_level'] - level
                     levels.append(level)
-                    n_skipped.append(self.levels[level]['timing_decided_skipped'])
+                    if 'timing_decided_skipped' in self.levels[level]:
+                        n_skipped.append(self.levels[level]['timing_decided_skipped'])
                     n_units_per_level.append(n_units)
                     levels_plus_decided.append(level_diff)
                     levels_poset_plus_decided.append(poset_level_diff)
@@ -859,7 +869,7 @@ class LogAnalyzer:
                 # timing is not decided on level
                 continue
             else:
-                if 'n_units_decided' in self.levels[level]:
+                if 'timing_decided_method' in self.levels[level]:
                     if self.levels[level]['timing_decided_method'] == 'fast':
                         fast += 1
                     elif self.levels[level]['timing_decided_method'] == 'slow':
@@ -1450,6 +1460,7 @@ class LogAnalyzer:
         # delay between create and order
         data = self.get_delays_create_order()
         _append_stat_line(data, 'create_ord_del')
+
 
         # delay between adding a new foreign unit and order
         data = self.get_delays_add_foreign_order()
