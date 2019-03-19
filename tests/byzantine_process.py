@@ -78,7 +78,7 @@ class ByzantineProcess(Process):
         logger.debug('adding forking units')
 
         # double spend all transactions from the previously created unit
-        forking_unit = process.create_unit(unit.transactions(), prefer_maximal=consts.USE_MAX_PARENTS)
+        forking_unit = process.create_unit(unit.transactions())
         if forking_unit is None:
             logger.debug("can't create a forking unit")
             return None
@@ -153,7 +153,7 @@ class ByzantineProcess(Process):
             return False
         return True
 
-    def create_unit(self, txs, prefer_maximal=consts.USE_MAX_PARENTS):
+    def create_unit(self, txs):
         '''
         Tries to creates a "correct" unit - useful after we create a forking unit.
         '''
@@ -161,7 +161,7 @@ class ByzantineProcess(Process):
         while counter < self._create_limit:
             counter += 1
             try:
-                U = Process.create_unit(self, txs, prefer_maximal)
+                U = Process.create_unit(self, txs)
                 if U is None:
                     self._logger.debug('"Process.create_unit" returned None')
                     continue

@@ -9,7 +9,7 @@ import psutil
 from aleph.data_structures import Poset, UserDB
 from aleph.crypto import CommonRandomPermutation
 from aleph.network import Network, tx_listener
-from aleph.actions import create_unit_greedy
+from aleph.actions import create_unit
 from aleph.utils import timer
 import aleph.const as consts
 
@@ -216,12 +216,11 @@ class Process:
     def create_unit(self, txs):
         '''
         Attempts to create a new unit in the poset.
-        TODO: the create_unit_greedy method does not yet support forks in the poset.
         :param list txs: the transactions to include in the unit
         :returns: A new unit if creation was successfull, None otherwise
         '''
         with timer(self.process_id, 'create_unit'):
-            U = create_unit_greedy(self.poset, self.process_id, txs)
+            U = create_unit(self.poset, self.process_id, txs)
 
         return U
 

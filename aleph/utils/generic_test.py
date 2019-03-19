@@ -41,7 +41,6 @@ def generate_unit(dag, posets, creator_id, unit_to_name):
     :returns: a triple (U, dag_name, dag_parents) where U is the created unit in posets[creator_id], dag_name is the name of the unit in dag
               and dag_parents is the list of parents (names) of the unit in dag
     '''
-    n_processes = len(posets)
     U = create_unit(posets[creator_id], creator_id, [])
     if U is None:
         return None
