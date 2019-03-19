@@ -93,7 +93,7 @@ def verify_nonforker_fails(dag, n_processes, creator_id):
     A function called when the process creator_id is not able to create a unit (by create_unit).
     It verifies whether the create_unit function implemented in DAG also cannot create one.
     '''
-    res = dag_utils.generate_random_compliant_unit(dag, n_processes, creator_id, forking = False, only_maximal_parents=True)
+    res = dag_utils.generate_random_compliant_unit(dag, n_processes, creator_id)
     assert res is None, f"Impossibly generated {res[0]}, with parents {res[1]}"
 
 def simulate_with_checks(
