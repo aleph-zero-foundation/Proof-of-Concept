@@ -196,6 +196,21 @@ def generate_plots():
                              'xlabel': 'Time [s]',
                              'order': 'inc',
                              },
+
+        'bytes_sent_per_sec' : {'title':'Bytes sent per second',
+                             'xlabel': 'Bytes per sec.',
+                             'order': 'inc',
+                             },
+
+        'poset_decision_height' : {'title':'Poset height when decided.',
+                             'xlabel': '+lvls',
+                             'order': 'inc',
+                             },
+
+        'n_decision_skipped' : {'title':'The number of units with negative decision on a lvl.',
+                             'xlabel': 'The number of units',
+                             'order': 'inc',
+                             },
     }
     for name, data in global_stats.items():
         if name in plot_infos:
