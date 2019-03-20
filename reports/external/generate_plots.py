@@ -79,7 +79,7 @@ def generate_txps_vs_latency(log_dir, out_dir):
 
             latency.append(lat_val)
             txps.append(txps_val)
-        plt.semilogx(txps, latency, marker='o', markersize=6, linewidth=3, label = str(n_processes))#markerfacecolor='blue', color='skyblue',
+        plt.semilogx(txps, latency, marker='o', markersize=6, linewidth=3, label = str(n_processes))
 
     plt.legend(title = "Committee size")
     ax = plt.gca()
@@ -95,7 +95,6 @@ def generate_txps_vs_latency(log_dir, out_dir):
 
 def generate_bars_big(log_dir, out_dir):
     n_proc_list = [128, 256, 512]
-    #colors=['red', 'green', 'blue']
     colors = gen_colors(len(n_proc_list))
     fig, (ax_txps, ax_lat) = plt.subplots(1,2)
     latency, txps = [], []
