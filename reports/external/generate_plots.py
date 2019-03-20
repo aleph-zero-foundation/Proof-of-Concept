@@ -25,9 +25,6 @@ def match_dir_name(dir_name, n_processes = None, n_parents = None, create_delay 
 def get_stat_value(log_dir, target_stat_name, n_processes = None, n_parents = None, create_delay = None, sync_delay = None, txpu = None):
     list_logs = os.listdir(log_dir)
     matching_dirs = [dir_name for dir_name in list_logs if match_dir_name(dir_name, n_processes, n_parents, create_delay, sync_delay, txpu)]
-    #print(list_logs)
-    #print(matching_dirs)
-    #print(n_processes, n_parents, create_delay, sync_delay, txpu)
     assert len(matching_dirs) == 1
     target_dir = matching_dirs[0]
     inner_dir = os.path.join(log_dir, target_dir, 'txt-basic')
@@ -114,11 +111,9 @@ def generate_bars_big(log_dir, out_dir):
         ax.grid(b = True, axis = 'y', linestyle = '--', color = 'black', linewidth = 0.5, alpha = 0.3)
         ax.get_xaxis().set_ticks([])
     txps_bars = ax_txps.bar(range(3), txps, width, color = colors, edgecolor = 'black', linewidth = 1.0)
-    #ax_txps.set(ylabel = "transactions per second")
     ax_txps.set_title("Transactions per sec.", size = 10)
     lat_bars = ax_lat.bar(range(3), latency, width, color = colors, edgecolor = 'black', linewidth = 1.0)
-    #ax_lat.set(ylabel = "latency")
-    ax_lat.set_title("Latency in sec.", size = 10)
+    ax_lat.set_title("Validation time in sec.", size = 10)
 
     plt.figlegend(txps_bars, n_proc_list, loc = 'lower center', ncol = 8, labelspacing = 0.5, title = 'committee size')
     plt.suptitle("Performance of Aleph for various committee sizes", fontsize = 14, fontweight="bold")
@@ -134,7 +129,6 @@ def generate_bars_big(log_dir, out_dir):
 
 
 def generate_plots():
-
     log_dir_final = sys.argv[1]
     log_dir_big = sys.argv[2]
     output_dir = sys.argv[3]
@@ -142,7 +136,6 @@ def generate_plots():
     if not os.path.isdir(output_dir):
         print(f"No such directory {output_dir}. Creating.")
         os.makedirs(output_dir, exist_ok=True)
-
 
     generate_txps_vs_latency(log_dir_final, output_dir)
     generate_bars_big(log_dir_big, output_dir)
