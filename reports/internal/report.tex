@@ -8,6 +8,7 @@
 \usepackage{color}
 \usepackage{listings}
 \usepackage{todonotes}
+\usepackage{placeins}
 \lstset{basicstyle=\ttfamily,language=Python}
 
 \title{PoC internal report}
@@ -60,6 +61,7 @@
 			Maintaining \lstinline{floor} requires more work. When adding a unit to the poset we combine the floors of its parents.
 			This operation runs in $O(N*p)$ time and is one of the more expensive ones.
 		\subsection{Creating units}
+		 \label{sec:creation}
 			The most expensive part of creating a unit $U$ is choosing its parents. Because of historical reasons we do this somewhat suboptimally.
 			We set the first parent to the last unit created by the process creating $U$. Every subsequent parent we choose as follows.
 			A list is created by taking all the maximal units of the poset and finding the ones which \emph{do not} satisfy the expand primes rule (described in section \ref{sec:adding}).
@@ -171,4 +173,196 @@
 		 Therefore, we are once again bound by rate limiting unit creation.
 
 			The results were best for posets in which most levels had thickness $1$ (one unit per process at every level) and almost every unit was popular very quickly.
+	\section{Results}
+	 We ran 3 big series of experiments. After each set we noticed and fixed problems in code, so unfortunately the runs are not directly comparable.
+		However their results should still give a good intuition with regards to the Aleph protocol.
+		\subsection{Delays}
+		\FloatBarrier
+			The first series of experiments was testing various values of create and sync delays.
+			In all tests the committee size was $128$, there was $1$ transaction per unit, maximally $10$ parents, and $10$ simultaneous incoming/outgoing syncs.
+			The values of create and sync delays can be seen in the graphs.
+			It is worth pointing out that one of the tests had a create delay of $.1$ as a stress test.
+			\begin{figure}[h]
+				\centering
+				\includegraphics[width=0.8\textwidth]{bar_plots/final_exp1/create_ord_del.png}
+				\caption{The latency of unit validation in the first series of experiments.}
+				\label{fig:delaysLatency}
+			\end{figure}
+			\begin{figure}[h]
+				\centering
+				\includegraphics[width=0.8\textwidth]{bar_plots/final_exp1/create_delay.png}
+				\caption{The time between unit creation attempts. Note that in the case of $.1$ delay this is not much different than $.5$.}
+				\label{fig:delaysCreateDelay}
+			\end{figure}
+			\begin{figure}[h]
+				\centering
+				\includegraphics[width=0.8\textwidth]{bar_plots/final_exp1/sync_delay.png}
+				\caption{The time between sync attempts. Note that this is often much bigger than the sync delay would suggest.}
+				\label{fig:delaysSyncDelay}
+			\end{figure}
+			\begin{figure}[h]
+				\centering
+				\includegraphics[width=0.8\textwidth]{bar_plots/final_exp1/n_maximal.png}
+				\caption{Number of maximal units in the poset before a create, this is also an upper bound on the number of parents. Usually the bound is stricter because of the expand primes rule.}
+				\label{fig:delaysMaximalPreCreate}
+			\end{figure}
+			\begin{figure}[h]
+				\centering
+				\includegraphics[width=0.8\textwidth]{bar_plots/final_exp1/n_parents.png}
+				\caption{The average number of parents per unit.}
+				\label{fig:delaysParents}
+			\end{figure}
+			\begin{figure}[h]
+				\centering
+				\includegraphics[width=0.8\textwidth]{bar_plots/final_exp1/decision_height.png}
+				\caption{How many levels above the considered unit was the timing decision taken, on average.}
+				\label{fig:delaysDecisionUnit}
+			\end{figure}
+			\begin{figure}[h]
+				\centering
+				\includegraphics[width=0.8\textwidth]{bar_plots/final_exp1/decision_height.png}
+				\caption{How many levels above the considered unit was the maximal unit in the poset when the timing decision was made, on average. Compare with Figure \ref{fig:delaysDecisionUnit}.}
+				\label{fig:delaysDecisionPoset}
+			\end{figure}
+			\begin{figure}[h]
+				\centering
+				\includegraphics[width=0.8\textwidth]{bar_plots/final_exp1/time_per_sync.png}
+				\caption{The average time a single sync operation took.}
+				\label{fig:delaysTimePerSync}
+			\end{figure}
+			\begin{figure}[h]
+				\centering
+				\includegraphics[width=0.8\textwidth]{bar_plots/final_exp1/units_sent_sync.png}
+				\caption{The average number of units sent per sync.}
+				\label{fig:delaysUnitsPerSync}
+			\end{figure}
+			\begin{figure}[h]
+				\centering
+				\includegraphics[width=0.8\textwidth]{bar_plots/final_exp1/bytes_sent_per_sec.png}
+				\caption{The average amount of data sent per second.}
+				\label{fig:delaysBps}
+			\end{figure}
+		\FloatBarrier
+		\subsection{Transactions}
+		\FloatBarrier
+			The second series of experiments was designed mostly to check the relation between transactions per unit, validation latency, and committee size.
+			In all tests there were maximally $10$ parents, $10$ simultaneous incoming/outgoing connections, and the sync delay was $.125$.
+			Other values can be seen in the graphs.
+			\begin{figure}[h]
+				\centering
+				\includegraphics[width=0.8\textwidth]{bar_plots/final_exp2/create_ord_del.png}
+				\caption{The latency of unit validation in the second series of experiments.}
+				\label{fig:transactionsLatency}
+			\end{figure}
+			\begin{figure}[h]
+				\centering
+				\includegraphics[width=0.8\textwidth]{bar_plots/final_exp2/txps.png}
+				\caption{The number of transaction entering the system per second.}
+				\label{fig:transactionsTxps}
+			\end{figure}
+			\begin{figure}[h]
+				\centering
+				\includegraphics[width=0.8\textwidth]{bar_plots/final_exp2/memory_MiB.png}
+				\caption{The amount of RAM used by a process.}
+				\label{fig:transactionsRAM}
+			\end{figure}
+			\begin{figure}[h]
+				\centering
+				\includegraphics[width=0.8\textwidth]{bar_plots/final_exp2/time_per_sync.png}
+				\caption{The average time a single sync operation took.}
+				\label{fig:transactionsTimePerSync}
+			\end{figure}
+			\begin{figure}[h]
+				\centering
+				\includegraphics[width=0.8\textwidth]{bar_plots/final_exp2/bytes_sent_per_sec.png}
+				\caption{The average amount of data sent per second.}
+				\label{fig:transactionsBps}
+			\end{figure}
+		\FloatBarrier
+		\subsection{Committee size}
+		\FloatBarrier
+		The last series of experiments was designed to test Aleph's scaling with committee size, but also check the necessity of parent restrictions.
+		There were two major differences with respect to previous tests.
+		We used a simple adaptive create delay algorithm, that lowered the delay if a unit was created on a new level twice in a row and increased it if a unit was created at the same level as the previous one.
+		This means the create delays in the graphs are only initial values.
+		The creation algorithm used has changed too -- in this series we used the newer algorithm described in Section \ref{sec:creation}.
+		We also ran the tests for $50$ levels, in contrast to the previous tests where the limit was $20$.
+			\begin{figure}[h]
+				\centering
+				\includegraphics[width=0.8\textwidth]{bar_plots/big/create_ord_del.png}
+				\caption{The latency of unit validation in the last series of experiments.}
+				\label{fig:bigLatency}
+			\end{figure}
+			\begin{figure}[h]
+				\centering
+				\includegraphics[width=0.8\textwidth]{bar_plots/big/txps.png}
+				\caption{The number of transaction entering the system per second.}
+				\label{fig:bigTxps}
+			\end{figure}
+			\begin{figure}[h]
+				\centering
+				\includegraphics[width=0.8\textwidth]{bar_plots/big/create_delay.png}
+				\caption{The time between unit creation attempts. This reflects the adaptive value quite well.}
+				\label{fig:bigCreateDelay}
+			\end{figure}
+			\begin{figure}[h]
+				\centering
+				\includegraphics[width=0.8\textwidth]{bar_plots/big/sync_delay.png}
+				\caption{The time between sync attempts.}
+				\label{fig:bigSyncDelay}
+			\end{figure}
+			\begin{figure}[h]
+				\centering
+				\includegraphics[width=0.8\textwidth]{bar_plots/big/time_create.png}
+				\caption{The average time it took to create a unit. Note the difference when parents were unrestricted.}
+				\label{fig:bigTimeCreate}
+			\end{figure}
+			\begin{figure}[h]
+				\centering
+				\includegraphics[width=0.8\textwidth]{bar_plots/big/n_maximal.png}
+				\caption{Number of maximal units in the poset before a create.}
+				\label{fig:bigMaximalPreCreate}
+			\end{figure}
+			\begin{figure}[h]
+				\centering
+				\includegraphics[width=0.8\textwidth]{bar_plots/big/n_parents.png}
+				\caption{The average number of parents per unit.}
+				\label{fig:bigParents}
+			\end{figure}
+			\begin{figure}[h]
+				\centering
+				\includegraphics[width=0.8\textwidth]{bar_plots/big/decision_height.png}
+				\caption{How many levels above the considered unit was the timing decision taken, on average.}
+				\label{fig:bigDecisionUnit}
+			\end{figure}
+			\begin{figure}[h]
+				\centering
+				\includegraphics[width=0.8\textwidth]{bar_plots/big/decision_height.png}
+				\caption{How many levels above the considered unit was the maximal unit in the poset when the timing decision was made, on average. Compare with Figure \ref{fig:bigDecisionUnit}.}
+				\label{fig:bigDecisionPoset}
+			\end{figure}
+			\begin{figure}[h]
+				\centering
+				\includegraphics[width=0.8\textwidth]{bar_plots/big/memory_MiB.png}
+				\caption{The amount of RAM used by a process. Note that this is for $50$ levels.}
+				\label{fig:bigRAM}
+			\end{figure}
+			\begin{figure}[h]
+				\centering
+				\includegraphics[width=0.8\textwidth]{bar_plots/big/time_per_sync.png}
+				\caption{The average time a single sync operation took.}
+				\label{fig:bigTimePerSync}
+			\end{figure}
+			\begin{figure}[h]
+				\centering
+				\includegraphics[width=0.8\textwidth]{bar_plots/big/units_sent_sync.png}
+				\caption{The average number of units sent per sync.}
+				\label{fig:bigUnitsPerSync}
+			\end{figure}
+			\begin{figure}[h]
+				\centering
+				\includegraphics[width=0.8\textwidth]{bar_plots/big/bytes_sent_per_sec.png}
+				\caption{The average amount of data sent per second.}
+				\label{fig:bigBps}
+			\end{figure}
 \end{document}
