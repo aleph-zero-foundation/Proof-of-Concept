@@ -268,7 +268,7 @@ def describe_instances(region_name):
 
 
 def n_processes_per_regions(n_processes, regions=badger_regions(), restricted={'sa-east-1':5, 'ap-southeast-2':5}):
-    bound_n_processes = 20*(len(regions)-len(restricted))
+    bound_n_processes = 64*(len(regions)-len(restricted))
     for r in restricted:
         bound_n_processes += restricted[r]
     assert n_processes <= bound_n_processes, 'n_processes exceeds instances available on AWS'
