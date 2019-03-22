@@ -377,6 +377,38 @@ U.floor[V.creator_id][0].height >= V.height
 				\caption{The average amount of data sent per second.}
 				\label{fig:bigBps}
 			\end{figure}
+	\section{Achieved poset structure}
+	\FloatBarrier
+	 As mentioned in Section \ref{ssec:posetShape} the structure of the poset being created by our algorithm is crucial for optimal performance.
+		In this section we present an through analysis of one of the posets created during our tests.
+
+		We use the poset created in the experiment with the best latency ($128$ processes, $10$ parents per unit, adaptive delay, $.015625$), so with the use of the adaptive create delay.
+		As a reminder -- the delay was lowered if a unit was created on a new level twice in a row and increased it if a unit was created at the same level as the previous one.
+		This means we should expect, after the delay ``stabilises'', that every third level for a given process will have thickness $2$, while all the other $1$.
+		This is not optimal and will be improved in the proper implementation.
+		As it turns out the stabilisation is not as smooth and at every level about half of the processes create two units, as can be seen in Figure \ref{fig:levels}.
+		\begin{figure}[h]
+			\centering
+			\includegraphics[width=0.8\textwidth]{bar_plots/levels.png}
+			\caption{The total number of units at a given level.}
+			\label{fig:levels}
+		\end{figure}
+		Since the stabilisation every level had prime units created by every process -- this was not the case for greater create delays, as some processes ``skipped'' levels.
+		This should be a good thing as it can allow us to fit more transactions per second.
+
+		At every level there were about $25-30$ minimal prime units, that is prime units that are not above any other prime unit of the same level.
+		This is quite a lot and probably related to the increased thickness of a level.
+		Before the equilibrium, levels have thickness essentially $1$ and there are about $15-20$ minimal prime units.
+
+		Regardless of the number of prime units at a level almost every prime unit is above almost all prime units of the level below.
+		In particular, after the equilibrium is reached a prime unit is above about $115$ prime units of level below, which is around $90\%$ of all the prime units.
+		This is also reflected in the popularity statistics.
+
+		A prime unit is said to be popular at level $+k$ when all the prime units $k$ levels above it are above this unit.
+		In our case about $2/3$ of all units were popular on level $+1$ (sic!) that is \emph{every} prime unit one level above them was aware of their existence.
+		Almost all the rest was popular at level $+2$, only $<1\%$ of units were popular at level $+3$ and a singular unit was popular at level $+4$.
+		This is a very important statistic as it allows for quick decisions in the timing process.
+		However, we compute this number only for units of level at least $3$ -- earlier units during the startup get popular at a worse rate, sometimes even taking $6$ levels.
 
 		\subsection{Conclusions}
 
