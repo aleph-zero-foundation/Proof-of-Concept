@@ -382,10 +382,10 @@ U.floor[V.creator_id][0].height >= V.height
 	\label{sec:structure}
 	\FloatBarrier
 	 As mentioned in Section \ref{ssec:posetShape} the structure of the poset being created by our algorithm is crucial for optimal performance.
-		In this section we present an through analysis of one of the posets created during our tests.
+		In this section we present an thorough analysis of one of the posets created during our tests.
 
-		We use the poset created in the experiment with the best latency ($128$ processes, $10$ parents per unit, adaptive delay, $.015625$), so with the use of the adaptive create delay.
-		As a reminder -- the delay was lowered if a unit was created on a new level twice in a row and increased it if a unit was created at the same level as the previous one.
+		We use the poset created in the experiment with the best latency ($128$ processes, $10$ parents per unit, adaptive delay, $.015625$ sync delay), so with the use of the adaptive create delay.
+		As a reminder -- the delay was lowered if a unit was created on a new level twice in a row and increased if a unit was created at the same level as the previous one.
 		This means we should expect, after the delay ``stabilises'', that every third level for a given process will have thickness $2$, while all the other $1$.
 		This is not optimal and will be improved in the proper implementation.
 		As it turns out the stabilisation is not as smooth and at every level about half of the processes create two units, as can be seen in Figure \ref{fig:levels}.
