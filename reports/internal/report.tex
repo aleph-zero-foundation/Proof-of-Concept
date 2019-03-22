@@ -9,6 +9,7 @@
 \usepackage{listings}
 \usepackage{todonotes}
 \usepackage{placeins}
+\usepackage{fullpage}
 \lstset{basicstyle=\ttfamily,language=Python}
 
 \title{PoC internal report}
@@ -57,9 +58,12 @@
 			For comparing units we use the \lstinline{below} method. In the absence of forks (which is the case in all the tests) this method works in constant time.
 			This, however, requires maintaining a helper structure in every unit $U$ called \lstinline{floor}.
 			This structure is a list of lists, a list at position $k$ contains the maximal units made by process $k$ that are below $U$.
-			To check whether $V$ is below $U$ we check if \lstinline{U.floor[V.creator_id][0].height >= V.height}.
-			Maintaining \lstinline{floor} requires more work. When adding a unit to the poset we combine the floors of its parents.
-			This operation runs in $O(N*p)$ time and is one of the more expensive ones.
+			To check whether $V$ is below $U$ we check if
+			\begin{center}
+			\lstinline{U.floor[V.creator_id][0].height >= V.height}.
+			\end{center}
+			While \lstinline{floor} helps us to answer \lstinline{below} queries, it requires significant work to maintain. When adding a unit to the poset we combine the floors of its parents.
+			This operation runs in $O(N \cdot p)$ time and is one of the more expensive ones.
 		\subsection{Creating units}
 		 \label{sec:creation}
 			The most expensive part of creating a unit $U$ is choosing its parents. Because of historical reasons we do this somewhat suboptimally.
@@ -69,14 +73,14 @@
 			We choose a random unit from this list and add it as a parent. This is repeated until we either cannot add any more parents or reach the limit of parents.
 
 			Checking whether a unit satisfies the expand primes rule takes $O(N)$ time and we have to do this for at most $N$ units.
-			The whole process is repeated $p$ times, giving us a final time of $O(N^2*p)$.
+			The whole process is repeated $p$ times, giving us a final time of $O(N^2 \cdot p)$.
 			This is relatively slow, but it is worth pointing out that creation happens relatively rarely, so it shouldn't have big effects on the overall run time.
 
 			After initial tests another, more efficient, algorithm for choosing parents was implemented.
 			We first pick all maximal units of maximal level in the poset, ones that were added latest first.
 			Then we add them greedily as parents as long as they satisfy the expand primes rule.
 			Afterwards we check maximal units of level equal to the predecessor's level and if they could be added before the previously chosen parents.
-			Once again we choose greedily and add as much as is legal. The whole process only takes $O(N*p)$ time.
+			Once again we choose greedily and add as much as is legal. The whole process only takes $O(N \cdot p)$ time.
 			These two steps more or less correspond to the two requirements on optimal poset structure, see Section \ref{ssec:posetShape}.
 		\subsection{Adding units to the poset}
 		 \label{sec:adding}
@@ -89,12 +93,12 @@
 			Compliance checking consists of multiple parts, but in this document we restrict the discussion to the ones that might be computationally expensive.
 			For a more through list of steps see the \lstinline{check_compliance} documentation.
 			\begin{enumerate}
-				\item We check whether the unit proves that its creator produced a fork. This requires combining floors, which takes $O(N*p)$ time.
+				\item We check whether the unit proves that its creator produced a fork. This requires combining floors, which takes $O(N \cdot p)$ time.
 				\item We check whether any of its parents proves that the creator of any other parent is a forker. This takes $O(p^2)$ time,
 					because the parents are already in the poset, so no floor combining is needed.
-				\item We check whether the ``expand primes'' rule is satisfied. This should take (as described below) at most $O(N*p)$ time.
+				\item We check whether the ``expand primes'' rule is satisfied. This should take (as described below) at most $O(N \cdot p)$ time.
 			\end{enumerate}
-			All in all compliance should take about $O(N*p)$ time, which at worst can degenerate to $O(N^2)$ if we don't restrict the number of parents.
+			All in all compliance should take about $O(N \cdot p)$ time, which at worst can degenerate to $O(N^2)$ if we don't restrict the number of parents.
 
 			The ``expand primes'' rule means that every parent after the first has to satisfy one of the conditions:
 			\begin{itemize}
@@ -102,14 +106,14 @@
 				\item Be above more prime units of level equal to the previous parent's level, than all the previous parents combined.
 			\end{itemize}
 			Checking the former condition requires constant time, but the latter requires iterating over at most all prime units of the specified level.
-			Since we do it for every parent this takes $O(N*p)$ time, as asserted above.
+			Since we do it for every parent this takes $O(N \cdot p)$ time, as asserted above.
 
 			Computing the level consists of iterating over all prime units of the level of the unit's predecessor and checking whether a sufficient number of them is below the unit.
 			It takes only about $O(N)$ time, but if the number of parents is restricted this is comparable to compliance checking.
 		\subsection{Sending and receiving units}
 		 Determining which units to send only takes time linear with respect to the number of units that actually have to be sent.
 			Then we have to order the units topologically -- we do this before sending them, but it has to be done at some point so there is no time to be saved here.
-			This takes at most $O(k*p)$ time, where $k$ is the number of units to send.
+			This takes at most $O(k \cdot p)$ time, where $k$ is the number of units to send.
 
 			This is mostly relevant when $k$ is big, i.e. when the processes syncing are significantly desynchronised.
 			This sometimes happens in our tests, because the machines don't start at once.
@@ -119,12 +123,12 @@
 			To check if a unit proves the popularity of another we traverse the poset graph between the two units and check whether
 			we encounter units created by sufficiently many processes. This takes time linear with the number of edges encountered,
 			which is $p$, times the number of units encountered. This is only ran between units differing by $3$ levels, so the number of units
-			is about $3*N*t$, where $t$ is the average number of units created by a single process at a single level (the ``thickness'' of a level).
-			It is worth pointing out that in many of our experiments	$t = 1$.
+			is about $3 \cdot N \cdot t$, where $t$ is the average number of units created by a single process at a single level (the ``thickness'' of a level).
+			It is worth pointing out that in many of our experiments $t \approx 1$, in some of them even $t<1$. Note also that a lower bound for $t$ is $\approx \frac{2}{3}$.
 
-			The attempt at proving popularity can be ran for up to $N$ unit consecutively, so this single operation can take $O(N*N*p*t)$ time.
-			When $p$ is close to $N$ this turns into $O(N^3*t)$, which is much more expensive than any other single operation we use.
-			However, we memoize the results, so this should only happen very infrequently, at most for one unit per level in the whole poset.
+			The attempt at proving popularity can be ran for up to $N$ unit consecutively, so this single operation can take $O(N \cdot N \cdot p \cdot t)$ time.
+			When $p$ is close to $N$ this turns into $O(N^3 \cdot t)$, which is much more expensive than any other single operation we use.
+			However, we memoize the results, so this should rarely happen, at most for one unit per level in the whole poset.
 
 			Other methods relating to timing decisions take about $O(N)$ time, so much faster.
 	\section{Known bottlenecks}
@@ -153,6 +157,7 @@
 			We expect that sending many units through the network can take a long time, so if two processes are heavily desynchronised this might be noticeable.
 			However, in such cases adding the units takes a significant amount of time and is probably a bigger bottleneck.
 		\subsection{Adding units}
+		 \label{ssec:addingUnits}
 			As detailed in Section \ref{sec:adding} adding units after a sync can take a significant amount of time if the processes are sufficiently desynchronised.
 			Because of the way parallelism is handled in Python this can block for a long time and delay crucial operations such as unit creation and syncing.
 			Such desynchronisation should only occur at the start of experiments, when some machines begin participating in the algorithm much later than others.
@@ -163,23 +168,24 @@
 			As mentioned at the beginning of this section the structure of the poset has immense influence over the final validation latency.
 			There are two crucial components influencing this speed:
 			\begin{enumerate}
-				\item Thickness of a level, i.e. how many units made by a process were at that level.
-				\item How quickly units become popular, i.e. how quickly they are below units made by $2/3$ of the processes.
+				\item Thickness of a level, i.e. how many units per level are there.
+				\item How quickly does a unit becomes popular, i.e. when (at which level) all the processes learn about this particular unit.
 			\end{enumerate}
-			The former should be as low as possible, because a unit can only be included in a linear order after at least three levels are build on top of it.
+			We want the thickness to be as low as possible, because a unit can only be included in a linear order after at least three levels are build on top of it.
 			Since we limit how often new units are created, making level unnecessarily thick wastes time.
 
-			The latter should be as quick as possible, because when a unit is being considered for a timing unit its popularity determines how many levels it will take to decide.
-		 Therefore, we are once again bound by rate limiting unit creation.
+			The latter should be as quick as possible, because when a unit is being considered for a timing unit its popularity determines how many levels will it take to decide it.
+		 Therefore, we are once again bound by the rate limiting unit creation.
 
-			The results were best for posets in which most levels had thickness $1$ (one unit per process at every level) and almost every unit was popular very quickly.
+			The best results were obtained for posets in which most levels had thickness $1$ (one unit per process at every level) and almost every unit was popular very quickly.
 	\section{Results}
-	 We ran 3 big series of experiments. After each set we noticed and fixed problems in code, so unfortunately the runs are not directly comparable.
-		However their results should still give a good intuition with regards to the Aleph protocol.
+	 We ran 3 big series of experiments. After each series we fixed some issues and made improvements to the code.
+	 	Unfortunately, this means that the runs are not directly comparable to each other.
+	 	However, still, the results give a good understanding of the performance of the Aleph protocol, and how the various parameters influence it.
 		\subsection{Delays}
 		\FloatBarrier
 			The first series of experiments was testing various values of create and sync delays.
-			In all tests the committee size was $128$, there was $1$ transaction per unit, maximally $10$ parents, and $10$ simultaneous incoming/outgoing syncs.
+			In all tests the committee size was $128$, we put $1$ transaction per unit and allowed every unit to have at most $10$ parents. We set the limit of simultaneous incoming/outgoing syncs to $10$.
 			The values of create and sync delays can be seen in the graphs.
 			It is worth pointing out that one of the tests had a create delay of $.1$ as a stress test.
 			\begin{figure}[h]
@@ -199,6 +205,12 @@
 				\includegraphics[width=0.8\textwidth]{bar_plots/final_exp1/sync_delay.png}
 				\caption{The time between sync attempts. Note that this is often much bigger than the sync delay would suggest.}
 				\label{fig:delaysSyncDelay}
+			\end{figure}
+			\begin{figure}[h]
+				\centering
+				\includegraphics[width=0.8\textwidth]{bar_plots/final_exp1/n_units_decision.png}
+				\caption{Number of units in one batch validated by a single timing unit.}
+				\label{fig:nUnitsOrdered}
 			\end{figure}
 			\begin{figure}[h]
 				\centering
@@ -365,4 +377,50 @@
 				\caption{The average amount of data sent per second.}
 				\label{fig:bigBps}
 			\end{figure}
+
+		\subsection{Conclusions}
+
+			\subsubsection*{How to get better latency?}
+				It turns out that at this point the {\bf main bottleneck} for getting lower latency for large committee sizes (say $\geq 128$) are the delays caused by CPU load -- recall that our clients are in fact single-threaded, thus all CPU-based operations are executed sequentially.
+				The most CPU-intensive operation is adding units to the poset -- see the discussion in Section~\ref{ssec:addingUnits}.
+
+				To convince oneself that indeed CPU is the bottleneck here one might inspect how the latency changes for committee sizes $N \in \{32, 128\}$
+				when we change the create delay from $2.0$ sec to $1.0$ -- see Figure~\ref{fig:bigLatency} for this comparison.
+				It is expected that the latency should halve with lowering the delay, however it is the case only for $N=32$, while for $N=128$ the latency stays almost same.
+				The reason for that is that even though the units are produced twice so often, already for create delay set to $2.0$ the CPU is barely keeping up with adding units to the poset, for $1.0$ the CPU is occupied all the time and hence the syncs take more time (see Figure~\ref{fig:bigTimePerSync}). As a consequence the produced poset is of "worse quality", i.e. the levels are "thicker" but the time to validate a unit does not drop.
+
+				Here are some possible ways to improve the latency:
+				\begin{itemize}
+					\item Most crucially -- switch from Python to a compiled language -- this will already make a huge difference. Expected speed-up of the order of 10x to even 100x.
+					\item Improve the implementation of the poset, in particular, lower (at least the expected) time complexity of primitives related to
+					maintaining the poset.
+					\item Try to parallelize operations and queries to the poset. This is rather tricky, but we should be able to at least concurrently read and update the poset. Adding several units in parallel would be nice, but requires some thinking.
+				\end{itemize}
+
+			\subsubsection*{How to get more transactions per second?}
+				What we tested here was mainly how many transactions can we inject in the system per second so that the processes can keep up with gossiping the "fat" units.
+				Note that in reality the transactions should be also processed -- i.e. in particular their signatures should be checked and they should be "applied" and change the state of the "ledger" appropriately.
+				For simplicity we assumed that the latter can be done in parallel on a separate thread, and effectively ignored this problem, in reality this might be a considerate computational burden.
+
+				Thus, in the current model (ignore transaction processing time) we can deal with even {\bf hundreds of thousands of txs per second} and the only limiting factor is the network bandwidth.
+				However, for a fair answer we might need to wait until we have the new implementation that does some reasonable tx processing -- for this it is crucial to have actual multithreading, which was not quite possible with Python.
+
+			\subsubsection*{The influence of the number of parents.}
+				Even though some of the plots (see the result of changing $PAR=10$ to $PAR=128$ for $N=128$ in Figure~\ref{fig:bigLatency}) might suggest that increasing the number of possible parents per unit has actually a {\bf negative} effect (on the latency), this is not quite true.
+				Indeed, ignoring for a moment the effect of increasing the size (in bytes) of a unit that might increase the network latency (but in practice barely does so), allowing more parents makes the poset "more connected" and thus should make the levels less thick on average, and make the positive consensus decisions more often. Why is the effect opposite than?
+
+				The answer is again: we are cpu-bound, and this becomes even more relevant when the number of parents is large. Indeed the complexity of \lstinline{add_unit} depends linearly on the number of parents. Thus by increasing the number of parents by a factor of $2$ we increase the CPU load twice, which clearly has a negative effect on the duration of a sync (see Figure~\ref{fig:bigSyncDelay}) and thus overall on the performance.
+
+				It seems that in an ideal implementation (where the only bottleneck is network latency) having a larger number of parents should generally help.
+
+			\subsubsection*{The number of units per level.}
+				Perhaps the most crucial parameter that determines how "efficient" is the poset we produce, is the average number of units per one level.
+				We refer to Figure~\ref{fig:nUnitsOrdered} for a statistic that is essentially equivalent to measuring the number of units per level.
+
+				Indeed Figure~\ref{fig:nUnitsOrdered} offers a high-level understanding why does the latency not go down when we keep all parameters the same but only decrease the create delay from $2.0$ to $1.0$.
+				The reason is that the poset we produce for create delay $=1.0$ is much "less efficient" (i.e. "thicker") and thus generating units more frequently did not quite translate to establishing new levels more frequently.
+
+				One can also observe that having an "efficient" poset is also correlated with the average duration of a sync, see Figure~\ref{fig:delaysTimePerSync}.
+				This perhaps has the intuitive explanation that: if the syncs are short then the processes are up-to-date with the most recent version of the poset (i.e. they learn recently created units very quickly) then the units created have well chosen parents (i.e. from among recent units), and thus the structure of the poset is nice.
+				Otherwise the parents are units that are "lower" in the poset, and thus typically do not contribute that much towards creating a new level.
 \end{document}
