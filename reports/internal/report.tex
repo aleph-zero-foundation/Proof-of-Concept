@@ -377,50 +377,85 @@ U.floor[V.creator_id][0].height >= V.height
 				\caption{The average amount of data sent per second.}
 				\label{fig:bigBps}
 			\end{figure}
+	\FloatBarrier
+	\section{Achieved poset structure}
+	\label{sec:structure}
+	\FloatBarrier
+	 As mentioned in Section \ref{ssec:posetShape} the structure of the poset being created by our algorithm is crucial for optimal performance.
+		In this section we present an thorough analysis of one of the posets created during our tests.
 
-		\subsection{Conclusions}
+		We use the poset created in the experiment with the best latency ($128$ processes, $10$ parents per unit, adaptive delay, $.015625$ sync delay), so with the use of the adaptive create delay.
+		As a reminder -- the delay was lowered if a unit was created on a new level twice in a row and increased if a unit was created at the same level as the previous one.
+		This means we should expect, after the delay ``stabilises'', that every third level for a given process will have thickness $2$, while all the other $1$.
+		This is not optimal and will be improved in the proper implementation.
+		As it turns out the stabilisation is not as smooth and at every level about half of the processes create two units, as can be seen in Figure \ref{fig:levels}.
+		\begin{figure}[h]
+			\centering
+			\includegraphics[width=0.8\textwidth]{bar_plots/levels.png}
+			\caption{The total number of units at a given level.}
+			\label{fig:levels}
+		\end{figure}
+		Since the stabilisation every level had prime units created by every process -- this was not the case for greater create delays, as some processes ``skipped'' levels.
+		This should be a good thing as it can allow us to fit more transactions per second.
 
-			\subsubsection*{How to get better latency?}
-				It turns out that at this point the {\bf main bottleneck} for getting lower latency for large committee sizes (say $\geq 128$) are the delays caused by CPU load -- recall that our clients are in fact single-threaded, thus all CPU-based operations are executed sequentially.
-				The most CPU-intensive operation is adding units to the poset -- see the discussion in Section~\ref{ssec:addingUnits}.
+		At every level there were about $25-30$ minimal prime units, that is prime units that are not above any other prime unit of the same level.
+		This is quite a lot and probably related to the increased thickness of a level.
+		Before the equilibrium, levels have thickness essentially $1$ and there are about $15-20$ minimal prime units.
 
-				To convince oneself that indeed CPU is the bottleneck here one might inspect how the latency changes for committee sizes $N \in \{32, 128\}$
-				when we change the create delay from $2.0$ sec to $1.0$ -- see Figure~\ref{fig:bigLatency} for this comparison.
-				It is expected that the latency should halve with lowering the delay, however it is the case only for $N=32$, while for $N=128$ the latency stays almost same.
-				The reason for that is that even though the units are produced twice so often, already for create delay set to $2.0$ the CPU is barely keeping up with adding units to the poset, for $1.0$ the CPU is occupied all the time and hence the syncs take more time (see Figure~\ref{fig:bigTimePerSync}). As a consequence the produced poset is of ``worse quality'', i.e. the levels are ``thicker'' but the time to validate a unit does not drop.
+		Regardless of the number of prime units at a level almost every prime unit is above almost all prime units of the level below.
+		In particular, after the equilibrium is reached a prime unit is above about $115$ prime units of level below, which is around $90\%$ of all the prime units.
+		This is also reflected in the popularity statistics.
 
-				Here are some possible ways to improve the latency:
-				\begin{itemize}
-					\item Most crucially -- switch from Python to a compiled language -- this will already make a huge difference. Expected speed-up of the order of 10x to even 100x.
-					\item Improve the implementation of the poset, in particular, lower (at least the expected) time complexity of primitives related to
-					maintaining the poset.
-					\item Try to parallelize operations and queries to the poset. This is rather tricky, but we should be able to at least concurrently read and update the poset. Adding several units in parallel would be nice, but requires some thinking.
-				\end{itemize}
+		A prime unit is said to be popular at level $+k$ when all the prime units $k$ levels above it are above this unit.
+		In our case about $2/3$ of all units were popular on level $+1$ (sic!) that is \emph{every} prime unit one level above them was aware of their existence.
+		Almost all the rest was popular at level $+2$, only $<1\%$ of units were popular at level $+3$ and a singular unit was popular at level $+4$.
+		This is a very important statistic as it allows for quick decisions in the timing process.
+		However, we compute this number only for units of level at least $3$ -- earlier units during the startup get popular at a worse rate, sometimes even taking $6$ levels.
 
-			\subsubsection*{How to get more transactions per second?}
-				What we tested here was mainly how many transactions can we inject in the system per second so that the processes can keep up with gossiping the ``fat'' units.
-				Note that in reality the transactions should be also processed -- i.e. in particular their signatures should be checked and they should be ``applied'' and change the state of the ``ledger'' appropriately.
-				For simplicity we assumed that the latter can be done in parallel on a separate thread, and effectively ignored this problem, in reality this might be a considerate computational burden.
+	\section{Conclusions}
 
-				Thus, in the current model (ignore transaction processing time) we can deal with even {\bf hundreds of thousands of txs per second} and the only limiting factor is the network bandwidth.
-				However, for a fair answer we might need to wait until we have the new implementation that does some reasonable tx processing -- for this it is crucial to have actual multithreading, which was not quite possible with Python.
+		\subsection{How to get better latency?}
+			It turns out that at this point the {\bf main bottleneck} for getting lower latency for large committee sizes (say $\geq 128$) are the delays caused by CPU load -- recall that our clients are in fact single-threaded, thus all CPU-based operations are executed sequentially.
+			The most CPU-intensive operation is adding units to the poset -- see the discussion in Section~\ref{ssec:addingUnits}.
 
-			\subsubsection*{The influence of the number of parents.}
-				Even though some of the plots (see the result of changing $PAR=10$ to $PAR=128$ for $N=128$ in Figure~\ref{fig:bigLatency}) might suggest that increasing the number of possible parents per unit has actually a {\bf negative} effect (on the latency), this is not quite true.
-				Indeed, ignoring for a moment the effect of increasing the size (in bytes) of a unit that might increase the network latency (but in practice barely does so), allowing more parents makes the poset ``more connected'' and thus should make the levels less thick on average, and make the positive consensus decisions more often. Why is the effect opposite than?
+			To convince oneself that indeed CPU is the bottleneck here one might inspect how the latency changes for committee sizes $N \in \{32, 128\}$
+			when we change the create delay from $2.0$ sec to $1.0$ -- see Figure~\ref{fig:bigLatency} for this comparison.
+			It is expected that the latency should halve with lowering the delay, however it is the case only for $N=32$, while for $N=128$ the latency stays almost same.
+			The reason for that is that even though the units are produced twice so often, already for create delay set to $2.0$ the CPU is barely keeping up with adding units to the poset, for $1.0$ the CPU is occupied all the time and hence the syncs take more time (see Figure~\ref{fig:bigTimePerSync}). As a consequence the produced poset is of ``worse quality'', i.e. the levels are ``thicker'' but the time to validate a unit does not drop.
 
-				The answer is again: we are cpu-bound, and this becomes even more relevant when the number of parents is large. Indeed the complexity of \lstinline{add_unit} depends linearly on the number of parents. Thus by increasing the number of parents by a factor of $2$ we increase the CPU load twice, which clearly has a negative effect on the duration of a sync (see Figure~\ref{fig:bigSyncDelay}) and thus overall on the performance.
+			Here are some possible ways to improve the latency:
+			\begin{itemize}
+				\item Most crucially -- switch from Python to a compiled language -- this will already make a huge difference. Expected speed-up of the order of 10x to even 100x.
+				\item Improve the implementation of the poset, in particular, lower (at least the expected) time complexity of primitives related to
+				maintaining the poset.
+				\item Try to parallelize operations and queries to the poset. This is rather tricky, but we should be able to at least concurrently read and update the poset. Adding several units in parallel would be nice, but requires some thinking.
+			\end{itemize}
 
-				It seems that in an ideal implementation (where the only bottleneck is network latency) having a larger number of parents should generally help.
+		\subsection{How to get more transactions per second?}
+			What we tested here was mainly how many transactions can we inject in the system per second so that the processes can keep up with gossiping the ``fat'' units.
+			Note that in reality the transactions should be also processed -- i.e. in particular their signatures should be checked and they should be ``applied'' and change the state of the ``ledger'' appropriately.
+			For simplicity we assumed that the latter can be done in parallel on a separate thread, and effectively ignored this problem, in reality this might be a considerate computational burden.
 
-			\subsubsection*{The number of units per level.}
-				Perhaps the most crucial parameter that determines how ``efficient'' is the poset we produce, is the average number of units per one level.
-				We refer to Figure~\ref{fig:nUnitsOrdered} for a statistic that is essentially equivalent to measuring the number of units per level.
+			Thus, in the current model (ignore transaction processing time) we can deal with even {\bf hundreds of thousands of txs per second} and the only limiting factor is the network bandwidth.
+			However, for a fair answer we might need to wait until we have the new implementation that does some reasonable tx processing -- for this it is crucial to have actual multithreading, which was not quite possible with Python.
 
-				Indeed Figure~\ref{fig:nUnitsOrdered} offers a high-level understanding why does the latency not go down when we keep all parameters the same but only decrease the create delay from $2.0$ to $1.0$.
-				The reason is that the poset we produce for create delay $=1.0$ is much ``less efficient'' (i.e. ``thicker'') and thus generating units more frequently did not quite translate to establishing new levels more frequently.
+		\subsection{The influence of the number of parents.}
+			Even though some of the plots (see the result of changing $PAR=10$ to $PAR=128$ for $N=128$ in Figure~\ref{fig:bigLatency}) might suggest that increasing the number of possible parents per unit has actually a {\bf negative} effect (on the latency), this is not quite true.
+			Indeed, ignoring for a moment the effect of increasing the size (in bytes) of a unit that might increase the network latency (but in practice barely does so), allowing more parents makes the poset ``more connected'' and thus should make the levels less thick on average, and make the positive consensus decisions more often. Why is the effect opposite than?
 
-				One can also observe that having an ``efficient'' poset is also correlated with the average duration of a sync, see Figure~\ref{fig:delaysTimePerSync}.
-				This perhaps has the intuitive explanation that: if the syncs are short then the processes are up-to-date with the most recent version of the poset (i.e. they learn recently created units very quickly) then the units created have well chosen parents (i.e. from among recent units), and thus the structure of the poset is nice.
-				Otherwise the parents are units that are ``lower'' in the poset, and thus typically do not contribute that much towards creating a new level.
+			The answer is again: we are cpu-bound, and this becomes even more relevant when the number of parents is large. Indeed the complexity of \lstinline{add_unit} depends linearly on the number of parents. Thus by increasing the number of parents by a factor of $2$ we increase the CPU load twice, which clearly has a negative effect on the duration of a sync (see Figure~\ref{fig:bigSyncDelay}) and thus overall on the performance.
+
+			It seems that in an ideal implementation (where the only bottleneck is network latency) having a larger number of parents should generally help.
+
+		\subsection{The number of units per level.}
+			Perhaps the most crucial parameter that determines how ``efficient'' is the poset we produce, is the average number of units per one level.
+			We refer to Figure~\ref{fig:nUnitsOrdered} for a statistic that is essentially equivalent to measuring the number of units per level.
+
+			Indeed Figure~\ref{fig:nUnitsOrdered} offers a high-level understanding why the latency does not go down when we keep all parameters the same but only decrease the create delay from $2.0$ to $1.0$.
+			The reason is that the poset we produce for create delay $=1.0$ is much ``less efficient'' (i.e. ``thicker'') and thus generating units more frequently did not quite translate to establishing new levels more frequently.
+			See also Section \ref{sec:structure}.
+
+			One can also observe that having an ``efficient'' poset is also correlated with the average duration of a sync, see Figure~\ref{fig:delaysTimePerSync}.
+			This perhaps has the intuitive explanation that: if the syncs are short then the processes are up-to-date with the most recent version of the poset (i.e. they learn recently created units very quickly) then the units created have well chosen parents (i.e. from among recent units), and thus the structure of the poset is nice.
+			Otherwise the parents are units that are ``lower'' in the poset, and thus typically do not contribute that much towards creating a new level.
 \end{document}
