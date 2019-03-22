@@ -59,9 +59,9 @@
 			This, however, requires maintaining a helper structure in every unit $U$ called \lstinline{floor}.
 			This structure is a list of lists, a list at position $k$ contains the maximal units made by process $k$ that are below $U$.
 			To check whether $V$ is below $U$ we check if
-			\begin{center}
-			\lstinline{U.floor[V.creator_id][0].height >= V.height}.
-			\end{center}
+			\begin{lstlisting}
+U.floor[V.creator_id][0].height >= V.height
+			\end{lstlisting}
 			While \lstinline{floor} helps us to answer \lstinline{below} queries, it requires significant work to maintain. When adding a unit to the poset we combine the floors of its parents.
 			This operation runs in $O(N \cdot p)$ time and is one of the more expensive ones.
 		\subsection{Creating units}
@@ -169,12 +169,12 @@
 			There are two crucial components influencing this speed:
 			\begin{enumerate}
 				\item Thickness of a level, i.e. how many units per level are there.
-				\item How quickly does a unit becomes popular, i.e. when (at which level) all the processes learn about this particular unit.
+				\item How quickly a unit becomes popular, i.e. when (at which level) all the processes learn about this particular unit.
 			\end{enumerate}
 			We want the thickness to be as low as possible, because a unit can only be included in a linear order after at least three levels are build on top of it.
 			Since we limit how often new units are created, making level unnecessarily thick wastes time.
 
-			The latter should be as quick as possible, because when a unit is being considered for a timing unit its popularity determines how many levels will it take to decide it.
+			The latter should be as quick as possible, because when a unit is being considered for a timing unit its popularity determines how many levels it will take to decide it.
 		 Therefore, we are once again bound by the rate limiting unit creation.
 
 			The best results were obtained for posets in which most levels had thickness $1$ (one unit per process at every level) and almost every unit was popular very quickly.
@@ -387,7 +387,7 @@
 				To convince oneself that indeed CPU is the bottleneck here one might inspect how the latency changes for committee sizes $N \in \{32, 128\}$
 				when we change the create delay from $2.0$ sec to $1.0$ -- see Figure~\ref{fig:bigLatency} for this comparison.
 				It is expected that the latency should halve with lowering the delay, however it is the case only for $N=32$, while for $N=128$ the latency stays almost same.
-				The reason for that is that even though the units are produced twice so often, already for create delay set to $2.0$ the CPU is barely keeping up with adding units to the poset, for $1.0$ the CPU is occupied all the time and hence the syncs take more time (see Figure~\ref{fig:bigTimePerSync}). As a consequence the produced poset is of "worse quality", i.e. the levels are "thicker" but the time to validate a unit does not drop.
+				The reason for that is that even though the units are produced twice so often, already for create delay set to $2.0$ the CPU is barely keeping up with adding units to the poset, for $1.0$ the CPU is occupied all the time and hence the syncs take more time (see Figure~\ref{fig:bigTimePerSync}). As a consequence the produced poset is of ``worse quality'', i.e. the levels are ``thicker'' but the time to validate a unit does not drop.
 
 				Here are some possible ways to improve the latency:
 				\begin{itemize}
@@ -398,8 +398,8 @@
 				\end{itemize}
 
 			\subsubsection*{How to get more transactions per second?}
-				What we tested here was mainly how many transactions can we inject in the system per second so that the processes can keep up with gossiping the "fat" units.
-				Note that in reality the transactions should be also processed -- i.e. in particular their signatures should be checked and they should be "applied" and change the state of the "ledger" appropriately.
+				What we tested here was mainly how many transactions can we inject in the system per second so that the processes can keep up with gossiping the ``fat'' units.
+				Note that in reality the transactions should be also processed -- i.e. in particular their signatures should be checked and they should be ``applied'' and change the state of the ``ledger'' appropriately.
 				For simplicity we assumed that the latter can be done in parallel on a separate thread, and effectively ignored this problem, in reality this might be a considerate computational burden.
 
 				Thus, in the current model (ignore transaction processing time) we can deal with even {\bf hundreds of thousands of txs per second} and the only limiting factor is the network bandwidth.
@@ -407,20 +407,20 @@
 
 			\subsubsection*{The influence of the number of parents.}
 				Even though some of the plots (see the result of changing $PAR=10$ to $PAR=128$ for $N=128$ in Figure~\ref{fig:bigLatency}) might suggest that increasing the number of possible parents per unit has actually a {\bf negative} effect (on the latency), this is not quite true.
-				Indeed, ignoring for a moment the effect of increasing the size (in bytes) of a unit that might increase the network latency (but in practice barely does so), allowing more parents makes the poset "more connected" and thus should make the levels less thick on average, and make the positive consensus decisions more often. Why is the effect opposite than?
+				Indeed, ignoring for a moment the effect of increasing the size (in bytes) of a unit that might increase the network latency (but in practice barely does so), allowing more parents makes the poset ``more connected'' and thus should make the levels less thick on average, and make the positive consensus decisions more often. Why is the effect opposite than?
 
 				The answer is again: we are cpu-bound, and this becomes even more relevant when the number of parents is large. Indeed the complexity of \lstinline{add_unit} depends linearly on the number of parents. Thus by increasing the number of parents by a factor of $2$ we increase the CPU load twice, which clearly has a negative effect on the duration of a sync (see Figure~\ref{fig:bigSyncDelay}) and thus overall on the performance.
 
 				It seems that in an ideal implementation (where the only bottleneck is network latency) having a larger number of parents should generally help.
 
 			\subsubsection*{The number of units per level.}
-				Perhaps the most crucial parameter that determines how "efficient" is the poset we produce, is the average number of units per one level.
+				Perhaps the most crucial parameter that determines how ``efficient'' is the poset we produce, is the average number of units per one level.
 				We refer to Figure~\ref{fig:nUnitsOrdered} for a statistic that is essentially equivalent to measuring the number of units per level.
 
 				Indeed Figure~\ref{fig:nUnitsOrdered} offers a high-level understanding why does the latency not go down when we keep all parameters the same but only decrease the create delay from $2.0$ to $1.0$.
-				The reason is that the poset we produce for create delay $=1.0$ is much "less efficient" (i.e. "thicker") and thus generating units more frequently did not quite translate to establishing new levels more frequently.
+				The reason is that the poset we produce for create delay $=1.0$ is much ``less efficient'' (i.e. ``thicker'') and thus generating units more frequently did not quite translate to establishing new levels more frequently.
 
-				One can also observe that having an "efficient" poset is also correlated with the average duration of a sync, see Figure~\ref{fig:delaysTimePerSync}.
+				One can also observe that having an ``efficient'' poset is also correlated with the average duration of a sync, see Figure~\ref{fig:delaysTimePerSync}.
 				This perhaps has the intuitive explanation that: if the syncs are short then the processes are up-to-date with the most recent version of the poset (i.e. they learn recently created units very quickly) then the units created have well chosen parents (i.e. from among recent units), and thus the structure of the poset is nice.
-				Otherwise the parents are units that are "lower" in the poset, and thus typically do not contribute that much towards creating a new level.
+				Otherwise the parents are units that are ``lower'' in the poset, and thus typically do not contribute that much towards creating a new level.
 \end{document}
