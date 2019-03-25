@@ -3,6 +3,7 @@ __*
 *.log
 .cache
 *.png
+*.out
 *.txt
 *.aux
 *.bbl
