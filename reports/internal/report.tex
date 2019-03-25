@@ -10,14 +10,22 @@
 \usepackage{todonotes}
 \usepackage{placeins}
 \usepackage{fullpage}
+\usepackage{hyperref}
 \lstset{basicstyle=\ttfamily,language=Python}
+\definecolor{minttext}{RGB}{0,204,171}
+\hypersetup{
+	colorlinks=true,
+	citecolor=minttext,
+	linkcolor=minttext,
+	urlcolor=minttext,
+}
 
 \title{PoC internal report}
 \author{The Aleph Zero team}
 \begin{document}
  \maketitle
 	This is the internal report from the final round of tests we ran on the proof-of-concept implementation of the Aleph protocol.
-	The implementation is written in Python and can be accessed at \todo[inline]{Make a tag and link it here.}.
+	The implementation is written in Python and can be accessed at \url{https://gitlab.com/alephledger/proof-of-concept}.
 	\section{General setup}
 	This sections gives an overview of the main experimental setup.
 		\subsection{Settings}
@@ -180,8 +188,10 @@ U.floor[V.creator_id][0].height >= V.height
 			The best results were obtained for posets in which most levels had thickness $1$ (one unit per process at every level) and almost every unit was popular very quickly.
 	\section{Results}
 	 We ran 3 big series of experiments. After each series we fixed some issues and made improvements to the code.
-	 	Unfortunately, this means that the runs are not directly comparable to each other.
-	 	However, still, the results give a good understanding of the performance of the Aleph protocol, and how the various parameters influence it.
+		Unfortunately, this means that the runs are not directly comparable to each other.
+		However, still, the results give a good understanding of the performance of the Aleph protocol, and how the various parameters influence it.
+		The first two series of tests have been ran using the code at \url{https://gitlab.com/alephledger/proof-of-concept/tree/experimentDelaysAndTransactions}
+		while the last one using the code at \url{https://gitlab.com/alephledger/proof-of-concept/tree/experimentCommitteeSize}.
 		\subsection{Delays}
 		\FloatBarrier
 			The first series of experiments was testing various values of create and sync delays.
