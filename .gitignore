@@ -1,0 +1,11 @@
+__*
+!__init__.py
+*.log
+.cache
+*.png
+*.out
+*.txt
+*.aux
+*.bbl
+*.blg
+*.pdf
