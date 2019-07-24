@@ -6,8 +6,8 @@ echo update > setup.log
 sudo apt update
 
 echo install from ubuntu repo >> setup.log
-sudo apt install -y make flex bison zip unzip virtualenv libgmp-dev libmpc-dev libssl1.0-dev
-sudo apt install -y python3.7-dev python3-pip
+sudo DEBIAN_FRONTEND=noninteractive apt-get install -y make flex bison zip unzip virtualenv libgmp-dev libmpc-dev libssl1.0-dev
+sudo DEBIAN_FRONTEND=noninteractive apt-get install -y python3.7-dev python3-pip
 
 echo install pbc >> setup.log
 wget https://crypto.stanford.edu/pbc/files/pbc-0.5.14.tar.gz
@@ -39,15 +39,5 @@ cd
 
 echo install from pip repo >> setup.log
 pip install setuptools pytest-xdist pynacl networkx numpy matplotlib joblib 
-
-# echo clone repo >> setup.log
-# user_token=gitlab+deploy-token-38770:usqkQKRbQiVFyKZ2byZw
-# git clone http://${user_token}@gitlab.com/alephledger/proof-of-concept.git
-# 
-# echo install aleph >> setup.log
-# cd proof-of-concept
-# git checkout devel
-# pip install .
-# cd
 
 echo done >> setup.log

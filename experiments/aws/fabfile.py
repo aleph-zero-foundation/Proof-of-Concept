@@ -200,7 +200,7 @@ def stop_world(conn):
 def test(conn):
     ''' Always changing task for experimenting with fab.'''
 
-    conn.run(f'echo "Hello {conn.host}!"')
+    conn.open()
 
 
 @task
