@@ -45,9 +45,8 @@ class Unit(object):
         self.hash_value = None
 
     def transactions(self):
-        '''Iterate over transactions (instances of Tx class) belonging to this unit.'''
+        '''Returns the list of transactions contained in the unit.'''
         return list(pickle.loads(zlib.decompress(self.txs)))
-        #return iter(self.txs)
 
 
     def parents_hashes(self):
@@ -82,7 +81,7 @@ class Unit(object):
 
 
     def hash(self):
-        '''Return the value of hash of this unit.'''
+        '''Returns the value of hash of this unit.'''
         if self.hash_value is not None:
             return self.hash_value
         self.hash_value = sha3_hash(self.bytestring())
@@ -94,8 +93,7 @@ class Unit(object):
 
 
     def __eq__(self, other):
-        return isinstance(other, Unit) and self.hash() == other.hash() #this is probably faster
-        #return (isinstance(other, Unit) and self.creator_id == other.creator_id and self.parents_hashes() == other.parents_hashes() and self.txs == other.txs)
+        return isinstance(other, Unit) and self.hash() == other.hash()
 
 
     def __str__(self):
@@ -113,8 +111,6 @@ class Unit(object):
         str_repr += str(self.parents_hashes())
         str_repr += str(self.txs)
         str_repr += str(self.coin_shares)
-        #str_repr += str(self.level)?
-        #str_repr += str(self.self_predecessor.hash())?
         return str_repr
 
 def pretty_hash(some_hash):

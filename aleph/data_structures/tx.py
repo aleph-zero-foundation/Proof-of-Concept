@@ -1,9 +1,9 @@
 class Tx(object):
     '''This class stores a transactions issued by some user'''
 
-    __slots__ = ['issuer', 'receiver', 'amount']#, 'index', 'signature']
+    __slots__ = ['issuer', 'receiver', 'amount']
 
-    def __init__(self, issuer, receiver, amount):#, index):, signature=None):
+    def __init__(self, issuer, receiver, amount):
         '''
         :param str issuer: public key of the issuer of the transaction
         :param str receiver: public key of the receiver of the transaction

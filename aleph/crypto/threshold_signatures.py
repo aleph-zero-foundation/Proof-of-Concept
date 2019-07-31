@@ -66,7 +66,7 @@ class VerificationKey:
 
     def lagrange(self, S, i):
         '''
-        Lagrange approximation.
+        Lagrange interpolation.
         :param list S: list of values for numerator
         :param int i: special value for denumerator
         '''
