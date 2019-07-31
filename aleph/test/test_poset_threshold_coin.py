@@ -5,7 +5,7 @@ import random
 
 def toss_for_prime(U, poset, dag, results, additional_args):
     '''
-    For every prime unit of level>=5 try to toss a coin for some random prime at level>=3 that is >=4 levels below.
+    For every prime unit of level>=7 try to toss a coin for some random prime at level>=3 that is >=4 levels below.
     '''
     if additional_args is None:
         primes = []

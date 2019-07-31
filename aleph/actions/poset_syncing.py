@@ -62,8 +62,6 @@ def units_to_send_with_pid(poset, tops, pid):
     :returns: units created by pid the other poset should receive to catch up to us, and a list of tops we don't recognize
     '''
 
-    # NOTE: this can potentially be slowed down arbitrarily if forkers are not sufficiently muted.
-    # TODO: ensure sufficient muting of forkers -- see create_unit's comments
     to_send = []
     local_max = poset.max_units_per_process[pid]
     local_max.sort(key=lambda U: U.height)
