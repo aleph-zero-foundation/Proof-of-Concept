@@ -35,14 +35,17 @@ class Unit(object):
     def self_predecessor(self):
         return self.parents[0] if len(self.parents) > 0 else None
 
+
     @property
     def coin_shares(self):
         return self._coin_shares
+
 
     @coin_shares.setter
     def coin_shares(self, value):
         self._coin_shares = value
         self.hash_value = None
+
 
     def transactions(self):
         '''Returns the list of transactions contained in the unit.'''
@@ -58,6 +61,7 @@ class Unit(object):
         creator = str(self.creator_id).encode()
         serialized_shares = _serialize_and_flatten_coin_shares(self.coin_shares)
         return b'|'.join([creator] + self.parents_hashes() + serialized_shares + [self.txs])
+
 
     def short_name(self):
         '''
@@ -104,14 +108,8 @@ class Unit(object):
         str_repr += str(self.coin_shares)
         return str_repr
 
+    __repr__ = __str__
 
-    def __repr__(self):
-        # create a string containing all the essential data in the unit
-        str_repr =  str(self.creator_id)
-        str_repr += str(self.parents_hashes())
-        str_repr += str(self.txs)
-        str_repr += str(self.coin_shares)
-        return str_repr
 
 def pretty_hash(some_hash):
     '''
@@ -135,6 +133,7 @@ def _serialize_coin_shares(coin_shares):
         # These coin shares come from a non-dealing unit -- they just represent regular coin shares
         return [PAIRING_GROUP.serialize(cs, compression = False) for cs in coin_shares]
 
+
 def _deserialize_coin_shares(serialized_shares):
     if isinstance(serialized_shares, dict):
         # These coin shares come from a dealing units -- represent threshold coins
@@ -147,10 +146,9 @@ def _deserialize_coin_shares(serialized_shares):
         # These coin shares come from a non-dealing unit -- they just represent regular coin shares
         return [PAIRING_GROUP.deserialize(cs, compression = False) for cs in serialized_shares]
 
+
 def _serialize_and_flatten_coin_shares(coin_shares):
-    '''
-    Return a list of bytestrings as a representation of coin shares.
-    '''
+    '''Return a list of bytestrings as a representation of coin shares.'''
     if isinstance(coin_shares,dict):
         # we need to transform a dict of bytestrings into a list of bytestrings
         serialized_shares = _serialize_coin_shares(coin_shares)
