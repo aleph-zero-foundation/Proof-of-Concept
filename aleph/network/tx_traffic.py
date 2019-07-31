@@ -14,7 +14,8 @@ import aleph.const as consts
 def tx_listener(listen_addr, queue):
     '''
     Start a TCP server on *listen_addr* and listen for incoming transactions.
-    Put batches (lists) of transactions on *queue* every consts.CREATE_DELAY seconds or when the tx limit per unit (consts.TXPU) is reached, whichever comes first.
+    Put batches (lists) of transactions on *queue* every consts.CREATE_DELAY seconds or when the tx limit per unit (consts.TXPU)
+    is reached, whichever comes first.
     '''
     tx_buffer = []
     prev_put_time = get_time()
@@ -49,7 +50,8 @@ def tx_source_gen(batch_size, txpu, seed=27091986, filename=None):
     :param int batch_size: number of txs for a process to input into the system.
     :param int txpu: number of txs to be included in one unit.
     :param int seed: seed for random generator.
-    :param str filename: path to file with names of txs senders and recipients (each in a separate line). If None, aleph/test/data/light_nodes_public_keys is used.
+    :param str filename: path to file with names of txs senders and recipients (each in a separate line).
+      If None, aleph/test/data/light_nodes_public_keys is used.
     '''
 
     if filename is None:
@@ -83,7 +85,6 @@ def tx_source_gen(batch_size, txpu, seed=27091986, filename=None):
             queue.put(txs, block=True)
 
     return _tx_source
-
 
 
 def tx_generator(committee_addresses, signing_keys, txps):
@@ -121,7 +122,7 @@ def tx_generator(committee_addresses, signing_keys, txps):
                     sock.sendall(data)
                     sent = True
                 except:
-                    return # assume any failure means that others have stopped
+                    # assume any failure means that others have stopped
+                    return
 
         counter += 1
-
