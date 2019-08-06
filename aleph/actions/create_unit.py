@@ -45,9 +45,10 @@ def create_unit(poset, creator_id, txs, num_parents = None):
     '''
     Creates a new unit and stores txs in it. It uses only maximal units in the poset as parents (with the possible exception for the self_predecessor).
     This parent selection strategy has the following properties:
-       - the created unit satisfies the expand-primes rule,
-       - the main objective is for the new unit to see as many units as possible, but at the same time to not have too many parents
+    - the created unit satisfies the expand-primes rule,
+    - the main objective is for the new unit to see as many units as possible, but at the same time to not have too many parents
     NOTE: this strategy is most effective when num_parents is quite high, ideally unrestricted.
+
     :param Poset poset: poset in which the new unit is created
     :param int creator_id: id of process creating the new unit
     :param list txs: list of correct transactions

@@ -7,19 +7,20 @@ import base64
 from aleph.config import PAIRING_GROUP
 
 class Unit(object):
-    '''This class is the building block for the poset'''
+    '''
+    This class is the building block for the poset
+
+    :param int creator_id: indentification number of a process creating this unit
+    :param list parents: list of parent units; first parent has to be the last unit created by the process creator_id
+    :param list txs: list of transactions
+    :param bytes signature: signature made by a process creating this unit preventing forging units by Byzantine processes
+    :param list coin_shares: list of coin_shares if this is a prime unit, None otherwise
+    '''
 
     __slots__ = ['creator_id', 'parents', 'txs', 'signature', '_coin_shares',
                  'level', 'floor', 'height', 'hash_value', 'n_txs']
 
     def __init__(self, creator_id, parents, txs, signature=None, coin_shares=None):
-        '''
-        :param int creator_id: indentification number of a process creating this unit
-        :param list parents: list of parent units; first parent has to be the last unit created by the process creator_id
-        :param list txs: list of transactions
-        :param bytes signature: signature made by a process creating this unit preventing forging units by Byzantine processes
-        :param list coin_shares: list of coin_shares if this is a prime unit, None otherwise
-        '''
         self.creator_id = creator_id
         self.parents = parents
         self.signature = signature

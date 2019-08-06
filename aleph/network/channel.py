@@ -9,17 +9,19 @@ class RejectException(Exception):
 
 
 class Channel:
-    REJECT = b'REJECT'
+    ''' Simple class representing an asynchronous communication channel through the network. Suitable for both a case when I am initiating connection (see open()) or when someone else does that (see connect()).
 
-    def __init__(self, owner_id, peer_id, peer_address):
-        '''
         Class representing an asynchronous communication channel through the network. Suitable for both a case when we are
         initiating a connection (see open()) or when someone else does that (see connect()).
         :param int owner_id: process ID of the owner of the channel
         :param int peer_id: process ID of the recipient (other end) of the channel
         :param tuple peer_address: pair (IP, port) with peer's address
-        '''
 
+    '''
+
+    REJECT = b'REJECT'
+
+    def __init__(self, owner_id, peer_id, peer_address):
         self.owner_id = owner_id
         self.peer_id = peer_id
         self.address = peer_address

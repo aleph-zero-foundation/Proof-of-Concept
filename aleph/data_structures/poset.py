@@ -12,17 +12,18 @@ import aleph.const as consts
 
 
 class Poset:
-    '''This class is the core data structure of the Aleph protocol.'''
+    '''
+    This class is the core data structure of the Aleph protocol.
+
+    :param int n_processes: the committee size
+    :param int process_id: the id of the process owning this poset
+    :param CommonRandomPermutation crp: an object returning the common random permutation of processes at a given level
+    :param bool use_tcoin: whether to use threshold coin, mostly so we can disable it for tests
+    :param dict compliance_rules: a dictionary describing which compliance_rules to use
+    '''
 
     def __init__(self, n_processes, process_id = None, crp = None, use_tcoin = None,
                 compliance_rules = None):
-        '''
-        :param int n_processes: the committee size
-        :param int process_id: the id of the process owning this poset
-        :param CommonRandomPermutation crp: an object returning the common random permutation of processes at a given level
-        :param bool use_tcoin: whether to use threshold coin, mostly so we can disable it for tests
-        :param dict compliance_rules: a dictionary describing which compliance_rules to use
-        '''
         self.n_processes = n_processes
         self.default_compliance_rules = {'forker_muting': True, 'expand_primes': True, 'threshold_coin': use_tcoin}
         self.compliance_rules = compliance_rules
@@ -70,8 +71,8 @@ class Poset:
         '''
         Sets basic fields of U; should be called prior to check_compliance and add_unit methods.
         This method does the following:
-            0. set floor field
-            1. set U's level
+        0. set floor field
+        1. set U's level
         '''
 
         # 0. set floor field
@@ -86,11 +87,12 @@ class Poset:
         '''
         Add a unit compliant with the rules, what was checked by check_compliance.
         This method does the following:
-            0. add the unit U to the poset
-            1. if it is a dealing unit, add it to self.dealing_units
-            2. update the lists of maximal elements in the poset.
-            3. update forking_height
-            4. if U is prime, add it to prime_units_by_level
+        0. add the unit U to the poset
+        1. if it is a dealing unit, add it to self.dealing_units
+        2. update the lists of maximal elements in the poset.
+        3. update forking_height
+        4. if U is prime, add it to prime_units_by_level
+
         :param Unit U: unit to be added to the poset
         '''
 
@@ -142,6 +144,7 @@ class Poset:
     def level(self, U):
         '''
         Calculates the level in the poset of the unit U.
+
         :param Unit U: the unit whose level is being requested
         :returns: the computed level
         '''
@@ -177,6 +180,7 @@ class Poset:
     def is_prime(self, U):
         '''
         Check if the unit U is prime.
+
         :param Unit U: the unit to be checked for being prime
         '''
         return len(U.parents) == 0 or self.level(U) > self.level(U.self_predecessor)
@@ -200,6 +204,7 @@ class Poset:
     def get_all_prime_units_by_level(self, level):
         '''
         Returns a list of all prime units at a given level.
+
         :param int level: the requested level of units
         '''
         if level not in self.prime_units_by_level.keys():
@@ -210,6 +215,7 @@ class Poset:
     def get_prime_units_at_level_below_unit(self, level, U):
         '''
         Returns the set of all prime units at a given level that are below the unit U.
+
         :param int level: the requested level of units
         :param Unit U: the unit below which we want the prime units
         '''
@@ -250,6 +256,7 @@ class Poset:
         '''
         Check whether the rule (a string) "forker_muting", "expand_primes", etc. should be checked in the check_compliance function.
         Based on the combination of default values and the compliance_rules dictionary provided as a parameter to the constructor.
+
         :param str rule: the name of the rule to check
         :returns: whether to check the rule
         '''
@@ -265,11 +272,12 @@ class Poset:
         '''
         Assumes that prepare_unit(U) has been already called.
         Checks if the unit U is correct and follows the rules of creating units, i.e.:
-            1. Parents of U are correct (exist in the poset, etc.)
-            2. U does not provide evidence of its creator forking
-            3. Satisfies forker-muting policy.
-            4. Satisfies the expand primes rule.
-            5. The coinshares are OK, i.e., U contains exactly the coinshares it is supposed to contain.
+        1. Parents of U are correct (exist in the poset, etc.)
+        2. U does not provide evidence of its creator forking
+        3. Satisfies forker-muting policy.
+        4. Satisfies the expand primes rule.
+        5. The coinshares are OK, i.e., U contains exactly the coinshares it is supposed to contain.
+
         :param Unit U: unit whose compliance is being tested
         :returns: True if all the checks passed, False otherwise
         '''
@@ -305,6 +313,7 @@ class Poset:
         Checks whether the dealing unit U has a threshold coin included.
         We cannot really check whether it is valid (since the secret keys are encrypted).
         Instead, we simply make sure whether the dictionary has all necessary fields and the corresponding lists are of appropriate length.
+
         :param Unit U: the unit to check
         :returns: Boolean value, True if U's threshold coin is correct, False otherwise.
         '''
@@ -329,6 +338,7 @@ class Poset:
     def check_no_self_forking_evidence(self, U):
         '''
         Checks if the unit U does not provide evidence of its creator forking.
+
         :param Unit U: the unit whose forking evidence is being checked
         :returns: Boolean value, True if U does not provide evidence of its creator forking
         '''
@@ -344,6 +354,7 @@ class Poset:
         prime units of level L below all the parents checked up to now.
         The next parent must must either have prime units of level L below it that are
         not in P, or have level greater than L.
+
         :param Unit U: unit that is tested against the expand primes rule
         :returns: Boolean value, True if U respects the rule, False otherwise.
         '''
@@ -373,9 +384,10 @@ class Poset:
         '''
         Checks if the unit U respects the forker-muting policy, i.e.:
         The following situation is not allowed:
-            - There exists a process j, s.t. one of U's parents was created by j
-            AND
-            - U has as one of the parents a unit that has evidence that j is forking.
+        - There exists a process j, s.t. one of U's parents was created by j
+        AND
+        - U has as one of the parents a unit that has evidence that j is forking.
+
         :param Unit U: unit that is checked for respecting anti-forking policy
         :returns: Boolean value, True if U respects the forker-muting policy, False otherwise.
         '''
@@ -396,6 +408,7 @@ class Poset:
         0. Parents of U exist in the poset
         1. The first parent was created by U's creator and has one less height than U.
         2. If U has >=2 parents then all parents are created by pairwise different processes.
+
         :param Unit U: unit whose parents are being checked
         :returns: Boolean value, True if U satisfies the above conditions, False otherwise.
         '''
@@ -427,6 +440,7 @@ class Poset:
     def update_floor(self, U):
         '''
         Updates floor of the unit U by merging and taking maximums of floors of parents.
+
         :param Unit U: the unit whose floors are being updated
         '''
         U.floor[U.creator_id] = [U]
@@ -440,6 +454,7 @@ class Poset:
         '''
         Combines U.floor[process_id] for all units U in units.
         The result is the set of maximal elements of the union of these lists.
+
         :param list units: list of units to be considered
         :param int process_id: identification number of a process
         :returns: list U that contains maximal elements of the union of floors of units w.r.t. process_id
@@ -474,6 +489,7 @@ class Poset:
     def has_forking_evidence(self, U, process_id):
         '''
         Checks if U has in its lower cone an evidence that process_id is forking.
+
         :param Unit U: unit to be checked for evidence of process_id forking
         :param int process_id: identification number of process to be verified
         :returns: True if forking evidence is present, False otherwise
@@ -490,6 +506,7 @@ class Poset:
         '''
         Checks if there exists a path (possibly U == V) from U to V going only through units created by their creator process.
         Assumes that U.creator_id == V.creator_id.
+
         :param Unit U: first unit to be tested
         :param Unit V: second unit to be tested
         :returns: True if U <= V, False otherwise
@@ -516,6 +533,7 @@ class Poset:
         '''
         Checks if there exists a path (possibly U = V) from V to U going only through units created by their creator process.
         Assumes that U.creator_id = V.creator_id = process_id
+
         :param Unit U: first unit to be tested
         :param Unit V: second unit to be tested
         :returns: True if U >= V, False otherwise
@@ -526,6 +544,7 @@ class Poset:
     def below(self, U, V):
         '''
         Checks if U <= V.
+
         :param Unit U: first unit to be tested
         :param Unit V: second unit to be tested
         '''
@@ -538,6 +557,7 @@ class Poset:
     def above(self, U, V):
         '''
         Checks if U >= V.
+
         :param Unit U: first unit to be tested
         :param Unit V: second unit to be tested
         '''
@@ -553,9 +573,10 @@ class Poset:
         '''
         Checks whether V proves that U_c is popular on V's level (i.e. everyone sees U on this level).
         More specifically we check whether there are >=2/3 N units W (created by distinct processes) such that
-            (1) W <= V,
-            (2) W has level <=level(V) - 2, or W is a prime unit at level(V)-1,
-            (3) U_c <= W.
+        1. W <= V,
+        2. W has level <=level(V) - 2, or W is a prime unit at level(V)-1,
+        3. U_c <= W.
+
         :param Unit V: the "prover" unit
         :param Unit U_c: the unit tested for popularity
         :returns: True or False: does V prove that U_c is popular?
@@ -596,6 +617,7 @@ class Poset:
         '''
         Precomputes the popularity proof for V, to avoid computing many popularity proofs at once.
         Tries to prove the popularity of the first unit in the common random permutation that is below V.
+
         :param Unit V: the "prover" unit
         '''
         for level in range(V.level - consts.VOTING_LEVEL + 1, V.level - 1):
@@ -624,6 +646,7 @@ class Poset:
     def default_vote(self, U, U_c):
         '''
         Default vote of U on popularity of U_c, as in the fast consensus algorithm.
+
         :param Unit U: the unit that is voting
         :param Unit U_c: the unit that is being voted on
         :returns: 1 or 0, as in the fast consensus algorithm
@@ -645,10 +668,11 @@ class Poset:
         '''
         Determine the vote of unit U on popularity of U_c.
         If the first round of voting is at level L then:
-            - at lvl L the vote is just whether U proves popularity of U_c (i.e. whether U_c <<< U)
-            - at lvl (L+1) the vote is the supermajority of votes of prime ancestors (at level L)
-            - at lvl (L+2) the vote is the supermajority of votes (replaced by default_vote if no supermajority) of prime ancestors (at level L+1)
-            - etc.
+        - at lvl L the vote is just whether U proves popularity of U_c (i.e. whether U_c <<< U)
+        - at lvl (L+1) the vote is the supermajority of votes of prime ancestors (at level L)
+        - at lvl (L+2) the vote is the supermajority of votes (replaced by default_vote if no supermajority) of prime ancestors (at level L+1)
+        - etc.
+
         :param Unit U: the unit that is voting
         :param Unit U_c: th eunit that is being voted on
         :returns: 0, 1 or -1, as described in the fast consensus algorithm, where -1 represents "bot"
@@ -684,6 +708,7 @@ class Poset:
     def decide_unit_is_popular(self, U_c):
         '''
         Decides popularity of U_c (i.e. whether it should be a candidate for a timing unit).
+
         :param Unit U_c: the unit whose popularity we want to investigate
         :returns: one of {-1,0,1}: the decision (0 or 1) in case it follows from our local view of the poset,
                   or -1 if the decision cannot be inferred yet
@@ -757,6 +782,7 @@ class Poset:
     def decide_timing_on_level(self, level):
         '''
         Decide which prime unit of the given level shall be the timing unit.
+
         :param int level: the level about which we are inquiring
         :returns: the timing unit at this level or (-1) in case when no unit can be chosen yet
         '''
@@ -814,6 +840,7 @@ class Poset:
     def exists_tc(self, list_vals, U_c, U_tossing):
         '''
         Computes the exists function from the whitepaper, including the coin toss if necessary.
+
         :param list list_vals: the list of values among which we are checking for existence
         :param Unit U_c: the unit about which we are making a decision
         :param Unit U_tossing: the unit which is making the decision
@@ -829,6 +856,7 @@ class Poset:
     def super_majority(self, list_vals):
         '''
         Computes the supermajority function from the whitepaper.
+
         :param list list_vals: the list of values among which we are checking for supermajority
         :returns: 1 or 0 if either is a supermajority value on the list provided, -1 (representing "bot") if neither is
         '''
@@ -885,6 +913,7 @@ class Poset:
     def compute_delta(self, U_c, U):
         '''
         Computes the value of the Delta function from the paper. The value -1 means "bot" (undefined).
+
         :param Unit U_c: the unit which we are deciding about
         :param Unit U: the unit that is making the decision
         :returns: 0, 1 or -1, as defined in the whitepaper
@@ -922,6 +951,7 @@ class Poset:
     def first_dealing_unit(self, V):
         '''
         Returns the first dealing unit (sorted w.r.t. crp at level level(V)) that is below V.
+
         :param Unit V: the unit below which we are looking for a dealing unit
         '''
         permutation = self.crp[self.level(V)]
@@ -941,6 +971,7 @@ class Poset:
         '''
         Checks whether the coin share of U agrees with the dealt public key.
         Note that even if it does not, it doesn't mean that U.creator_id is an adversary -- it could be that dealer_id is cheating.
+
         :param Unit U: the unit whose coin shares are being checked
         :returns: True if the coin share is verified successfully, False otherwise
         '''
@@ -953,6 +984,7 @@ class Poset:
         '''
         The coin toss at unit U_tossing (necessarily at level >= consts.ADD_SHARES + 1)
         With low probability the toss may fail -- typically because of adversarial behavior of some process(es).
+
         :param unit U_c: the unit whose popularity decision is being considered by tossing a coin
                          this param is used only in case when the _simple_coin is used, otherwise
                          the result of coin toss is meant to be a function of U_tossing.level only
@@ -1024,6 +1056,7 @@ class Poset:
     def add_coin_shares(self, U):
         '''
         Adds coin shares to the prime unit U using the simplified strategy: add the coin_share determined by FAI(U, U.level) to U
+
         :param Unit U: prime unit to which coin shares are added
         '''
 
@@ -1039,6 +1072,7 @@ class Poset:
     def extract_tcoin_from_dealing_unit(self, U):
         '''
         Extracts and stores the threshold coin from a given unit.
+
         :param Unit U: the dealing unit from which we are extracting the coin
         '''
         assert U.parents == [], "Trying to extract tcoin from a non-dealing unit."
@@ -1052,6 +1086,7 @@ class Poset:
         Checks coin shares of a prime unit that is not a dealing unit.
         This boils down to checking if U has exactly one share if its level is >= consts.ADD_SHARES and zero shares otherwise.
         At this point there is no point checking whether the share is correct, because that might be because of an dishonest dealer.
+
         :param Unit U: the unit whose shares we are checking
         :returns: True if there is the appropriate number of shares, False otherwise
         '''
@@ -1073,6 +1108,7 @@ class Poset:
         Produce a linear ordering on the provided units.
         It is a slightly different implementation than in the arxiv paper to avoid using xor which turns out to be very slow in python.
         Essentially a sha3 hash is used in place of xor.
+
         :param list units_list: the units to be sorted, should be all units with a given timing round
         :returns: the same set of units in a list ordered linearly
         '''
@@ -1113,6 +1149,7 @@ class Poset:
         '''
         Return a list of all units with timing round equal k.
         In other words, all U such that U < T_k but not U < T_(k-1) where T_i is the i-th timing unit.
+
         :param int k: the level of the timing round requested
         '''
         T_k = self.timing_units[k]
@@ -1139,6 +1176,7 @@ class Poset:
         '''
         Dumps the poset to file in a simple format. Units are listed in the same order as the were added to the poset.
         In addition to parents and creator_id we also include info about the level of each unit and a bit 0/1 whether the unit was a timing unit.
+
         :param str file_name: the name of the file in which the poset is to be saved
         '''
         set_timing_units = set(self.timing_units)

@@ -1,5 +1,7 @@
 #! /bin/bash
 
+set -e 
+
 echo update > setup.log
 sudo apt update
 

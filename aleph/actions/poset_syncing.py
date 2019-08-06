@@ -10,6 +10,7 @@ from aleph.data_structures import pretty_hash
 def poset_info(poset):
     '''
     A short representation of the poset state, for syncing purposes.
+
     :param Poset poset: the poset which state we want to receive
     :returns: A list of lists of pairs (height, hash), with the heights and hashes of maximal elements per process in the poset.
     '''
@@ -24,8 +25,9 @@ def order_units_topologically(units_list):
     '''
     Outputs a topological order of units_list.
     More formally it outputs a list top_list such that:
-        whenever U, V are in units_list and V is a parent of U then V appears before U in top_list.
+    *whenever U, V are in units_list and V is a parent of U then V appears before U in top_list.*
     Note: this does not necessarily preserve the ordering in the poset!
+
     :param list unit_list: the list of units to sort
     :returns: topologically sorted unit_list
     '''
@@ -56,6 +58,7 @@ def units_to_send_with_pid(poset, tops, pid):
     '''
     Determine which units created by pid to send to a poset which has the top known units of pid as given.
     Also make a list of units in tops we don't recognize.
+
     :param Poset poset: the poset which is supposed to be the source of the units
     :param list tops: the short representation of the receiving poset's top known units made by pid
     :param int pid: the id of the creator of units we are interested in
@@ -94,6 +97,7 @@ def _drop_to_height(units, height):
 def requested_units_to_send(poset, tops, requests):
     '''
     Collect units to send given the provided request.
+
     :param Poset poset: the poset which is supposed to be the source of the units
     :param list tops: the short representation of the receiving poset's top known units made by pid
     :param list requests: the hashes of the requested units
@@ -125,6 +129,7 @@ def requested_units_to_send(poset, tops, requests):
 def units_to_send(poset, info, requests=None):
     '''
     Determine which units to send to a poset which has the given info.
+
     :param Poset poset: the poset which is supposed to be the source of the units
     :param list info: the short representation of the receiving poset's state
     :param list requests: a list of explicitly requested units, per process
@@ -150,6 +155,7 @@ def units_to_send(poset, info, requests=None):
 def dehash_parents(poset, U):
     '''
     Substitute units from the poset for hashes in U's parent list and set the height field. To be called on units received from the network.
+
     :param Poset poset: the poset where U is supposed to end up in
     :param Unit U: the unit with hashes instead of parents
     '''

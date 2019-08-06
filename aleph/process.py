@@ -15,23 +15,24 @@ import aleph.const as consts
 
 
 class Process:
-    '''This class represents a single member of the committee in the Aleph protocol.'''
+    '''
+    This class represents a single member of the committee in the Aleph protocol.
+
+    :param int n_processes: the committee size
+    :param int process_id: the id of the process
+    :param string secret_key: the private key of the current process
+    :param string public_key: the public key of the current process
+    :param list addresses: the list of length n_processes containing addresses (host, port) of all committee members
+    :param list public_keys: the list of public keys of all committee members
+    :param tuple tx_receiver_address: address pair (host, port) on which the process should listen for incoming transactions
+    :param object userDB: initial state of user accounts
+    :param object tx_source: method used for listening for incomming transactions
+    :param string gossip_strategy: name of the gossip strategy to be used by the process
+    '''
+
 
     def __init__(self, n_processes, process_id, secret_key, public_key, addresses, public_key_list, tx_receiver_address, userDB=None,
                 tx_source=tx_listener, gossip_strategy='unif_random'):
-        '''
-        :param int n_processes: the committee size
-        :param int process_id: the id of the process
-        :param string secret_key: the private key of the current process
-        :param string public_key: the public key of the current process
-        :param list addresses: the list of length n_processes containing addresses (host, port) of all committee members
-        :param list public_keys: the list of public keys of all committee members
-        :param tuple tx_receiver_address: address pair (host, port) on which the process should listen for incoming transactions
-        :param object userDB: initial state of user accounts
-        :param object tx_source: method used for listening for incomming transactions
-        :param string gossip_strategy: name of the gossip strategy to be used by the process
-        '''
-
         self.n_processes = n_processes
         self.process_id = process_id
         self.gossip_strategy = gossip_strategy

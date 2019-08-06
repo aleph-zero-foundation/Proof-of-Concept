@@ -1,14 +1,16 @@
 class Tx(object):
     '''A class representing a single transaction, that is an act of sending some number of tokens from one user to another.'''
+    '''
+    This class stores a transactions issued by some user
+
+    :param str issuer: public key of the issuer of the transaction
+    :param str receiver: public key of the receiver of the transaction
+    :param int amount: amount to be sent to the receiver
+    '''
 
     __slots__ = ['issuer', 'receiver', 'amount']
 
     def __init__(self, issuer, receiver, amount):
-        '''
-        :param str issuer: public key of the issuer of the transaction
-        :param str receiver: public key of the receiver of the transaction
-        :param int amount: amount to be sent to the receiver
-        '''
         self.issuer = issuer
         self.receiver = receiver
         self.amount = amount
