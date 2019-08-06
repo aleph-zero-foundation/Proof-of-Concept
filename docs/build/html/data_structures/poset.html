@@ -1,0 +1,750 @@
+
+<!DOCTYPE html>
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta charset="utf-8" />
+    <title>3.2. Poset &#8212; AlephZero 0.1 documentation</title>
+    <link rel="stylesheet" href="../_static/classic.css" type="text/css" />
+    <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript" id="documentation_options" data-url_root="../" src="../_static/documentation_options.js"></script>
+    <script type="text/javascript" src="../_static/jquery.js"></script>
+    <script type="text/javascript" src="../_static/underscore.js"></script>
+    <script type="text/javascript" src="../_static/doctools.js"></script>
+    <script type="text/javascript" src="../_static/language_data.js"></script>
+    
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="3.3. Tx" href="tx.html" />
+    <link rel="prev" title="3.1. Unit" href="unit.html" /> 
+  </head><body>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="tx.html" title="3.3. Tx"
+             accesskey="N">next</a> |</li>
+        <li class="right" >
+          <a href="unit.html" title="3.1. Unit"
+             accesskey="P">previous</a> |</li>
+        <li class="nav-item nav-item-0"><a href="../index.html">AlephZero 0.1 documentation</a> &#187;</li>
+          <li class="nav-item nav-item-1"><a href="data_structures.html" accesskey="U">3. Data structures</a> &#187;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <div class="section" id="module-aleph.data_structures.poset">
+<span id="poset"></span><h1>3.2. Poset<a class="headerlink" href="#module-aleph.data_structures.poset" title="Permalink to this headline">¶</a></h1>
+<p>This module implements a poset - a core data structure.</p>
+<dl class="class">
+<dt id="aleph.data_structures.poset.Poset">
+<em class="property">class </em><code class="sig-prename descclassname">aleph.data_structures.poset.</code><code class="sig-name descname">Poset</code><span class="sig-paren">(</span><em class="sig-param">n_processes</em>, <em class="sig-param">process_id=None</em>, <em class="sig-param">crp=None</em>, <em class="sig-param">use_tcoin=None</em>, <em class="sig-param">compliance_rules=None</em><span class="sig-paren">)</span><a class="headerlink" href="#aleph.data_structures.poset.Poset" title="Permalink to this definition">¶</a></dt>
+<dd><p>This class is the core data structure of the Aleph protocol.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>n_processes</strong> (<em>int</em>) – the committee size</p></li>
+<li><p><strong>process_id</strong> (<em>int</em>) – the id of the process owning this poset</p></li>
+<li><p><strong>crp</strong> (<a class="reference internal" href="../crypto/crp.html#aleph.crypto.crp.CommonRandomPermutation" title="aleph.crypto.crp.CommonRandomPermutation"><em>CommonRandomPermutation</em></a>) – an object returning the common random permutation of processes at a given level</p></li>
+<li><p><strong>use_tcoin</strong> (<em>bool</em>) – whether to use threshold coin, mostly so we can disable it for tests</p></li>
+<li><p><strong>compliance_rules</strong> (<em>dict</em>) – a dictionary describing which compliance_rules to use</p></li>
+</ul>
+</dd>
+</dl>
+<dl class="method">
+<dt id="aleph.data_structures.poset.Poset.above">
+<code class="sig-name descname">above</code><span class="sig-paren">(</span><em class="sig-param">U</em>, <em class="sig-param">V</em><span class="sig-paren">)</span><a class="headerlink" href="#aleph.data_structures.poset.Poset.above" title="Permalink to this definition">¶</a></dt>
+<dd><p>Checks if U &gt;= V.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>U</strong> (<a class="reference internal" href="unit.html#aleph.data_structures.unit.Unit" title="aleph.data_structures.unit.Unit"><em>Unit</em></a>) – first unit to be tested</p></li>
+<li><p><strong>V</strong> (<a class="reference internal" href="unit.html#aleph.data_structures.unit.Unit" title="aleph.data_structures.unit.Unit"><em>Unit</em></a>) – second unit to be tested</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="method">
+<dt id="aleph.data_structures.poset.Poset.above_within_process">
+<code class="sig-name descname">above_within_process</code><span class="sig-paren">(</span><em class="sig-param">U</em>, <em class="sig-param">V</em><span class="sig-paren">)</span><a class="headerlink" href="#aleph.data_structures.poset.Poset.above_within_process" title="Permalink to this definition">¶</a></dt>
+<dd><p>Checks if there exists a path (possibly U = V) from V to U going only through units created by their creator process.
+Assumes that U.creator_id = V.creator_id = process_id</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>U</strong> (<a class="reference internal" href="unit.html#aleph.data_structures.unit.Unit" title="aleph.data_structures.unit.Unit"><em>Unit</em></a>) – first unit to be tested</p></li>
+<li><p><strong>V</strong> (<a class="reference internal" href="unit.html#aleph.data_structures.unit.Unit" title="aleph.data_structures.unit.Unit"><em>Unit</em></a>) – second unit to be tested</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>True if U &gt;= V, False otherwise</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="method">
+<dt id="aleph.data_structures.poset.Poset.add_coin_shares">
+<code class="sig-name descname">add_coin_shares</code><span class="sig-paren">(</span><em class="sig-param">U</em><span class="sig-paren">)</span><a class="headerlink" href="#aleph.data_structures.poset.Poset.add_coin_shares" title="Permalink to this definition">¶</a></dt>
+<dd><p>Adds coin shares to the prime unit U using the simplified strategy: add the coin_share determined by FAI(U, U.level) to U</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><p><strong>U</strong> (<a class="reference internal" href="unit.html#aleph.data_structures.unit.Unit" title="aleph.data_structures.unit.Unit"><em>Unit</em></a>) – prime unit to which coin shares are added</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="method">
+<dt id="aleph.data_structures.poset.Poset.add_tcoin_to_dealing_unit">
+<code class="sig-name descname">add_tcoin_to_dealing_unit</code><span class="sig-paren">(</span><em class="sig-param">U</em><span class="sig-paren">)</span><a class="headerlink" href="#aleph.data_structures.poset.Poset.add_tcoin_to_dealing_unit" title="Permalink to this definition">¶</a></dt>
+<dd><p>Adds threshold coins for all processes to the unit U. U is supposed to be the dealing unit for this to make sense.
+NOTE: to not create a new field in the Unit class the coin_shares field is reused to hold treshold coins in dealing units.
+(There will be no coin shares included at level 0 anyway.)</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="aleph.data_structures.poset.Poset.add_unit">
+<code class="sig-name descname">add_unit</code><span class="sig-paren">(</span><em class="sig-param">U</em><span class="sig-paren">)</span><a class="headerlink" href="#aleph.data_structures.poset.Poset.add_unit" title="Permalink to this definition">¶</a></dt>
+<dd><p>Add a unit compliant with the rules, what was checked by check_compliance.
+This method does the following:
+0. add the unit U to the poset
+1. if it is a dealing unit, add it to self.dealing_units
+2. update the lists of maximal elements in the poset.
+3. update forking_height
+4. if U is prime, add it to prime_units_by_level</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><p><strong>U</strong> (<a class="reference internal" href="unit.html#aleph.data_structures.unit.Unit" title="aleph.data_structures.unit.Unit"><em>Unit</em></a>) – unit to be added to the poset</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="method">
+<dt id="aleph.data_structures.poset.Poset.attempt_timing_decision">
+<code class="sig-name descname">attempt_timing_decision</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#aleph.data_structures.poset.Poset.attempt_timing_decision" title="Permalink to this definition">¶</a></dt>
+<dd><p>Tries to find timing units for levels which currently don’t have one.
+:returns: List of timing units that have been established by this function call (in the order from lower to higher levels)</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="aleph.data_structures.poset.Poset.below">
+<code class="sig-name descname">below</code><span class="sig-paren">(</span><em class="sig-param">U</em>, <em class="sig-param">V</em><span class="sig-paren">)</span><a class="headerlink" href="#aleph.data_structures.poset.Poset.below" title="Permalink to this definition">¶</a></dt>
+<dd><p>Checks if U &lt;= V.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>U</strong> (<a class="reference internal" href="unit.html#aleph.data_structures.unit.Unit" title="aleph.data_structures.unit.Unit"><em>Unit</em></a>) – first unit to be tested</p></li>
+<li><p><strong>V</strong> (<a class="reference internal" href="unit.html#aleph.data_structures.unit.Unit" title="aleph.data_structures.unit.Unit"><em>Unit</em></a>) – second unit to be tested</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="method">
+<dt id="aleph.data_structures.poset.Poset.below_within_process">
+<code class="sig-name descname">below_within_process</code><span class="sig-paren">(</span><em class="sig-param">U</em>, <em class="sig-param">V</em><span class="sig-paren">)</span><a class="headerlink" href="#aleph.data_structures.poset.Poset.below_within_process" title="Permalink to this definition">¶</a></dt>
+<dd><p>Checks if there exists a path (possibly U = V) from U to V going only through units created by their creator process.
+Assumes that U.creator_id = V.creator_id = process_id</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>U</strong> (<a class="reference internal" href="unit.html#aleph.data_structures.unit.Unit" title="aleph.data_structures.unit.Unit"><em>Unit</em></a>) – first unit to be tested</p></li>
+<li><p><strong>V</strong> (<a class="reference internal" href="unit.html#aleph.data_structures.unit.Unit" title="aleph.data_structures.unit.Unit"><em>Unit</em></a>) – second unit to be tested</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>True if U &lt;= V, False otherwise</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="method">
+<dt id="aleph.data_structures.poset.Poset.break_ties">
+<code class="sig-name descname">break_ties</code><span class="sig-paren">(</span><em class="sig-param">units_list</em><span class="sig-paren">)</span><a class="headerlink" href="#aleph.data_structures.poset.Poset.break_ties" title="Permalink to this definition">¶</a></dt>
+<dd><p>Produce a linear ordering on the provided units.
+It is a slightly different implementation than in the arxiv paper to avoid using xor which turns out to be very slow in python.
+Essentially a sha3 hash is used in place of xor.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><p><strong>units_list</strong> (<em>list</em>) – the units to be sorted, should be all units with a given timing round</p>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>the same set of units in a list ordered linearly</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="method">
+<dt id="aleph.data_structures.poset.Poset.check_coin_shares">
+<code class="sig-name descname">check_coin_shares</code><span class="sig-paren">(</span><em class="sig-param">U</em><span class="sig-paren">)</span><a class="headerlink" href="#aleph.data_structures.poset.Poset.check_coin_shares" title="Permalink to this definition">¶</a></dt>
+<dd><p>Checks coin shares of a prime unit that is not a dealing unit.
+This boils down to checking if U has exactly one share if its level is &gt;= consts.ADD_SHARES and zero shares otherwise.
+At this point there is no point checking whether the share is correct, because that might be because of an dishonest dealer.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><p><strong>U</strong> (<a class="reference internal" href="unit.html#aleph.data_structures.unit.Unit" title="aleph.data_structures.unit.Unit"><em>Unit</em></a>) – the unit whose shares we are checking</p>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>True if there is the appropriate number of shares, False otherwise</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="method">
+<dt id="aleph.data_structures.poset.Poset.check_compliance">
+<code class="sig-name descname">check_compliance</code><span class="sig-paren">(</span><em class="sig-param">U</em><span class="sig-paren">)</span><a class="headerlink" href="#aleph.data_structures.poset.Poset.check_compliance" title="Permalink to this definition">¶</a></dt>
+<dd><p>Assumes that prepare_unit(U) has been already called.
+Checks if the unit U is correct and follows the rules of creating units, i.e.:
+1. Parents of U are correct (exist in the poset, etc.)
+2. U does not provide evidence of its creator forking
+3. Satisfies forker-muting policy.
+4. Satisfies the expand primes rule.
+5. The coinshares are OK, i.e., U contains exactly the coinshares it is supposed to contain.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><p><strong>U</strong> (<a class="reference internal" href="unit.html#aleph.data_structures.unit.Unit" title="aleph.data_structures.unit.Unit"><em>Unit</em></a>) – unit whose compliance is being tested</p>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>True if all the checks passed, False otherwise</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="method">
+<dt id="aleph.data_structures.poset.Poset.check_expand_primes">
+<code class="sig-name descname">check_expand_primes</code><span class="sig-paren">(</span><em class="sig-param">U</em><span class="sig-paren">)</span><a class="headerlink" href="#aleph.data_structures.poset.Poset.check_expand_primes" title="Permalink to this definition">¶</a></dt>
+<dd><p>Checks if the unit U respects the “expand primes” rule.
+Parents are checked consecutively. The first is just accepted.
+Then let L be the level of the last checked parent and P the set of
+prime units of level L below all the parents checked up to now.
+The next parent must must either have prime units of level L below it that are
+not in P, or have level greater than L.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><p><strong>U</strong> (<a class="reference internal" href="unit.html#aleph.data_structures.unit.Unit" title="aleph.data_structures.unit.Unit"><em>Unit</em></a>) – unit that is tested against the expand primes rule</p>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>Boolean value, True if U respects the rule, False otherwise.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="method">
+<dt id="aleph.data_structures.poset.Poset.check_forker_muting">
+<code class="sig-name descname">check_forker_muting</code><span class="sig-paren">(</span><em class="sig-param">U</em><span class="sig-paren">)</span><a class="headerlink" href="#aleph.data_structures.poset.Poset.check_forker_muting" title="Permalink to this definition">¶</a></dt>
+<dd><p>Checks if the unit U respects the forker-muting policy, i.e.:
+The following situation is not allowed:
+- There exists a process j, s.t. one of U’s parents was created by j
+AND
+- U has as one of the parents a unit that has evidence that j is forking.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><p><strong>U</strong> (<a class="reference internal" href="unit.html#aleph.data_structures.unit.Unit" title="aleph.data_structures.unit.Unit"><em>Unit</em></a>) – unit that is checked for respecting anti-forking policy</p>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>Boolean value, True if U respects the forker-muting policy, False otherwise.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="method">
+<dt id="aleph.data_structures.poset.Poset.check_no_self_forking_evidence">
+<code class="sig-name descname">check_no_self_forking_evidence</code><span class="sig-paren">(</span><em class="sig-param">U</em><span class="sig-paren">)</span><a class="headerlink" href="#aleph.data_structures.poset.Poset.check_no_self_forking_evidence" title="Permalink to this definition">¶</a></dt>
+<dd><p>Checks if the unit U does not provide evidence of its creator forking.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><p><strong>U</strong> (<a class="reference internal" href="unit.html#aleph.data_structures.unit.Unit" title="aleph.data_structures.unit.Unit"><em>Unit</em></a>) – the unit whose forking evidence is being checked</p>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>Boolean value, True if U does not provide evidence of its creator forking</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="method">
+<dt id="aleph.data_structures.poset.Poset.check_parent_correctness">
+<code class="sig-name descname">check_parent_correctness</code><span class="sig-paren">(</span><em class="sig-param">U</em><span class="sig-paren">)</span><a class="headerlink" href="#aleph.data_structures.poset.Poset.check_parent_correctness" title="Permalink to this definition">¶</a></dt>
+<dd><p>Checks whether U has correct parents:
+0. Parents of U exist in the poset
+1. The first parent was created by U’s creator and has one less height than U.
+2. If U has &gt;=2 parents then all parents are created by pairwise different processes.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><p><strong>U</strong> (<a class="reference internal" href="unit.html#aleph.data_structures.unit.Unit" title="aleph.data_structures.unit.Unit"><em>Unit</em></a>) – unit whose parents are being checked</p>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>Boolean value, True if U satisfies the above conditions, False otherwise.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="method">
+<dt id="aleph.data_structures.poset.Poset.check_threshold_coin_included">
+<code class="sig-name descname">check_threshold_coin_included</code><span class="sig-paren">(</span><em class="sig-param">U</em><span class="sig-paren">)</span><a class="headerlink" href="#aleph.data_structures.poset.Poset.check_threshold_coin_included" title="Permalink to this definition">¶</a></dt>
+<dd><p>Checks whether the dealing unit U has a threshold coin included.
+We cannot really check whether it is valid (since the secret keys are encrypted).
+Instead, we simply make sure whether the dictionary has all necessary fields and the corresponding lists are of appropriate length.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><p><strong>U</strong> (<a class="reference internal" href="unit.html#aleph.data_structures.unit.Unit" title="aleph.data_structures.unit.Unit"><em>Unit</em></a>) – the unit to check</p>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>Boolean value, True if U’s threshold coin is correct, False otherwise.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="method">
+<dt id="aleph.data_structures.poset.Poset.coin_share_threshold">
+<code class="sig-name descname">coin_share_threshold</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#aleph.data_structures.poset.Poset.coin_share_threshold" title="Permalink to this definition">¶</a></dt>
+<dd><p>How many coin shares are needed to flip a threshold coin.
+:returns: the amount of shares needed</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="aleph.data_structures.poset.Poset.combine_floors_per_process">
+<code class="sig-name descname">combine_floors_per_process</code><span class="sig-paren">(</span><em class="sig-param">units_list</em>, <em class="sig-param">process_id</em><span class="sig-paren">)</span><a class="headerlink" href="#aleph.data_structures.poset.Poset.combine_floors_per_process" title="Permalink to this definition">¶</a></dt>
+<dd><p>Combines U.floor[process_id] for all units U in units_list.
+The result is the set of maximal elements of the union of these lists.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>units_list</strong> (<em>list</em>) – list of units to be considered</p></li>
+<li><p><strong>process_id</strong> (<em>int</em>) – identification number of a process</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>list U that contains maximal elements of the union of floors of units_list w.r.t. process_id</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="method">
+<dt id="aleph.data_structures.poset.Poset.compute_delta">
+<code class="sig-name descname">compute_delta</code><span class="sig-paren">(</span><em class="sig-param">U_c</em>, <em class="sig-param">U</em><span class="sig-paren">)</span><a class="headerlink" href="#aleph.data_structures.poset.Poset.compute_delta" title="Permalink to this definition">¶</a></dt>
+<dd><p>Computes the value of the Delta function from the paper. The value -1 is equivalent to bottom (undefined).</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>U_c</strong> (<a class="reference internal" href="unit.html#aleph.data_structures.unit.Unit" title="aleph.data_structures.unit.Unit"><em>Unit</em></a>) – the unit which we are deciding about</p></li>
+<li><p><strong>U</strong> (<a class="reference internal" href="unit.html#aleph.data_structures.unit.Unit" title="aleph.data_structures.unit.Unit"><em>Unit</em></a>) – the unit that is making the decision</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>0, 1 or -1, as defined in the whitepaper</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="method">
+<dt id="aleph.data_structures.poset.Poset.compute_pi">
+<code class="sig-name descname">compute_pi</code><span class="sig-paren">(</span><em class="sig-param">U_c</em>, <em class="sig-param">U</em><span class="sig-paren">)</span><a class="headerlink" href="#aleph.data_structures.poset.Poset.compute_pi" title="Permalink to this definition">¶</a></dt>
+<dd><p>Computes the value of the Pi function from the paper. The value -1 is equivalent to bottom (undefined).
+:param Unit U_c: the unit which we are deciding about
+:param Unit U: the unit that is making the decision
+:returns: 0, 1 or -1, as defined in the whitepaper</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="aleph.data_structures.poset.Poset.compute_vote">
+<code class="sig-name descname">compute_vote</code><span class="sig-paren">(</span><em class="sig-param">U</em>, <em class="sig-param">U_c</em><span class="sig-paren">)</span><a class="headerlink" href="#aleph.data_structures.poset.Poset.compute_vote" title="Permalink to this definition">¶</a></dt>
+<dd><p>Determine the vote of unit U on popularity of U_c.
+If the first round of voting is at level L then:
+- at lvl L the vote is just whether U proves popularity of U_c (i.e. whether U_c &lt;&lt;&lt; U)
+- at lvl (L+1) the vote is the supermajority of votes of prime ancestors (at level L)
+- at lvl (L+2) the vote is the supermajority of votes (replaced by default_vote if no supermajority) of prime ancestors (at level L+1)
+- etc.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>U</strong> (<a class="reference internal" href="unit.html#aleph.data_structures.unit.Unit" title="aleph.data_structures.unit.Unit"><em>Unit</em></a>) – the unit that is voting</p></li>
+<li><p><strong>U_c</strong> (<a class="reference internal" href="unit.html#aleph.data_structures.unit.Unit" title="aleph.data_structures.unit.Unit"><em>Unit</em></a>) – th eunit that is being voted on</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>0, 1 or -1, as described in the fast consensus algorithm, where -1 represents bot</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="method">
+<dt id="aleph.data_structures.poset.Poset.decide_timing_on_level">
+<code class="sig-name descname">decide_timing_on_level</code><span class="sig-paren">(</span><em class="sig-param">level</em><span class="sig-paren">)</span><a class="headerlink" href="#aleph.data_structures.poset.Poset.decide_timing_on_level" title="Permalink to this definition">¶</a></dt>
+<dd><p>Decide which prime unit of the given level shall be the timing unit.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><p><strong>level</strong> (<em>int</em>) – the level about which we are inquiring</p>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>the timing unit at this level or (-1) in case when no unit can be chosen yet</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="method">
+<dt id="aleph.data_structures.poset.Poset.decide_unit_is_popular">
+<code class="sig-name descname">decide_unit_is_popular</code><span class="sig-paren">(</span><em class="sig-param">U_c</em><span class="sig-paren">)</span><a class="headerlink" href="#aleph.data_structures.poset.Poset.decide_unit_is_popular" title="Permalink to this definition">¶</a></dt>
+<dd><p>Decides popularity of U_c (i.e. whether it should be a candidate for a timing unit).</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><p><strong>U_c</strong> (<a class="reference internal" href="unit.html#aleph.data_structures.unit.Unit" title="aleph.data_structures.unit.Unit"><em>Unit</em></a>) – the unit whose popularity we want to investigate</p>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>one of {-1,0,1}: the decision (0 or 1) in case it follows from our local view of the poset,
+or -1 if the decision cannot be inferred yet</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="method">
+<dt id="aleph.data_structures.poset.Poset.default_vote">
+<code class="sig-name descname">default_vote</code><span class="sig-paren">(</span><em class="sig-param">U</em>, <em class="sig-param">U_c</em><span class="sig-paren">)</span><a class="headerlink" href="#aleph.data_structures.poset.Poset.default_vote" title="Permalink to this definition">¶</a></dt>
+<dd><p>Default vote of U on popularity of U_c, as in the fast consensus algorithm.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>U</strong> (<a class="reference internal" href="unit.html#aleph.data_structures.unit.Unit" title="aleph.data_structures.unit.Unit"><em>Unit</em></a>) – the unit that is voting</p></li>
+<li><p><strong>U_c</strong> (<a class="reference internal" href="unit.html#aleph.data_structures.unit.Unit" title="aleph.data_structures.unit.Unit"><em>Unit</em></a>) – the unit that is being voted on</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>1 or 0, as in the fast consensus algorithm</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="method">
+<dt id="aleph.data_structures.poset.Poset.dump_to_file">
+<code class="sig-name descname">dump_to_file</code><span class="sig-paren">(</span><em class="sig-param">file_name</em><span class="sig-paren">)</span><a class="headerlink" href="#aleph.data_structures.poset.Poset.dump_to_file" title="Permalink to this definition">¶</a></dt>
+<dd><p>Dumps the poset to file in a rather simple format. Units are listed in the same order as the were added to the poset.
+In addition to parents and creator_id we also include info about the level of each unit and a bit 0/1 whether the unit was a timing unit.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><p><strong>file_name</strong> (<em>str</em>) – the name of the file in which the poset is to be saved</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="method">
+<dt id="aleph.data_structures.poset.Poset.exists_tc">
+<code class="sig-name descname">exists_tc</code><span class="sig-paren">(</span><em class="sig-param">list_vals</em>, <em class="sig-param">U_c</em>, <em class="sig-param">U_tossing</em><span class="sig-paren">)</span><a class="headerlink" href="#aleph.data_structures.poset.Poset.exists_tc" title="Permalink to this definition">¶</a></dt>
+<dd><p>Computes the exists function from the whitepaper, including the coin toss if necessary.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>list_vals</strong> (<em>list</em>) – the list of values among which we are checking for existence</p></li>
+<li><p><strong>U_c</strong> (<a class="reference internal" href="unit.html#aleph.data_structures.unit.Unit" title="aleph.data_structures.unit.Unit"><em>Unit</em></a>) – the unit about which we are making a decision</p></li>
+<li><p><strong>U_tossing</strong> (<a class="reference internal" href="unit.html#aleph.data_structures.unit.Unit" title="aleph.data_structures.unit.Unit"><em>Unit</em></a>) – the unit which is making the decision</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>1 or 0 if it is on the list provided, with preference for 1, otherwise the result of the shared coin toss</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="method">
+<dt id="aleph.data_structures.poset.Poset.extract_tcoin_from_dealing_unit">
+<code class="sig-name descname">extract_tcoin_from_dealing_unit</code><span class="sig-paren">(</span><em class="sig-param">U</em><span class="sig-paren">)</span><a class="headerlink" href="#aleph.data_structures.poset.Poset.extract_tcoin_from_dealing_unit" title="Permalink to this definition">¶</a></dt>
+<dd><p>Extracts and stores the threshold coin from a given unit.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><p><strong>U</strong> (<a class="reference internal" href="unit.html#aleph.data_structures.unit.Unit" title="aleph.data_structures.unit.Unit"><em>Unit</em></a>) – the dealing unit from which we are extracting the coin</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="method">
+<dt id="aleph.data_structures.poset.Poset.first_dealing_unit">
+<code class="sig-name descname">first_dealing_unit</code><span class="sig-paren">(</span><em class="sig-param">V</em><span class="sig-paren">)</span><a class="headerlink" href="#aleph.data_structures.poset.Poset.first_dealing_unit" title="Permalink to this definition">¶</a></dt>
+<dd><p>Returns the first dealing unit (sorted w.r.t. crp at level level(V)) that is below V.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><p><strong>V</strong> (<a class="reference internal" href="unit.html#aleph.data_structures.unit.Unit" title="aleph.data_structures.unit.Unit"><em>Unit</em></a>) – the unit below which we are looking for a dealing unit</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="method">
+<dt id="aleph.data_structures.poset.Poset.get_all_prime_units_by_level">
+<code class="sig-name descname">get_all_prime_units_by_level</code><span class="sig-paren">(</span><em class="sig-param">level</em><span class="sig-paren">)</span><a class="headerlink" href="#aleph.data_structures.poset.Poset.get_all_prime_units_by_level" title="Permalink to this definition">¶</a></dt>
+<dd><p>Returns a list of all prime units at a given level.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><p><strong>level</strong> (<em>int</em>) – the requested level of units</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="method">
+<dt id="aleph.data_structures.poset.Poset.get_prime_units_at_level_below_unit">
+<code class="sig-name descname">get_prime_units_at_level_below_unit</code><span class="sig-paren">(</span><em class="sig-param">level</em>, <em class="sig-param">U</em><span class="sig-paren">)</span><a class="headerlink" href="#aleph.data_structures.poset.Poset.get_prime_units_at_level_below_unit" title="Permalink to this definition">¶</a></dt>
+<dd><p>Returns the set of all prime units at a given level that are below the unit U.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>level</strong> (<em>int</em>) – the requested level of units</p></li>
+<li><p><strong>U</strong> (<a class="reference internal" href="unit.html#aleph.data_structures.unit.Unit" title="aleph.data_structures.unit.Unit"><em>Unit</em></a>) – the unit below which we want the prime units</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="method">
+<dt id="aleph.data_structures.poset.Poset.get_prime_units_by_level_per_process">
+<code class="sig-name descname">get_prime_units_by_level_per_process</code><span class="sig-paren">(</span><em class="sig-param">level</em><span class="sig-paren">)</span><a class="headerlink" href="#aleph.data_structures.poset.Poset.get_prime_units_by_level_per_process" title="Permalink to this definition">¶</a></dt>
+<dd><p>Returns a list of all prime units at a given level divided by process. For nonforking processes this should be a list of one-elements lists.
+:param int level: the requested level of units</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="aleph.data_structures.poset.Poset.has_forking_evidence">
+<code class="sig-name descname">has_forking_evidence</code><span class="sig-paren">(</span><em class="sig-param">U</em>, <em class="sig-param">process_id</em><span class="sig-paren">)</span><a class="headerlink" href="#aleph.data_structures.poset.Poset.has_forking_evidence" title="Permalink to this definition">¶</a></dt>
+<dd><p>Checks if U has in its lower cone an evidence that process_id is forking.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>U</strong> (<a class="reference internal" href="unit.html#aleph.data_structures.unit.Unit" title="aleph.data_structures.unit.Unit"><em>Unit</em></a>) – unit to be checked for evidence of process_id forking</p></li>
+<li><p><strong>process_id</strong> (<em>int</em>) – identification number of process to be verified</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>True if forking evidence is present, False otherwise</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="method">
+<dt id="aleph.data_structures.poset.Poset.is_prime">
+<code class="sig-name descname">is_prime</code><span class="sig-paren">(</span><em class="sig-param">U</em><span class="sig-paren">)</span><a class="headerlink" href="#aleph.data_structures.poset.Poset.is_prime" title="Permalink to this definition">¶</a></dt>
+<dd><p>Check if the unit is prime.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><p><strong>U</strong> (<a class="reference internal" href="unit.html#aleph.data_structures.unit.Unit" title="aleph.data_structures.unit.Unit"><em>Unit</em></a>) – the unit to be checked for being prime</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="method">
+<dt id="aleph.data_structures.poset.Poset.is_quorum">
+<code class="sig-name descname">is_quorum</code><span class="sig-paren">(</span><em class="sig-param">number</em><span class="sig-paren">)</span><a class="headerlink" href="#aleph.data_structures.poset.Poset.is_quorum" title="Permalink to this definition">¶</a></dt>
+<dd><p>Check whether the given number is enough to form a quorum.
+:returns: True or False</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="aleph.data_structures.poset.Poset.level">
+<code class="sig-name descname">level</code><span class="sig-paren">(</span><em class="sig-param">U</em><span class="sig-paren">)</span><a class="headerlink" href="#aleph.data_structures.poset.Poset.level" title="Permalink to this definition">¶</a></dt>
+<dd><p>Calculates the level in the poset of the unit U.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><p><strong>U</strong> (<a class="reference internal" href="unit.html#aleph.data_structures.unit.Unit" title="aleph.data_structures.unit.Unit"><em>Unit</em></a>) – the unit whose level is being requested</p>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>the computed level</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="method">
+<dt id="aleph.data_structures.poset.Poset.precompute_popularity_proof">
+<code class="sig-name descname">precompute_popularity_proof</code><span class="sig-paren">(</span><em class="sig-param">V</em><span class="sig-paren">)</span><a class="headerlink" href="#aleph.data_structures.poset.Poset.precompute_popularity_proof" title="Permalink to this definition">¶</a></dt>
+<dd><p>Precomputes the popularity proof for V, to avoid computing many popularity proofs at once.
+Tries to prove the popularity of the first unit in the common random permutation that is below V.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><p><strong>V</strong> (<a class="reference internal" href="unit.html#aleph.data_structures.unit.Unit" title="aleph.data_structures.unit.Unit"><em>Unit</em></a>) – the “prover” unit</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="method">
+<dt id="aleph.data_structures.poset.Poset.prepare_unit">
+<code class="sig-name descname">prepare_unit</code><span class="sig-paren">(</span><em class="sig-param">U</em><span class="sig-paren">)</span><a class="headerlink" href="#aleph.data_structures.poset.Poset.prepare_unit" title="Permalink to this definition">¶</a></dt>
+<dd><p>Sets basic fields of U; should be called prior to check_compliance and add_unit methods.
+This method does the following:
+0. set floor field
+1. set U’s level</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="aleph.data_structures.poset.Poset.proves_popularity">
+<code class="sig-name descname">proves_popularity</code><span class="sig-paren">(</span><em class="sig-param">V</em>, <em class="sig-param">U_c</em><span class="sig-paren">)</span><a class="headerlink" href="#aleph.data_structures.poset.Poset.proves_popularity" title="Permalink to this definition">¶</a></dt>
+<dd><p>Checks whether V proves that U_c is popular on V’s level (i.e. everyone sees U on this level).
+More specifically we check whether there are &gt;=2/3 N units W (created by distinct processes) such that
+1. W &lt;= V,
+2. W has level &lt;=level(V) - 2, or W is a prime unit at level(V)-1,
+3. U_c &lt;= W.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>V</strong> (<a class="reference internal" href="unit.html#aleph.data_structures.unit.Unit" title="aleph.data_structures.unit.Unit"><em>Unit</em></a>) – the “prover” unit</p></li>
+<li><p><strong>U_c</strong> (<a class="reference internal" href="unit.html#aleph.data_structures.unit.Unit" title="aleph.data_structures.unit.Unit"><em>Unit</em></a>) – the unit tested for popularity</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>True or False: does V prove that U_c is popular?</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="method">
+<dt id="aleph.data_structures.poset.Poset.should_check_rule">
+<code class="sig-name descname">should_check_rule</code><span class="sig-paren">(</span><em class="sig-param">rule</em><span class="sig-paren">)</span><a class="headerlink" href="#aleph.data_structures.poset.Poset.should_check_rule" title="Permalink to this definition">¶</a></dt>
+<dd><p>Check whether the rule (a string) “forker_muting”, “expand_primes”, etc. should be checked in the check_compliance function.
+Based on the combination of default values and the compliance_rules dictionary provided as a parameter to the constructor.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><p><strong>rule</strong> (<em>str</em>) – the name of the rule to check</p>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>whether to check the rule</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="method">
+<dt id="aleph.data_structures.poset.Poset.super_majority">
+<code class="sig-name descname">super_majority</code><span class="sig-paren">(</span><em class="sig-param">list_vals</em><span class="sig-paren">)</span><a class="headerlink" href="#aleph.data_structures.poset.Poset.super_majority" title="Permalink to this definition">¶</a></dt>
+<dd><p>Computes the supermajority function from the whitepaper.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><p><strong>list_vals</strong> (<em>list</em>) – the list of values among which we are checking for supermajority</p>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>1 or 0 if either is a supermajority value on the list provided, -1 (representing bot) if neither is</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="method">
+<dt id="aleph.data_structures.poset.Poset.timing_round">
+<code class="sig-name descname">timing_round</code><span class="sig-paren">(</span><em class="sig-param">k</em><span class="sig-paren">)</span><a class="headerlink" href="#aleph.data_structures.poset.Poset.timing_round" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return a list of all units with timing round equal k.
+In other words, all U such that U &lt; T_k but not U &lt; T_(k-1) where T_i is the i-th timing unit.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><p><strong>k</strong> (<em>int</em>) – the level of the timing round requested</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="method">
+<dt id="aleph.data_structures.poset.Poset.toss_coin">
+<code class="sig-name descname">toss_coin</code><span class="sig-paren">(</span><em class="sig-param">U_c</em>, <em class="sig-param">U_tossing</em><span class="sig-paren">)</span><a class="headerlink" href="#aleph.data_structures.poset.Poset.toss_coin" title="Permalink to this definition">¶</a></dt>
+<dd><p>The coin toss at unit U_tossing (necessarily at level &gt;= consts.ADD_SHARES + 1)
+With low probability the toss may fail – typically because of adversarial behavior of some process(es).</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>U_c</strong> (<em>unit</em>) – the unit whose popularity decision is being considered by tossing a coin
+this param is used only in case when the _simple_coin is used, otherwise
+the result of coin toss is meant to be a function of U_tossing.level only</p></li>
+<li><p><strong>U_tossing</strong> (<em>unit</em>) – the unit that is cossing a toin</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>One of {0, 1} – a (pseudo)random bit, impossible to predict before (U_tossing.level - 1) was reached</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="method">
+<dt id="aleph.data_structures.poset.Poset.update_floor">
+<code class="sig-name descname">update_floor</code><span class="sig-paren">(</span><em class="sig-param">U</em><span class="sig-paren">)</span><a class="headerlink" href="#aleph.data_structures.poset.Poset.update_floor" title="Permalink to this definition">¶</a></dt>
+<dd><p>Updates floor of the unit U by merging and taking maximums of floors of parents.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><p><strong>U</strong> (<a class="reference internal" href="unit.html#aleph.data_structures.unit.Unit" title="aleph.data_structures.unit.Unit"><em>Unit</em></a>) – the unit whose floors are being updated</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="method">
+<dt id="aleph.data_structures.poset.Poset.validate_share">
+<code class="sig-name descname">validate_share</code><span class="sig-paren">(</span><em class="sig-param">U</em><span class="sig-paren">)</span><a class="headerlink" href="#aleph.data_structures.poset.Poset.validate_share" title="Permalink to this definition">¶</a></dt>
+<dd><p>Checks whether the coin share of U agrees with the dealt public key.
+Note that even if it does not, it does not follow that U.creator_id is adversary – it could be that dealer_id is the cheater.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><p><strong>U</strong> (<a class="reference internal" href="unit.html#aleph.data_structures.unit.Unit" title="aleph.data_structures.unit.Unit"><em>Unit</em></a>) – the unit whose coin shares are being checked</p>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>True if the coin share is verified successfully, False otherwise</p>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
+</div>
+
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+  <h4>Previous topic</h4>
+  <p class="topless"><a href="unit.html"
+                        title="previous chapter">3.1. Unit</a></p>
+  <h4>Next topic</h4>
+  <p class="topless"><a href="tx.html"
+                        title="next chapter">3.3. Tx</a></p>
+  <div role="note" aria-label="source link">
+    <h3>This Page</h3>
+    <ul class="this-page-menu">
+      <li><a href="../_sources/data_structures/poset.rst.txt"
+            rel="nofollow">Show Source</a></li>
+    </ul>
+   </div>
+<div id="searchbox" style="display: none" role="search">
+  <h3 id="searchlabel">Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="../search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" />
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="tx.html" title="3.3. Tx"
+             >next</a> |</li>
+        <li class="right" >
+          <a href="unit.html" title="3.1. Unit"
+             >previous</a> |</li>
+        <li class="nav-item nav-item-0"><a href="../index.html">AlephZero 0.1 documentation</a> &#187;</li>
+          <li class="nav-item nav-item-1"><a href="data_structures.html" >3. Data structures</a> &#187;</li> 
+      </ul>
+    </div>
+    <div class="footer" role="contentinfo">
+        &#169; Copyright 2019, Michal Swietek.
+      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 2.1.2.
+    </div>
+  </body>
+</html>

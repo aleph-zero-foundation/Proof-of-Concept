@@ -1,0 +1,170 @@
+
+<!DOCTYPE html>
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta charset="utf-8" />
+    <title>6.4. Threshold Coin &#8212; AlephZero 0.1 documentation</title>
+    <link rel="stylesheet" href="../_static/classic.css" type="text/css" />
+    <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript" id="documentation_options" data-url_root="../" src="../_static/documentation_options.js"></script>
+    <script type="text/javascript" src="../_static/jquery.js"></script>
+    <script type="text/javascript" src="../_static/underscore.js"></script>
+    <script type="text/javascript" src="../_static/doctools.js"></script>
+    <script type="text/javascript" src="../_static/language_data.js"></script>
+    
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="prev" title="6.3. Threshold Signatures" href="threshold_signatures.html" /> 
+  </head><body>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="threshold_signatures.html" title="6.3. Threshold Signatures"
+             accesskey="P">previous</a> |</li>
+        <li class="nav-item nav-item-0"><a href="../index.html">AlephZero 0.1 documentation</a> &#187;</li>
+          <li class="nav-item nav-item-1"><a href="crypto.html" accesskey="U">6. Crypto</a> &#187;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <div class="section" id="module-aleph.crypto.threshold_coin">
+<span id="threshold-coin"></span><h1>6.4. Threshold Coin<a class="headerlink" href="#module-aleph.crypto.threshold_coin" title="Permalink to this headline">¶</a></h1>
+<dl class="class">
+<dt id="aleph.crypto.threshold_coin.ThresholdCoin">
+<em class="property">class </em><code class="sig-prename descclassname">aleph.crypto.threshold_coin.</code><code class="sig-name descname">ThresholdCoin</code><span class="sig-paren">(</span><em class="sig-param">dealer_id</em>, <em class="sig-param">process_id</em>, <em class="sig-param">n_processes</em>, <em class="sig-param">threshold</em>, <em class="sig-param">secret_key</em>, <em class="sig-param">verification_key</em><span class="sig-paren">)</span><a class="headerlink" href="#aleph.crypto.threshold_coin.ThresholdCoin" title="Permalink to this definition">¶</a></dt>
+<dd><p>Implements dual threshold coin described in the whitepaper.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>dealer_id</strong> (<em>int</em>) – identification number of a process dealing this coin, from 0 to n-1</p></li>
+<li><p><strong>process_id</strong> (<em>int</em>) – identification number of a process using this coin</p></li>
+<li><p><strong>n_processes</strong> (<em>int</em>) – number of processes</p></li>
+<li><p><strong>threshold</strong> (<em>int</em>) – number of shares required to toss the coin, has to satisfy n_processes//3 &lt; threshold &lt;= n_processes</p></li>
+<li><p><strong>verification_key</strong> (<a class="reference internal" href="keys.html#aleph.crypto.keys.VerifyKey" title="aleph.crypto.keys.VerifyKey"><em>VerifyKey</em></a>) – key for combining shares</p></li>
+<li><p><strong>secret_key</strong> (<a class="reference internal" href="keys.html#aleph.crypto.keys.SigningKey" title="aleph.crypto.keys.SigningKey"><em>SigningKey</em></a>) – key for generating a share of a coin toss</p></li>
+</ul>
+</dd>
+</dl>
+<dl class="method">
+<dt id="aleph.crypto.threshold_coin.ThresholdCoin.check_validity">
+<code class="sig-name descname">check_validity</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#aleph.crypto.threshold_coin.ThresholdCoin.check_validity" title="Permalink to this definition">¶</a></dt>
+<dd><p>Checks if this threshold coin is valid.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="aleph.crypto.threshold_coin.ThresholdCoin.combine_coin_shares">
+<code class="sig-name descname">combine_coin_shares</code><span class="sig-paren">(</span><em class="sig-param">shares</em>, <em class="sig-param">nonce</em><span class="sig-paren">)</span><a class="headerlink" href="#aleph.crypto.threshold_coin.ThresholdCoin.combine_coin_shares" title="Permalink to this definition">¶</a></dt>
+<dd><p>Combines the coin shares by forming a threshold signature and taking its 1st bit, subsequently it verifies the result.
+NOTE: combining shares should always succeed except when some of the shares were invalid or the dealer was dishonest, in which case the toss might be biased and should ideally be discarded</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>shares</strong> (<em>dict</em>) – keys are processes ids, values are shares (group G1 elements)</p></li>
+<li><p><strong>nonce</strong> (<em>string</em>) – the nonce the shares were created for – necessary for verifying the result of combining</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>pair (int, bool) :  (coin toss in {0,1}) , (whether combining shares was succesful)</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="method">
+<dt id="aleph.crypto.threshold_coin.ThresholdCoin.create_coin_share">
+<code class="sig-name descname">create_coin_share</code><span class="sig-paren">(</span><em class="sig-param">nonce</em><span class="sig-paren">)</span><a class="headerlink" href="#aleph.crypto.threshold_coin.ThresholdCoin.create_coin_share" title="Permalink to this definition">¶</a></dt>
+<dd><dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><p><strong>nonce</strong> (<em>int</em>) – nonce for the coin share</p>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>coin share for the nonce</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="method">
+<dt id="aleph.crypto.threshold_coin.ThresholdCoin.verify_coin_share">
+<code class="sig-name descname">verify_coin_share</code><span class="sig-paren">(</span><em class="sig-param">coin_share</em>, <em class="sig-param">process_id</em>, <em class="sig-param">nonce</em><span class="sig-paren">)</span><a class="headerlink" href="#aleph.crypto.threshold_coin.ThresholdCoin.verify_coin_share" title="Permalink to this definition">¶</a></dt>
+<dd><dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>coin_share</strong> (<em>CoinShare</em>) – coin_share which validity is checked</p></li>
+<li><p><strong>process_id</strong> (<em>int</em>) – identification number of a process that generated the coin_share</p></li>
+<li><p><strong>nonce</strong> (<em>int</em>) – nonce for which the coin_share was generated</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>True if coin_share is valid and False otherwise</p>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
+</div>
+
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+  <h4>Previous topic</h4>
+  <p class="topless"><a href="threshold_signatures.html"
+                        title="previous chapter">6.3. Threshold Signatures</a></p>
+  <div role="note" aria-label="source link">
+    <h3>This Page</h3>
+    <ul class="this-page-menu">
+      <li><a href="../_sources/crypto/threshold_coin.rst.txt"
+            rel="nofollow">Show Source</a></li>
+    </ul>
+   </div>
+<div id="searchbox" style="display: none" role="search">
+  <h3 id="searchlabel">Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="../search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" />
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="threshold_signatures.html" title="6.3. Threshold Signatures"
+             >previous</a> |</li>
+        <li class="nav-item nav-item-0"><a href="../index.html">AlephZero 0.1 documentation</a> &#187;</li>
+          <li class="nav-item nav-item-1"><a href="crypto.html" >6. Crypto</a> &#187;</li> 
+      </ul>
+    </div>
+    <div class="footer" role="contentinfo">
+        &#169; Copyright 2019, Michal Swietek.
+      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 2.1.2.
+    </div>
+  </body>
+</html>

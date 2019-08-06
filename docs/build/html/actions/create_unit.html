@@ -1,0 +1,132 @@
+
+<!DOCTYPE html>
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta charset="utf-8" />
+    <title>5.1. Create Unit &#8212; AlephZero 0.1 documentation</title>
+    <link rel="stylesheet" href="../_static/classic.css" type="text/css" />
+    <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript" id="documentation_options" data-url_root="../" src="../_static/documentation_options.js"></script>
+    <script type="text/javascript" src="../_static/jquery.js"></script>
+    <script type="text/javascript" src="../_static/underscore.js"></script>
+    <script type="text/javascript" src="../_static/doctools.js"></script>
+    <script type="text/javascript" src="../_static/language_data.js"></script>
+    
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="5.2. Poset Syncing" href="poset_syncing.html" />
+    <link rel="prev" title="5. Actions" href="actions.html" /> 
+  </head><body>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="poset_syncing.html" title="5.2. Poset Syncing"
+             accesskey="N">next</a> |</li>
+        <li class="right" >
+          <a href="actions.html" title="5. Actions"
+             accesskey="P">previous</a> |</li>
+        <li class="nav-item nav-item-0"><a href="../index.html">AlephZero 0.1 documentation</a> &#187;</li>
+          <li class="nav-item nav-item-1"><a href="actions.html" accesskey="U">5. Actions</a> &#187;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <div class="section" id="module-aleph.actions.create_unit">
+<span id="create-unit"></span><h1>5.1. Create Unit<a class="headerlink" href="#module-aleph.actions.create_unit" title="Permalink to this headline">¶</a></h1>
+<p>This module implements unit creation.</p>
+<dl class="function">
+<dt id="aleph.actions.create_unit.create_unit">
+<code class="sig-prename descclassname">aleph.actions.create_unit.</code><code class="sig-name descname">create_unit</code><span class="sig-paren">(</span><em class="sig-param">poset</em>, <em class="sig-param">creator_id</em>, <em class="sig-param">txs</em>, <em class="sig-param">num_parents=None</em><span class="sig-paren">)</span><a class="headerlink" href="#aleph.actions.create_unit.create_unit" title="Permalink to this definition">¶</a></dt>
+<dd><p>Creates a new unit and stores txs in it. It uses only maximal units in the poset as parents (with the possible exception for the self_predecessor).
+This parent selection strategy has the following properties:
+- the created unit satisfies the expand-primes rule,
+- the main objective is for the new unit to see as many units as possible, but at the same time to not have too many parents
+NOTE: this strategy is most effective when num_parents is quite high, ideally unrestricted.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>poset</strong> (<a class="reference internal" href="../data_structures/poset.html#aleph.data_structures.poset.Poset" title="aleph.data_structures.poset.Poset"><em>Poset</em></a>) – poset in which the new unit is created</p></li>
+<li><p><strong>creator_id</strong> (<em>int</em>) – id of process creating the new unit</p></li>
+<li><p><strong>txs</strong> (<em>list</em>) – list of correct transactions</p></li>
+<li><p><strong>num_parents</strong> (<em>int</em>) – maximum number of distinct parents (lower bound is always 2)</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>the new-created unit, or None if it is not possible to create a compliant unit using this strategy</p>
+</dd>
+</dl>
+</dd></dl>
+
+</div>
+
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+  <h4>Previous topic</h4>
+  <p class="topless"><a href="actions.html"
+                        title="previous chapter">5. Actions</a></p>
+  <h4>Next topic</h4>
+  <p class="topless"><a href="poset_syncing.html"
+                        title="next chapter">5.2. Poset Syncing</a></p>
+  <div role="note" aria-label="source link">
+    <h3>This Page</h3>
+    <ul class="this-page-menu">
+      <li><a href="../_sources/actions/create_unit.rst.txt"
+            rel="nofollow">Show Source</a></li>
+    </ul>
+   </div>
+<div id="searchbox" style="display: none" role="search">
+  <h3 id="searchlabel">Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="../search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" />
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="poset_syncing.html" title="5.2. Poset Syncing"
+             >next</a> |</li>
+        <li class="right" >
+          <a href="actions.html" title="5. Actions"
+             >previous</a> |</li>
+        <li class="nav-item nav-item-0"><a href="../index.html">AlephZero 0.1 documentation</a> &#187;</li>
+          <li class="nav-item nav-item-1"><a href="actions.html" >5. Actions</a> &#187;</li> 
+      </ul>
+    </div>
+    <div class="footer" role="contentinfo">
+        &#169; Copyright 2019, Michal Swietek.
+      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 2.1.2.
+    </div>
+  </body>
+</html>

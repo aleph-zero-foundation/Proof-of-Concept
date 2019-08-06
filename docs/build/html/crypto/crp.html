@@ -1,0 +1,153 @@
+
+<!DOCTYPE html>
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta charset="utf-8" />
+    <title>6.1. Common Random Permutation &#8212; AlephZero 0.1 documentation</title>
+    <link rel="stylesheet" href="../_static/classic.css" type="text/css" />
+    <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript" id="documentation_options" data-url_root="../" src="../_static/documentation_options.js"></script>
+    <script type="text/javascript" src="../_static/jquery.js"></script>
+    <script type="text/javascript" src="../_static/underscore.js"></script>
+    <script type="text/javascript" src="../_static/doctools.js"></script>
+    <script type="text/javascript" src="../_static/language_data.js"></script>
+    
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="6.2. Signing Keys" href="keys.html" />
+    <link rel="prev" title="6. Crypto" href="crypto.html" /> 
+  </head><body>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="keys.html" title="6.2. Signing Keys"
+             accesskey="N">next</a> |</li>
+        <li class="right" >
+          <a href="crypto.html" title="6. Crypto"
+             accesskey="P">previous</a> |</li>
+        <li class="nav-item nav-item-0"><a href="../index.html">AlephZero 0.1 documentation</a> &#187;</li>
+          <li class="nav-item nav-item-1"><a href="crypto.html" accesskey="U">6. Crypto</a> &#187;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <div class="section" id="module-aleph.crypto.crp">
+<span id="common-random-permutation"></span><h1>6.1. Common Random Permutation<a class="headerlink" href="#module-aleph.crypto.crp" title="Permalink to this headline">¶</a></h1>
+<dl class="class">
+<dt id="aleph.crypto.crp.CommonRandomPermutation">
+<em class="property">class </em><code class="sig-prename descclassname">aleph.crypto.crp.</code><code class="sig-name descname">CommonRandomPermutation</code><span class="sig-paren">(</span><em class="sig-param">public_keys_hex</em>, <em class="sig-param">hashing_function=None</em><span class="sig-paren">)</span><a class="headerlink" href="#aleph.crypto.crp.CommonRandomPermutation" title="Permalink to this definition">¶</a></dt>
+<dd><p>This class represents common random permutation defined in the whitepaper.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>public_keys</strong> (<em>list</em>) – list of all public keys in hex format</p></li>
+<li><p><strong>hashing_function</strong> (<em>function</em>) – hashing function used for generating common random permutations – assumed to take input and output a bytestring if None hashing_function is provided then it uses sha3_hash i.e. hashlib.sha512</p></li>
+</ul>
+</dd>
+</dl>
+<dl class="method">
+<dt id="aleph.crypto.crp.CommonRandomPermutation.add_to_cache">
+<code class="sig-name descname">add_to_cache</code><span class="sig-paren">(</span><em class="sig-param">level</em>, <em class="sig-param">permutation</em><span class="sig-paren">)</span><a class="headerlink" href="#aleph.crypto.crp.CommonRandomPermutation.add_to_cache" title="Permalink to this definition">¶</a></dt>
+<dd><p>Adds an element to cache and shrinks the size of cache if the size becomes &gt; 2*cache_size</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>level</strong> (<em>int</em>) – level for which permutation is cached</p></li>
+<li><p><strong>permutation</strong> (<em>list</em>) – permutation of the set n to be cached</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="method">
+<dt id="aleph.crypto.crp.CommonRandomPermutation.index_of">
+<code class="sig-name descname">index_of</code><span class="sig-paren">(</span><em class="sig-param">item</em>, <em class="sig-param">level</em><span class="sig-paren">)</span><a class="headerlink" href="#aleph.crypto.crp.CommonRandomPermutation.index_of" title="Permalink to this definition">¶</a></dt>
+<dd><p>Outputs the position in the permutation crp[level] of item.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>item</strong> (<em>int</em>) – the number whose position we seek</p></li>
+<li><p><strong>level</strong> (<em>int</em>) – the level of the permutation of interest</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>the position of item in the permutation at this level</p>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
+</div>
+
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+  <h4>Previous topic</h4>
+  <p class="topless"><a href="crypto.html"
+                        title="previous chapter">6. Crypto</a></p>
+  <h4>Next topic</h4>
+  <p class="topless"><a href="keys.html"
+                        title="next chapter">6.2. Signing Keys</a></p>
+  <div role="note" aria-label="source link">
+    <h3>This Page</h3>
+    <ul class="this-page-menu">
+      <li><a href="../_sources/crypto/crp.rst.txt"
+            rel="nofollow">Show Source</a></li>
+    </ul>
+   </div>
+<div id="searchbox" style="display: none" role="search">
+  <h3 id="searchlabel">Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="../search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" />
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="keys.html" title="6.2. Signing Keys"
+             >next</a> |</li>
+        <li class="right" >
+          <a href="crypto.html" title="6. Crypto"
+             >previous</a> |</li>
+        <li class="nav-item nav-item-0"><a href="../index.html">AlephZero 0.1 documentation</a> &#187;</li>
+          <li class="nav-item nav-item-1"><a href="crypto.html" >6. Crypto</a> &#187;</li> 
+      </ul>
+    </div>
+    <div class="footer" role="contentinfo">
+        &#169; Copyright 2019, Michal Swietek.
+      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 2.1.2.
+    </div>
+  </body>
+</html>

@@ -1,0 +1,209 @@
+
+<!DOCTYPE html>
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta charset="utf-8" />
+    <title>5.2. Poset Syncing &#8212; AlephZero 0.1 documentation</title>
+    <link rel="stylesheet" href="../_static/classic.css" type="text/css" />
+    <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript" id="documentation_options" data-url_root="../" src="../_static/documentation_options.js"></script>
+    <script type="text/javascript" src="../_static/jquery.js"></script>
+    <script type="text/javascript" src="../_static/underscore.js"></script>
+    <script type="text/javascript" src="../_static/doctools.js"></script>
+    <script type="text/javascript" src="../_static/language_data.js"></script>
+    
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="6. Crypto" href="../crypto/crypto.html" />
+    <link rel="prev" title="5.1. Create Unit" href="create_unit.html" /> 
+  </head><body>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="../crypto/crypto.html" title="6. Crypto"
+             accesskey="N">next</a> |</li>
+        <li class="right" >
+          <a href="create_unit.html" title="5.1. Create Unit"
+             accesskey="P">previous</a> |</li>
+        <li class="nav-item nav-item-0"><a href="../index.html">AlephZero 0.1 documentation</a> &#187;</li>
+          <li class="nav-item nav-item-1"><a href="actions.html" accesskey="U">5. Actions</a> &#187;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <div class="section" id="module-aleph.actions.poset_syncing">
+<span id="poset-syncing"></span><h1>5.2. Poset Syncing<a class="headerlink" href="#module-aleph.actions.poset_syncing" title="Permalink to this headline">¶</a></h1>
+<p>This module implements functions useful for syncing posets.</p>
+<dl class="function">
+<dt id="aleph.actions.poset_syncing.dehash_parents">
+<code class="sig-prename descclassname">aleph.actions.poset_syncing.</code><code class="sig-name descname">dehash_parents</code><span class="sig-paren">(</span><em class="sig-param">poset</em>, <em class="sig-param">U</em><span class="sig-paren">)</span><a class="headerlink" href="#aleph.actions.poset_syncing.dehash_parents" title="Permalink to this definition">¶</a></dt>
+<dd><p>Substitute units from the poset for hashes in U’s parent list and set the height field. To be called on units received from the network.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>poset</strong> (<a class="reference internal" href="../data_structures/poset.html#aleph.data_structures.poset.Poset" title="aleph.data_structures.poset.Poset"><em>Poset</em></a>) – the poset where U is supposed to end up in</p></li>
+<li><p><strong>U</strong> (<a class="reference internal" href="../data_structures/unit.html#aleph.data_structures.unit.Unit" title="aleph.data_structures.unit.Unit"><em>Unit</em></a>) – the unit with hashes instead of parents</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="function">
+<dt id="aleph.actions.poset_syncing.order_units_topologically">
+<code class="sig-prename descclassname">aleph.actions.poset_syncing.</code><code class="sig-name descname">order_units_topologically</code><span class="sig-paren">(</span><em class="sig-param">units_list</em><span class="sig-paren">)</span><a class="headerlink" href="#aleph.actions.poset_syncing.order_units_topologically" title="Permalink to this definition">¶</a></dt>
+<dd><p>Outputs a topological order of units_list.
+More formally it outputs a list top_list such that:
+<em>whenever U, V are in units_list and V is a parent of U then V appears before U in top_list.</em>
+Note: this does not necessarily preserve the ordering in the poset!</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><p><strong>unit_list</strong> (<em>list</em>) – the list of units to sort</p>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>topologically sorted unit_list</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="function">
+<dt id="aleph.actions.poset_syncing.poset_info">
+<code class="sig-prename descclassname">aleph.actions.poset_syncing.</code><code class="sig-name descname">poset_info</code><span class="sig-paren">(</span><em class="sig-param">poset</em><span class="sig-paren">)</span><a class="headerlink" href="#aleph.actions.poset_syncing.poset_info" title="Permalink to this definition">¶</a></dt>
+<dd><p>A short representation of the poset state, for syncing purposes.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><p><strong>poset</strong> (<a class="reference internal" href="../data_structures/poset.html#aleph.data_structures.poset.Poset" title="aleph.data_structures.poset.Poset"><em>Poset</em></a>) – the poset which state we want to receive</p>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>A list of lists of pairs (height, hash), with the heights and hashes of maximal elements per process in the poset.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="function">
+<dt id="aleph.actions.poset_syncing.requested_units_to_send">
+<code class="sig-prename descclassname">aleph.actions.poset_syncing.</code><code class="sig-name descname">requested_units_to_send</code><span class="sig-paren">(</span><em class="sig-param">poset</em>, <em class="sig-param">tops</em>, <em class="sig-param">requests</em><span class="sig-paren">)</span><a class="headerlink" href="#aleph.actions.poset_syncing.requested_units_to_send" title="Permalink to this definition">¶</a></dt>
+<dd><p>Collect units to send given the provided request.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>poset</strong> (<a class="reference internal" href="../data_structures/poset.html#aleph.data_structures.poset.Poset" title="aleph.data_structures.poset.Poset"><em>Poset</em></a>) – the poset which is supposed to be the source of the units</p></li>
+<li><p><strong>tops</strong> (<em>list</em>) – the short representation of the receiving poset’s top known units made by pid</p></li>
+<li><p><strong>requests</strong> (<em>list</em>) – the hashes of the requested units</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>units created by pid the other poset requested and has not yet seen</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="function">
+<dt id="aleph.actions.poset_syncing.units_to_send">
+<code class="sig-prename descclassname">aleph.actions.poset_syncing.</code><code class="sig-name descname">units_to_send</code><span class="sig-paren">(</span><em class="sig-param">poset</em>, <em class="sig-param">info</em>, <em class="sig-param">requests=None</em><span class="sig-paren">)</span><a class="headerlink" href="#aleph.actions.poset_syncing.units_to_send" title="Permalink to this definition">¶</a></dt>
+<dd><p>Determine which units to send to a poset which has the given info.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>poset</strong> (<a class="reference internal" href="../data_structures/poset.html#aleph.data_structures.poset.Poset" title="aleph.data_structures.poset.Poset"><em>Poset</em></a>) – the poset which is supposed to be the source of the units</p></li>
+<li><p><strong>info</strong> (<em>list</em>) – the short representation of the receiving poset’s state</p></li>
+<li><p><strong>requests</strong> (<em>list</em>) – a list of explicitly requested units, per process</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>units the other poset should receive to catch up to us</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="function">
+<dt id="aleph.actions.poset_syncing.units_to_send_with_pid">
+<code class="sig-prename descclassname">aleph.actions.poset_syncing.</code><code class="sig-name descname">units_to_send_with_pid</code><span class="sig-paren">(</span><em class="sig-param">poset</em>, <em class="sig-param">tops</em>, <em class="sig-param">pid</em><span class="sig-paren">)</span><a class="headerlink" href="#aleph.actions.poset_syncing.units_to_send_with_pid" title="Permalink to this definition">¶</a></dt>
+<dd><p>Determine which units created by pid to send to a poset which has the top known units of pid as given.
+Also make a list of units in tops we don’t recognize.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>poset</strong> (<a class="reference internal" href="../data_structures/poset.html#aleph.data_structures.poset.Poset" title="aleph.data_structures.poset.Poset"><em>Poset</em></a>) – the poset which is supposed to be the source of the units</p></li>
+<li><p><strong>tops</strong> (<em>list</em>) – the short representation of the receiving poset’s top known units made by pid</p></li>
+<li><p><strong>pid</strong> (<em>int</em>) – the id of the creator of units we are interested in</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>units created by pid the other poset should receive to catch up to us, and a list of tops we don’t recognize</p>
+</dd>
+</dl>
+</dd></dl>
+
+</div>
+
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+  <h4>Previous topic</h4>
+  <p class="topless"><a href="create_unit.html"
+                        title="previous chapter">5.1. Create Unit</a></p>
+  <h4>Next topic</h4>
+  <p class="topless"><a href="../crypto/crypto.html"
+                        title="next chapter">6. Crypto</a></p>
+  <div role="note" aria-label="source link">
+    <h3>This Page</h3>
+    <ul class="this-page-menu">
+      <li><a href="../_sources/actions/poset_syncing.rst.txt"
+            rel="nofollow">Show Source</a></li>
+    </ul>
+   </div>
+<div id="searchbox" style="display: none" role="search">
+  <h3 id="searchlabel">Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="../search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" />
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="../crypto/crypto.html" title="6. Crypto"
+             >next</a> |</li>
+        <li class="right" >
+          <a href="create_unit.html" title="5.1. Create Unit"
+             >previous</a> |</li>
+        <li class="nav-item nav-item-0"><a href="../index.html">AlephZero 0.1 documentation</a> &#187;</li>
+          <li class="nav-item nav-item-1"><a href="actions.html" >5. Actions</a> &#187;</li> 
+      </ul>
+    </div>
+    <div class="footer" role="contentinfo">
+        &#169; Copyright 2019, Michal Swietek.
+      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 2.1.2.
+    </div>
+  </body>
+</html>

@@ -1,0 +1,207 @@
+
+<!DOCTYPE html>
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta charset="utf-8" />
+    <title>2. Process &#8212; AlephZero 0.1 documentation</title>
+    <link rel="stylesheet" href="_static/classic.css" type="text/css" />
+    <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript" id="documentation_options" data-url_root="./" src="_static/documentation_options.js"></script>
+    <script type="text/javascript" src="_static/jquery.js"></script>
+    <script type="text/javascript" src="_static/underscore.js"></script>
+    <script type="text/javascript" src="_static/doctools.js"></script>
+    <script type="text/javascript" src="_static/language_data.js"></script>
+    
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="3. Data structures" href="data_structures/data_structures.html" />
+    <link rel="prev" title="1. Introduction" href="intro.html" /> 
+  </head><body>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="data_structures/data_structures.html" title="3. Data structures"
+             accesskey="N">next</a> |</li>
+        <li class="right" >
+          <a href="intro.html" title="1. Introduction"
+             accesskey="P">previous</a> |</li>
+        <li class="nav-item nav-item-0"><a href="index.html">AlephZero 0.1 documentation</a> &#187;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <div class="section" id="module-aleph.process">
+<span id="process"></span><h1>2. Process<a class="headerlink" href="#module-aleph.process" title="Permalink to this headline">¶</a></h1>
+<dl class="class">
+<dt id="aleph.process.Process">
+<em class="property">class </em><code class="sig-prename descclassname">aleph.process.</code><code class="sig-name descname">Process</code><span class="sig-paren">(</span><em class="sig-param">n_processes</em>, <em class="sig-param">process_id</em>, <em class="sig-param">secret_key</em>, <em class="sig-param">public_key</em>, <em class="sig-param">addresses</em>, <em class="sig-param">public_key_list</em>, <em class="sig-param">tx_receiver_address</em>, <em class="sig-param">userDB=None</em>, <em class="sig-param">tx_source=&lt;function tx_listener&gt;</em>, <em class="sig-param">gossip_strategy='unif_random'</em><span class="sig-paren">)</span><a class="headerlink" href="#aleph.process.Process" title="Permalink to this definition">¶</a></dt>
+<dd><p>This class represents a single member of the committee in the Aleph protocol.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>n_processes</strong> (<em>int</em>) – the committee size</p></li>
+<li><p><strong>process_id</strong> (<em>int</em>) – the id of the process</p></li>
+<li><p><strong>secret_key</strong> (<em>string</em>) – the private key of the current process</p></li>
+<li><p><strong>public_key</strong> (<em>string</em>) – the public key of the current process</p></li>
+<li><p><strong>addresses</strong> (<em>list</em>) – the list of length n_processes containing addresses (host, port) of all committee members</p></li>
+<li><p><strong>public_keys</strong> (<em>list</em>) – the list of public keys of all committee members</p></li>
+<li><p><strong>tx_receiver_address</strong> (<em>tuple</em>) – address pair (host, port) on which the process should listen for incoming transactions</p></li>
+<li><p><strong>userDB</strong> (<em>object</em>) – initial state of user accounts</p></li>
+<li><p><strong>tx_source</strong> (<em>object</em>) – method used for listening for incomming transactions</p></li>
+<li><p><strong>gossip_strategy</strong> (<em>string</em>) – name of the gossip strategy to be used by the process</p></li>
+</ul>
+</dd>
+</dl>
+<dl class="method">
+<dt id="aleph.process.Process.add_unit_and_extend_linear_order">
+<code class="sig-name descname">add_unit_and_extend_linear_order</code><span class="sig-paren">(</span><em class="sig-param">U</em><span class="sig-paren">)</span><a class="headerlink" href="#aleph.process.Process.add_unit_and_extend_linear_order" title="Permalink to this definition">¶</a></dt>
+<dd><p>Add a (compliant) unit to the poset, try to find a new timing unit and in the case of success, extend the linear order.
+:param Unit U: the unit to be added to the poset</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="aleph.process.Process.add_unit_to_poset">
+<code class="sig-name descname">add_unit_to_poset</code><span class="sig-paren">(</span><em class="sig-param">U</em><span class="sig-paren">)</span><a class="headerlink" href="#aleph.process.Process.add_unit_to_poset" title="Permalink to this definition">¶</a></dt>
+<dd><p>Checks compliance of the unit U and adds it to the poset (unless already in the poset). Subsequently validates transactions using U.
+:param Unit U: the unit to be added
+:returns: boolean value: True if the unit was succesfully added or was already in the poset, False if the unit is not compliant</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="aleph.process.Process.adjust_create_delay">
+<code class="sig-name descname">adjust_create_delay</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#aleph.process.Process.adjust_create_delay" title="Permalink to this definition">¶</a></dt>
+<dd><p>Looks at the 3 last units created by our process and based on their levels modifies the create_delay.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="aleph.process.Process.choose_process_to_sync_with">
+<code class="sig-name descname">choose_process_to_sync_with</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#aleph.process.Process.choose_process_to_sync_with" title="Permalink to this definition">¶</a></dt>
+<dd><p>Choses a process with which to sync using the relevant strategy.
+:returns: the id of the process chosen</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="aleph.process.Process.create_add">
+<em class="property">async </em><code class="sig-name descname">create_add</code><span class="sig-paren">(</span><em class="sig-param">txs_queue</em>, <em class="sig-param">server_started</em><span class="sig-paren">)</span><a class="headerlink" href="#aleph.process.Process.create_add" title="Permalink to this definition">¶</a></dt>
+<dd><p>A task that will keep creating new units.
+:param multiprocessing.Queue txs_queue: a queue of transactions to be added to units
+:param asyncio.Event server_started: a mutex to ensure that the basic connection server starts before we commence unit creation</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="aleph.process.Process.create_unit">
+<code class="sig-name descname">create_unit</code><span class="sig-paren">(</span><em class="sig-param">txs</em><span class="sig-paren">)</span><a class="headerlink" href="#aleph.process.Process.create_unit" title="Permalink to this definition">¶</a></dt>
+<dd><p>Attempts to create a new unit in the poset.
+:param list txs: the transactions to include in the unit
+:returns: A new unit if creation was successfull, None otherwise</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="aleph.process.Process.dispatch_syncs">
+<em class="property">async </em><code class="sig-name descname">dispatch_syncs</code><span class="sig-paren">(</span><em class="sig-param">server_started</em><span class="sig-paren">)</span><a class="headerlink" href="#aleph.process.Process.dispatch_syncs" title="Permalink to this definition">¶</a></dt>
+<dd><p>A task that will keep initiating syncs with other processes.
+:param asyncio.Event server_started: an event to ensure that the basic connection server starts before we commence syncing</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="aleph.process.Process.process_txs_in_unit_list">
+<code class="sig-name descname">process_txs_in_unit_list</code><span class="sig-paren">(</span><em class="sig-param">list_U</em><span class="sig-paren">)</span><a class="headerlink" href="#aleph.process.Process.process_txs_in_unit_list" title="Permalink to this definition">¶</a></dt>
+<dd><p>For now this just counts the transactions in all the units in list_U.
+:param list list_U: the list of units containing the transactions to be counted
+:returns: The number of transactions</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="aleph.process.Process.run">
+<em class="property">async </em><code class="sig-name descname">run</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#aleph.process.Process.run" title="Permalink to this definition">¶</a></dt>
+<dd><p>A task to run the process.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="aleph.process.Process.sign_unit">
+<code class="sig-name descname">sign_unit</code><span class="sig-paren">(</span><em class="sig-param">U</em><span class="sig-paren">)</span><a class="headerlink" href="#aleph.process.Process.sign_unit" title="Permalink to this definition">¶</a></dt>
+<dd><p>Signs the unit.
+:param Unit U: the unit to be signed.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="aleph.process.Process.start_listeners">
+<em class="property">async </em><code class="sig-name descname">start_listeners</code><span class="sig-paren">(</span><em class="sig-param">server_started</em><span class="sig-paren">)</span><a class="headerlink" href="#aleph.process.Process.start_listeners" title="Permalink to this definition">¶</a></dt>
+<dd><p>A task that will start listeners for syncs from other processes.
+:param asyncio.Event server_started: an event to ensure that the basic connection server starts before we commence syncing</p>
+</dd></dl>
+
+</dd></dl>
+
+</div>
+
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+  <h4>Previous topic</h4>
+  <p class="topless"><a href="intro.html"
+                        title="previous chapter">1. Introduction</a></p>
+  <h4>Next topic</h4>
+  <p class="topless"><a href="data_structures/data_structures.html"
+                        title="next chapter">3. Data structures</a></p>
+  <div role="note" aria-label="source link">
+    <h3>This Page</h3>
+    <ul class="this-page-menu">
+      <li><a href="_sources/process.rst.txt"
+            rel="nofollow">Show Source</a></li>
+    </ul>
+   </div>
+<div id="searchbox" style="display: none" role="search">
+  <h3 id="searchlabel">Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" />
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="data_structures/data_structures.html" title="3. Data structures"
+             >next</a> |</li>
+        <li class="right" >
+          <a href="intro.html" title="1. Introduction"
+             >previous</a> |</li>
+        <li class="nav-item nav-item-0"><a href="index.html">AlephZero 0.1 documentation</a> &#187;</li> 
+      </ul>
+    </div>
+    <div class="footer" role="contentinfo">
+        &#169; Copyright 2019, Michal Swietek.
+      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 2.1.2.
+    </div>
+  </body>
+</html>

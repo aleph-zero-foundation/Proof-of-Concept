@@ -1,0 +1,198 @@
+
+<!DOCTYPE html>
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta charset="utf-8" />
+    <title>6.2. Signing Keys &#8212; AlephZero 0.1 documentation</title>
+    <link rel="stylesheet" href="../_static/classic.css" type="text/css" />
+    <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript" id="documentation_options" data-url_root="../" src="../_static/documentation_options.js"></script>
+    <script type="text/javascript" src="../_static/jquery.js"></script>
+    <script type="text/javascript" src="../_static/underscore.js"></script>
+    <script type="text/javascript" src="../_static/doctools.js"></script>
+    <script type="text/javascript" src="../_static/language_data.js"></script>
+    
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="6.3. Threshold Signatures" href="threshold_signatures.html" />
+    <link rel="prev" title="6.1. Common Random Permutation" href="crp.html" /> 
+  </head><body>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="threshold_signatures.html" title="6.3. Threshold Signatures"
+             accesskey="N">next</a> |</li>
+        <li class="right" >
+          <a href="crp.html" title="6.1. Common Random Permutation"
+             accesskey="P">previous</a> |</li>
+        <li class="nav-item nav-item-0"><a href="../index.html">AlephZero 0.1 documentation</a> &#187;</li>
+          <li class="nav-item nav-item-1"><a href="crypto.html" accesskey="U">6. Crypto</a> &#187;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <div class="section" id="module-aleph.crypto.keys">
+<span id="signing-keys"></span><h1>6.2. Signing Keys<a class="headerlink" href="#module-aleph.crypto.keys" title="Permalink to this headline">¶</a></h1>
+<dl class="class">
+<dt id="aleph.crypto.keys.SigningKey">
+<em class="property">class </em><code class="sig-prename descclassname">aleph.crypto.keys.</code><code class="sig-name descname">SigningKey</code><span class="sig-paren">(</span><em class="sig-param">seed_hex=None</em><span class="sig-paren">)</span><a class="headerlink" href="#aleph.crypto.keys.SigningKey" title="Permalink to this definition">¶</a></dt>
+<dd><p>Implements signing (private) key.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><p><strong>seed_hex</strong> (<em>string</em>) – seed used for instantiating this class; if None a key is generated.</p>
+</dd>
+</dl>
+<dl class="method">
+<dt id="aleph.crypto.keys.SigningKey.sign">
+<code class="sig-name descname">sign</code><span class="sig-paren">(</span><em class="sig-param">message</em><span class="sig-paren">)</span><a class="headerlink" href="#aleph.crypto.keys.SigningKey.sign" title="Permalink to this definition">¶</a></dt>
+<dd><p>Returns signed message.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><p><strong>message</strong> (<em>bytes</em>) – message to be signed</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="method">
+<dt id="aleph.crypto.keys.SigningKey.to_hex">
+<code class="sig-name descname">to_hex</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#aleph.crypto.keys.SigningKey.to_hex" title="Permalink to this definition">¶</a></dt>
+<dd><p>Returns hex representation of the secret. It is used for serialization.</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="class">
+<dt id="aleph.crypto.keys.VerifyKey">
+<em class="property">class </em><code class="sig-prename descclassname">aleph.crypto.keys.</code><code class="sig-name descname">VerifyKey</code><span class="sig-paren">(</span><em class="sig-param">verify_key</em><span class="sig-paren">)</span><a class="headerlink" href="#aleph.crypto.keys.VerifyKey" title="Permalink to this definition">¶</a></dt>
+<dd><p>Implements verification (public) key.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><p><strong>verify_key</strong> (<em>nacl.signing.VerifyKey</em>) – key used to instantiate this class</p>
+</dd>
+</dl>
+<dl class="method">
+<dt id="aleph.crypto.keys.VerifyKey.from_SigningKey">
+<em class="property">static </em><code class="sig-name descname">from_SigningKey</code><span class="sig-paren">(</span><em class="sig-param">secret_key</em><span class="sig-paren">)</span><a class="headerlink" href="#aleph.crypto.keys.VerifyKey.from_SigningKey" title="Permalink to this definition">¶</a></dt>
+<dd><p>A factory generating object of this class from secret_key</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><p><strong>secret_key</strong> (<a class="reference internal" href="#aleph.crypto.keys.SigningKey" title="aleph.crypto.keys.SigningKey"><em>SigningKey</em></a>) – key used to create VerifyKey</p>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>VerifyKey object</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="method">
+<dt id="aleph.crypto.keys.VerifyKey.from_hex">
+<em class="property">static </em><code class="sig-name descname">from_hex</code><span class="sig-paren">(</span><em class="sig-param">verify_key_hex</em><span class="sig-paren">)</span><a class="headerlink" href="#aleph.crypto.keys.VerifyKey.from_hex" title="Permalink to this definition">¶</a></dt>
+<dd><p>A vactory generating object of this class from hex representation</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><p><strong>verify_key_hex</strong> (<em>string</em>) – hex representation of VerifyKey</p>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>VerifyKey object</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="method">
+<dt id="aleph.crypto.keys.VerifyKey.to_hex">
+<code class="sig-name descname">to_hex</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#aleph.crypto.keys.VerifyKey.to_hex" title="Permalink to this definition">¶</a></dt>
+<dd><p>Returns hex representation of this object. It is used for serialization.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="aleph.crypto.keys.VerifyKey.verify_signature">
+<code class="sig-name descname">verify_signature</code><span class="sig-paren">(</span><em class="sig-param">signature</em>, <em class="sig-param">message</em><span class="sig-paren">)</span><a class="headerlink" href="#aleph.crypto.keys.VerifyKey.verify_signature" title="Permalink to this definition">¶</a></dt>
+<dd><p>Verifies signature of the message.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>signature</strong> (<em>bytes</em>) – signature to verify</p></li>
+<li><p><strong>message</strong> (<em>bytes</em>) – message that was supposedly signed</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>True if signature is correct, False otherwise</p>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
+</div>
+
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+  <h4>Previous topic</h4>
+  <p class="topless"><a href="crp.html"
+                        title="previous chapter">6.1. Common Random Permutation</a></p>
+  <h4>Next topic</h4>
+  <p class="topless"><a href="threshold_signatures.html"
+                        title="next chapter">6.3. Threshold Signatures</a></p>
+  <div role="note" aria-label="source link">
+    <h3>This Page</h3>
+    <ul class="this-page-menu">
+      <li><a href="../_sources/crypto/keys.rst.txt"
+            rel="nofollow">Show Source</a></li>
+    </ul>
+   </div>
+<div id="searchbox" style="display: none" role="search">
+  <h3 id="searchlabel">Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="../search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" />
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="threshold_signatures.html" title="6.3. Threshold Signatures"
+             >next</a> |</li>
+        <li class="right" >
+          <a href="crp.html" title="6.1. Common Random Permutation"
+             >previous</a> |</li>
+        <li class="nav-item nav-item-0"><a href="../index.html">AlephZero 0.1 documentation</a> &#187;</li>
+          <li class="nav-item nav-item-1"><a href="crypto.html" >6. Crypto</a> &#187;</li> 
+      </ul>
+    </div>
+    <div class="footer" role="contentinfo">
+        &#169; Copyright 2019, Michal Swietek.
+      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 2.1.2.
+    </div>
+  </body>
+</html>
