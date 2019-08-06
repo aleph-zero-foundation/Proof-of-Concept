@@ -10,17 +10,18 @@ This is a proof-of-concept implementation, so it is not production ready and is 
 
 The following results come from experiments run on 128 nodes spread uniformly on 8 different regions on 5 different continents.
 We tested the performance under various loads of the system:
-|load|txps|latency
-|:---:|:---:|:---:|:---:|
-| small  | 72.1  | 5.1s
-| big | 9476.7 | 15.8s 
-| large | 93419.0 | 20.5s 
+
+|load|txps|latency|
+|---|---:|---:|
+| small  | 72.1  | 5.1s|
+| big | 9476.7 | 15.8s |
+| large | 93419.0 | 20.5s |
 
 For more results, detailed setups, and a discussion check our [reports](https://gitlab.com/alephledger/proof-of-concept/tree/master/reports).
 
 # Documentation
 
-To understand the implementation, it is required to read the papers. [The documentation](https://gitlab.com/alephledger/proof-of-concept/tree/master/reports) describes only the algorithmic part of the implementation.
+To understand the implementation, it is required to read the papers. [The documentation](https://gitlab.com/alephledger/proof-of-concept/tree/master/docs/build/html/index.html) describes only the algorithmic part of the implementation.
 
 # Merge requests
 
