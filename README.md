@@ -21,7 +21,7 @@ For more results, detailed setups, and a discussion check our [reports](https://
 
 # Documentation
 
-To understand the implementation, it is required to read the papers. [The documentation](https://gitlab.com/alephledger/proof-of-concept/tree/master/docs/build/html/index.html) describes only the algorithmic part of the implementation.
+To understand the implementation, it is required to read the papers. [The documentation](https://alephledger.gitlab.io/proof-of-concept) describes only the algorithmic part of the implementation.
 
 # Merge requests
 
