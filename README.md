@@ -32,19 +32,19 @@ This repository is only an exploratory playground and we are done with it now. N
 The implementation requires Python 3.7. The following instructions are for Ubuntu 18.04.
 
 1. pbc
-`wget https://crypto.stanford.edu/pbc/files/pbc-0.5.14.tar.gz`
-`tar -xvf pbc-0.5.14.tar.gz`
-`cd pbc-0.5.14`
-`./configure ; make ; sudo make install`
-`export LIBRARY_PATH=$LIBRARY_PATH:/usr/local/lib`
-`export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/local/lib`
+ - `wget https://crypto.stanford.edu/pbc/files/pbc-0.5.14.tar.gz`
+ - `tar -xvf pbc-0.5.14.tar.gz`
+ - `cd pbc-0.5.14`
+ - `./configure ; make ; sudo make install`
+ - `export LIBRARY_PATH=$LIBRARY_PATH:/usr/local/lib`
+ - `export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/local/lib`
 2. charm
-`git clone https://github.com/JHUISI/charm.git`
-`cd charm`
-`./configure.sh`
-`make`
+ - `git clone https://github.com/JHUISI/charm.git`
+ - `cd charm`
+ - `./configure.sh`
+ - `make`
 3. dependencies
-`pip install -e .`
+ - `pip install -e .`
 
 # Unit tests
 To run unit tests please use the following command: `pytest-xdist -n $n_cores aleph`
@@ -52,11 +52,8 @@ To run unit tests please use the following command: `pytest-xdist -n $n_cores al
 # Experiments
 
 There are two types of experiments that can be performed:
-1. Local
-    run `python tests/linear_ordering_network.py`
-2. Remote using AWS EC2
-    go to 'cd experiments/aws'
-    and run 'python shell.py'
+1. Local: run `python tests/linear_ordering_network.py`
+2. Remote using AWS EC2: go to `cd experiments/aws` and run `python shell.py`.
     This opens a shell with procedures orchestrating experiments. The main procedure is
     `run_protocol(n_processes, regions, restricted, instance_type)` that runs `n_processes` in specified `regions`, where some of the regions can be `restricted`, and uses EC2 machines of `instance_type`.
     The most basic experiment can be run with `run_protocol(8, badger_regions(), {}, 't2.micro')`. It spawns 8 machines in 8 different regions on 5 continents. As of time of writing this, AWS EC2 was providing users with a limited time of free usage of machines of type `t2.micro` and some quota for free storage and data transfer, so such an experiment can be conducted free of charge.
