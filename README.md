@@ -8,7 +8,7 @@ This repository is a proof-of-concept implementation, it is not meant for produc
 
 # Results from experiments run on AWS
 
-The following results come from experiments performed on 128 nodes of Amazon Web services distributed uniformly between 8 different regions on 5 continents.
+The following results come from experiments performed on 128 nodes of Amazon Web Services distributed uniformly between 8 different regions on 5 continents.
 We tested the performance under various loads of the system:
 
 |load|txps|latency|
@@ -65,7 +65,7 @@ There are two types of experiments that can be performed:
     After the experiment is finished, the logs containing useful data of the experiment can be downloaded with `get_logs`.
 
 # Analyzing logs
-After collecting thelogs, the performance can be analyzed as follows:
+After collecting the logs, the performance can be analyzed as follows:
 1. A single log with data on instance labeled with pid
     `python aleph/log_analyzer/run_analyzer.py aleph.log pid`
 2. All logs
