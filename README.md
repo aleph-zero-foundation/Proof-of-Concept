@@ -1,8 +1,8 @@
-# AlephZero PoC
+# Aleph Proof-of-Concept
 
-ALEPH IMG
+![aleph logo](docs/source/aleph_1920x1080.jpg "Aleph logo")
 
-AlephZero is a DAG-based consensus protocol that is leaderless, fully asynchronous, and Byzantine fault tolerant. It was designed to be run repetitively, so it makes a perfect fit for blockchain related applications, where there is no bound on message-delivery delay and some malicious behavior is possible to occur. For more information, check [webpage](https://alephzero.org).
+Aleph is a DAG-based consensus protocol that is leaderless, fully asynchronous, and Byzantine fault tolerant. It was designed to be run repetitively, so it makes a perfect fit for blockchain related applications, where there is no bound on message-delivery delay and some malicious behavior is possible to occur. For more information, check [webpage](https://alephzero.org).
 
 This repository is a proof-of-concept implementation, it is not meant for production deployment. It is released as a reference for the main implementation in Go that will be published in the future. The initial version of the repository was based on [old paper](https://arxiv.org/abs/1810.05256), while the more recent one relies on [new paper]().
 
@@ -72,4 +72,4 @@ After collecting the logs, the performance can be analyzed as follows:
     `python aleph/log_analyzer/run_analyzer.py ALL log-dif [report-dir]`
 
 # License
-AlephZero Python implementation is released under an LGPL version 3 license. See the `LICENSE.txt` for details.
+Aleph Python implementation is released under an LGPL version 3 license. See the `LICENSE.txt` for details.
