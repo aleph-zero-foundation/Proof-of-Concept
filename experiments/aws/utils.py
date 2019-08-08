@@ -189,7 +189,6 @@ def init_key_pair(region_name, key_name='aleph', dry_run=False):
 
         # for some reason there is no key up there, let send it
         with open(key_path+'.pub', 'r') as f:
-            lines = f.readlines()
             pk_material = ''.join([line[:-1] for line in f.readlines()[1:-1]])
         ec2.import_key_pair(KeyName=key_name, PublicKeyMaterial=pk_material)
     else:

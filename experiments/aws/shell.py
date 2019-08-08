@@ -470,7 +470,7 @@ def get_logs(n_processes, regions, n_parents, adaptive, create_delay, sync_init_
         return
 
     for rn in regions:
-        color_print('collecting logs in ', rn)
+        color_print(f'collecting logs in {rn}')
         for ip in instances_ip_in_region(rn):
             run_task_for_ip('get-logs', [ip], parallel=0)
             if len(os.listdir('../results')) > l:
