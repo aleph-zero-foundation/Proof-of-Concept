@@ -4,17 +4,18 @@ from charm.core.math.pairing import hashPair
 
 
 class ThresholdCoin:
-    '''Implements dual threshold coin described in the whitepaper.'''
+    '''
+    Implements dual threshold coin described in the whitepaper.
 
+    :param int dealer_id: identification number of a process dealing this coin, from 0 to n-1
+    :param int process_id: identification number of a process using this coin
+    :param int n_processes: number of processes
+    :param int threshold: number of shares required to toss the coin, has to satisfy n_processes//3 < threshold <= n_processes
+    :param VerifyKey verification_key: key for combining shares
+    :param SigningKey secret_key: key for generating a share of a coin toss
+    '''
+ 
     def __init__(self, dealer_id, process_id, n_processes, threshold, secret_key, verification_key):
-        '''
-        :param int dealer_id: identification number of a process dealing this coin, from 0 to n-1
-        :param int process_id: identification number of a process using this coin
-        :param int n_processes: number of processes
-        :param int threshold: number of shares required to toss the coin, has to satisfy n_processes//3 < threshold <= n_processes
-        :param VerifyKey verification_key: key for combining shares
-        :param SigningKey secret_key: key for generating a share of a coin toss
-        '''
         self.dealer_id = dealer_id
         self.process_id = process_id
         self.n_processes = n_processes
@@ -58,8 +59,8 @@ class ThresholdCoin:
     def combine_coin_shares(self, shares, nonce):
         '''
         Combines the coin shares by forming a threshold signature and taking its 1st bit, subsequently it verifies the result.
-        NOTE: combining shares should always succeed except when some of the shares were invalid or the dealer was dishonest,
-              in which case the toss might be biased and should ideally be discarded
+        NOTE: combining shares should always succeed except when some of the shares were invalid or the dealer was dishonest, in which case the toss might be biased and should ideally be discarded
+
         :param dict shares: keys are processes ids, values are shares (group G1 elements)
         :param string nonce: the nonce the shares were created for -- necessary for verifying the result of combining
         :returns:  pair (int, bool) :  (coin toss in {0,1}) , (whether combining shares was succesful)

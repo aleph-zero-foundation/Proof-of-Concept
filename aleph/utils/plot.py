@@ -58,14 +58,13 @@ def plot_dag(dag):
     # find positions of units in the plot
     # we plot units created by a given process vertically
     # we use height[unit] for its height in the plot
-    # TODO plot forks next to each other
     x = dict(zip(range(dag.n_processes), np.linspace(27, 243, dag.n_processes)))
     dx = x[1]-x[0]
     for pid in range(dag.n_processes):
         units_per_pid = [unit for unit in dag if pid == dag.pid(unit)]
         x_per_pid = []
         heights = [height[unit] for unit in units_per_pid]
-        err = 0#10 * np.random.rand(len(units_per_pid))
+        err = 0
         spaces = 60 * np.array(heights) + err + 70
         y = dict(zip(units_per_pid, spaces))
 

@@ -189,7 +189,6 @@ def init_key_pair(region_name, key_name='aleph', dry_run=False):
 
         # for some reason there is no key up there, let send it
         with open(key_path+'.pub', 'r') as f:
-            lines = f.readlines()
             pk_material = ''.join([line[:-1] for line in f.readlines()[1:-1]])
         ec2.import_key_pair(KeyName=key_name, PublicKeyMaterial=pk_material)
     else:
@@ -209,7 +208,7 @@ def read_aws_keys():
         return access_key_id, secret_access_key
 
 
-def generate_signing_keys(n_processes):
+def generate_keys(n_processes):
     ''' Generate signing keys for the committee.'''
 
     # if file exists check if it is of appropriate size
@@ -305,3 +304,6 @@ def n_processes_per_regions(n_processes, regions=badger_regions(), restricted={'
             nhpr.pop(r)
 
     return nhpr
+
+def color_print(string):
+    print('\x1b[6;30;42m' + string + '\x1b[0m')

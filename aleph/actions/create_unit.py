@@ -35,7 +35,7 @@ def _pick_more_parents(poset, parents, level, num_parents):
     for V in parent_candidates:
         if len(new_parents) + len(parents) == num_parents:
             return _combine_parents(parents, new_parents)
-        # the 3 lines below can be optimized (by a constant factor) but it is left as it is for simplicity and to avoid premature optimization
+        # the 3 lines below can be optimized (by a constant factor) but it is left as it is for simplicity
         if any(poset.below(W, V) for W in non_visible_primes):
             new_parents.append(V)
             non_visible_primes = [W for W in non_visible_primes if not poset.below(W, V)]
@@ -45,16 +45,16 @@ def create_unit(poset, creator_id, txs, num_parents = None):
     '''
     Creates a new unit and stores txs in it. It uses only maximal units in the poset as parents (with the possible exception for the self_predecessor).
     This parent selection strategy has the following properties:
-       - the created unit satisfies the expand-primes rule,
-       - the main objective is for the new unit to see as many units as possible, but at the same time to not have too many parents
+    - the created unit satisfies the expand-primes rule,
+    - the main objective is for the new unit to see as many units as possible, but at the same time to not have too many parents
     NOTE: this strategy is most effective when num_parents is quite high, ideally unrestricted.
+
     :param Poset poset: poset in which the new unit is created
     :param int creator_id: id of process creating the new unit
     :param list txs: list of correct transactions
     :param int num_parents: maximum number of distinct parents (lower bound is always 2)
     :returns: the new-created unit, or None if it is not possible to create a compliant unit using this strategy
     '''
-    #TODO: we might want to create units that prove forks, but right now we avoid it
     num_parents = consts.N_PARENTS if num_parents is None else num_parents
     logger = logging.getLogger(consts.LOGGER_NAME)
     logger.info(f"create: {creator_id} attempting to create a unit.")
@@ -86,7 +86,7 @@ def create_unit(poset, creator_id, txs, num_parents = None):
     U = Unit(creator_id, parents, txs)
 
     if poset.use_tcoin:
-        # TODO: calling prepare unit here is a bit confusing, maybe we can move it somewhere
+        # we need to call prepare_unit to fill some fields necessary for determining which coin shares to add
         poset.prepare_unit(U)
         if poset.is_prime(U) and U.level >= consts.ADD_SHARES:
             poset.add_coin_shares(U)

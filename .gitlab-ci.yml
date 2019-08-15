@@ -1,0 +1,12 @@
+image: alpine:latest
+
+pages:
+  script:
+  - mkdir public
+  - cp -r docs/build/html/* public
+  artifacts:
+    paths:
+    - public
+  only:
+  - master
+  - devel

@@ -108,7 +108,7 @@ def simulate_with_checks(
         is called to generate some results to monitor correctness of a particular procedure.
     :param int n_processes: the number of processes
     :param int n_units: the number of units we intend to create
-    :param bool verify_fails: if set to True, it will check whether failing in creating a unit was justified
+    :param function verify_fails: should check whether failing in creating a unit was justified
     :param function post_prepare: a function that is called on the unit (+ some additional args)
                                   right after it has been created, but before adding to the poset(s)
     :param bool use_tcoin: whether to use threshold coin in the simulation

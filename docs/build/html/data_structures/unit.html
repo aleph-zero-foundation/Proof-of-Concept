@@ -1,0 +1,160 @@
+
+<!DOCTYPE html>
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta charset="utf-8" />
+    <title>3.1. Unit &#8212; AlephZero 0.1 documentation</title>
+    <link rel="stylesheet" href="../_static/classic.css" type="text/css" />
+    <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript" id="documentation_options" data-url_root="../" src="../_static/documentation_options.js"></script>
+    <script type="text/javascript" src="../_static/jquery.js"></script>
+    <script type="text/javascript" src="../_static/underscore.js"></script>
+    <script type="text/javascript" src="../_static/doctools.js"></script>
+    <script type="text/javascript" src="../_static/language_data.js"></script>
+    
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="3.2. Poset" href="poset.html" />
+    <link rel="prev" title="3. Data structures" href="data_structures.html" /> 
+  </head><body>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="poset.html" title="3.2. Poset"
+             accesskey="N">next</a> |</li>
+        <li class="right" >
+          <a href="data_structures.html" title="3. Data structures"
+             accesskey="P">previous</a> |</li>
+        <li class="nav-item nav-item-0"><a href="../index.html">AlephZero 0.1 documentation</a> &#187;</li>
+          <li class="nav-item nav-item-1"><a href="data_structures.html" accesskey="U">3. Data structures</a> &#187;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <div class="section" id="module-aleph.data_structures.unit">
+<span id="unit"></span><h1>3.1. Unit<a class="headerlink" href="#module-aleph.data_structures.unit" title="Permalink to this headline">¶</a></h1>
+<p>This module implements unit - a basic building block of Aleph protocol.</p>
+<dl class="class">
+<dt id="aleph.data_structures.unit.Unit">
+<em class="property">class </em><code class="sig-prename descclassname">aleph.data_structures.unit.</code><code class="sig-name descname">Unit</code><span class="sig-paren">(</span><em class="sig-param">creator_id</em>, <em class="sig-param">parents</em>, <em class="sig-param">txs</em>, <em class="sig-param">signature=None</em>, <em class="sig-param">coin_shares=None</em><span class="sig-paren">)</span><a class="headerlink" href="#aleph.data_structures.unit.Unit" title="Permalink to this definition">¶</a></dt>
+<dd><p>This class is the building block for the poset</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>creator_id</strong> (<em>int</em>) – indentification number of a process creating this unit</p></li>
+<li><p><strong>parents</strong> (<em>list</em>) – list of parent units; first parent has to be the last unit created by the process creator_id</p></li>
+<li><p><strong>txs</strong> (<em>list</em>) – list of transactions</p></li>
+<li><p><strong>signature</strong> (<em>bytes</em>) – signature made by a process creating this unit preventing forging units by Byzantine processes</p></li>
+<li><p><strong>coin_shares</strong> (<em>list</em>) – list of coin_shares if this is a prime unit, None otherwise</p></li>
+</ul>
+</dd>
+</dl>
+<dl class="method">
+<dt id="aleph.data_structures.unit.Unit.bytestring">
+<code class="sig-name descname">bytestring</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#aleph.data_structures.unit.Unit.bytestring" title="Permalink to this definition">¶</a></dt>
+<dd><p>Create a bytestring with all essential info about this unit for the purpose of signature creation and checking.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="aleph.data_structures.unit.Unit.hash">
+<code class="sig-name descname">hash</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#aleph.data_structures.unit.Unit.hash" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return the value of hash of this unit.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="aleph.data_structures.unit.Unit.short_name">
+<code class="sig-name descname">short_name</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#aleph.data_structures.unit.Unit.short_name" title="Permalink to this definition">¶</a></dt>
+<dd><p>Returns a 12 character string (surrounded by ‘&lt; &gt;’ brackets) – a shorter hash of the unit. To be used for printing units in logs.
+NOTE: this has collision resistance as long there are roughly &lt;= 10^9 units considered simultaneusly.
+NOTE: this uses only characters in the set A-Z, 2-7 (base32 encoding)</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="aleph.data_structures.unit.Unit.transactions">
+<code class="sig-name descname">transactions</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#aleph.data_structures.unit.Unit.transactions" title="Permalink to this definition">¶</a></dt>
+<dd><p>Iterate over transactions (instances of Tx class) belonging to this unit.</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="function">
+<dt id="aleph.data_structures.unit.pretty_hash">
+<code class="sig-prename descclassname">aleph.data_structures.unit.</code><code class="sig-name descname">pretty_hash</code><span class="sig-paren">(</span><em class="sig-param">some_hash</em><span class="sig-paren">)</span><a class="headerlink" href="#aleph.data_structures.unit.pretty_hash" title="Permalink to this definition">¶</a></dt>
+<dd><p>Returns a 12 character string (surrounded by ‘&lt; &gt;’ brackets) – a shorter hash. To be used for printing hashes in logs.
+NOTE: this has collision resistance as long there are roughly &lt;= 10^9 units considered simultaneusly.
+NOTE: this uses only characters in the set A-Z, 2-7 (base32 encoding)</p>
+</dd></dl>
+
+</div>
+
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+  <h4>Previous topic</h4>
+  <p class="topless"><a href="data_structures.html"
+                        title="previous chapter">3. Data structures</a></p>
+  <h4>Next topic</h4>
+  <p class="topless"><a href="poset.html"
+                        title="next chapter">3.2. Poset</a></p>
+  <div role="note" aria-label="source link">
+    <h3>This Page</h3>
+    <ul class="this-page-menu">
+      <li><a href="../_sources/data_structures/unit.rst.txt"
+            rel="nofollow">Show Source</a></li>
+    </ul>
+   </div>
+<div id="searchbox" style="display: none" role="search">
+  <h3 id="searchlabel">Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="../search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" />
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="poset.html" title="3.2. Poset"
+             >next</a> |</li>
+        <li class="right" >
+          <a href="data_structures.html" title="3. Data structures"
+             >previous</a> |</li>
+        <li class="nav-item nav-item-0"><a href="../index.html">AlephZero 0.1 documentation</a> &#187;</li>
+          <li class="nav-item nav-item-1"><a href="data_structures.html" >3. Data structures</a> &#187;</li> 
+      </ul>
+    </div>
+    <div class="footer" role="contentinfo">
+        &#169; Copyright 2019, Michal Swietek.
+      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 2.1.2.
+    </div>
+  </body>
+</html>

@@ -27,14 +27,12 @@ class UserDB:
         return self.user_balance.get(user_public_key, 0)
 
 
-
     def last_transaction(self, user_public_key):
         '''
         Get the index of the last transaction issued by the given user.
         :param str user_public_key: the public key of the user
         '''
         return self.user_last_transaction_index.get(user_public_key, -1)
-
 
 
     def check_transaction_correctness(self, tx):
@@ -48,26 +46,13 @@ class UserDB:
         return tx.amount >= 0 and issuer_balance >= tx.amount and tx.index == issuer_last_transaction + 1
 
 
-
     def apply_transaction(self, tx):
         '''
         Performs the given transaction if it is valid.
         :param Tx tx: the transaction to perform
         '''
-        issuer_balance = self.user_balance.get(tx.issuer, 0)
-        receiver_balance = self.user_balance.get(tx.receiver, 0)
-        issuer_last_transaction = self.user_last_transaction_index.get(tx.issuer, -1)
-
-        assert tx.amount >= 0, "The transaction that is about to be input has negative amount!"
-
-        assert issuer_balance >= tx.amount, "The issuer does not have sufficient funds to perform this transaction."
-
-        assert tx.index == issuer_last_transaction + 1, "The index of the transaction is not equal to the previous plus one."
-
-        issuer_balance -= tx.amount
-        receiver_balance += tx.amount
-
-        self.user_balance[tx.issuer] = issuer_balance
-        self.user_balance[tx.receiver] = receiver_balance
-        self.user_last_transaction_index[tx.issuer] = tx.index
+        if self.check_transaction_correctness(tx):
+            self.user_balance[tx.issuer] -= tx.amount
+            self.user_balance[tx.receiver] += tx.amount
+            self.user_last_transaction_index[tx.issuer] += 1
 

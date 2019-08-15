@@ -1,0 +1,238 @@
+
+<!DOCTYPE html>
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta charset="utf-8" />
+    <title>6.3. Threshold Signatures &#8212; AlephZero 0.1 documentation</title>
+    <link rel="stylesheet" href="../_static/classic.css" type="text/css" />
+    <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript" id="documentation_options" data-url_root="../" src="../_static/documentation_options.js"></script>
+    <script type="text/javascript" src="../_static/jquery.js"></script>
+    <script type="text/javascript" src="../_static/underscore.js"></script>
+    <script type="text/javascript" src="../_static/doctools.js"></script>
+    <script type="text/javascript" src="../_static/language_data.js"></script>
+    
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="6.4. Threshold Coin" href="threshold_coin.html" />
+    <link rel="prev" title="6.2. Signing Keys" href="keys.html" /> 
+  </head><body>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="threshold_coin.html" title="6.4. Threshold Coin"
+             accesskey="N">next</a> |</li>
+        <li class="right" >
+          <a href="keys.html" title="6.2. Signing Keys"
+             accesskey="P">previous</a> |</li>
+        <li class="nav-item nav-item-0"><a href="../index.html">AlephZero 0.1 documentation</a> &#187;</li>
+          <li class="nav-item nav-item-1"><a href="crypto.html" accesskey="U">6. Crypto</a> &#187;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <div class="section" id="module-aleph.crypto.threshold_signatures">
+<span id="threshold-signatures"></span><h1>6.3. Threshold Signatures<a class="headerlink" href="#module-aleph.crypto.threshold_signatures" title="Permalink to this headline">¶</a></h1>
+<dl class="class">
+<dt id="aleph.crypto.threshold_signatures.SecretKey">
+<em class="property">class </em><code class="sig-prename descclassname">aleph.crypto.threshold_signatures.</code><code class="sig-name descname">SecretKey</code><span class="sig-paren">(</span><em class="sig-param">sk</em><span class="sig-paren">)</span><a class="headerlink" href="#aleph.crypto.threshold_signatures.SecretKey" title="Permalink to this definition">¶</a></dt>
+<dd><p>An object used for generating shares of a signature of a message.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><p><strong>sk</strong> (<em>int</em>) – secret used for signing</p>
+</dd>
+</dl>
+<dl class="method">
+<dt id="aleph.crypto.threshold_signatures.SecretKey.generate_share">
+<code class="sig-name descname">generate_share</code><span class="sig-paren">(</span><em class="sig-param">msg_hash</em><span class="sig-paren">)</span><a class="headerlink" href="#aleph.crypto.threshold_signatures.SecretKey.generate_share" title="Permalink to this definition">¶</a></dt>
+<dd><p>Generates a share of a signature of a hash of a message.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><p><strong>msg_hash</strong> (<em>int</em>) – hash of a message which signature share is generated</p>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="class">
+<dt id="aleph.crypto.threshold_signatures.VerificationKey">
+<em class="property">class </em><code class="sig-prename descclassname">aleph.crypto.threshold_signatures.</code><code class="sig-name descname">VerificationKey</code><span class="sig-paren">(</span><em class="sig-param">threshold</em>, <em class="sig-param">vk</em>, <em class="sig-param">vks</em><span class="sig-paren">)</span><a class="headerlink" href="#aleph.crypto.threshold_signatures.VerificationKey" title="Permalink to this definition">¶</a></dt>
+<dd><p>An object used for verifying shares and signatures and for combining shares into signatures.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>threshold</strong> (<em>int</em>) – number of signature shares needed to generate a signature</p></li>
+<li><p><strong>vk</strong> (<em>int</em>) – global verification key</p></li>
+<li><p><strong>vks</strong> (<em>list</em>) – verification keys corresponding to secret keys of all parties</p></li>
+</ul>
+</dd>
+</dl>
+<dl class="method">
+<dt id="aleph.crypto.threshold_signatures.VerificationKey.combine_shares">
+<code class="sig-name descname">combine_shares</code><span class="sig-paren">(</span><em class="sig-param">shares</em><span class="sig-paren">)</span><a class="headerlink" href="#aleph.crypto.threshold_signatures.VerificationKey.combine_shares" title="Permalink to this definition">¶</a></dt>
+<dd><p>Combines shares into a signature of a message.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><p><strong>shares</strong> (<em>dict</em>) – shares of a signature to be produced</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="method">
+<dt id="aleph.crypto.threshold_signatures.VerificationKey.hash_fct">
+<code class="sig-name descname">hash_fct</code><span class="sig-paren">(</span><em class="sig-param">msg</em><span class="sig-paren">)</span><a class="headerlink" href="#aleph.crypto.threshold_signatures.VerificationKey.hash_fct" title="Permalink to this definition">¶</a></dt>
+<dd><p>Hash function used for hashing messages into group G1.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><p><strong>msg</strong> (<em>string</em>) – message to be hashed</p>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>element of G1 group</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="method">
+<dt id="aleph.crypto.threshold_signatures.VerificationKey.hash_msg">
+<code class="sig-name descname">hash_msg</code><span class="sig-paren">(</span><em class="sig-param">msg</em><span class="sig-paren">)</span><a class="headerlink" href="#aleph.crypto.threshold_signatures.VerificationKey.hash_msg" title="Permalink to this definition">¶</a></dt>
+<dd><p>Hashes a message before signing.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><p><strong>msg</strong> (<em>bytes</em>) – message to be hashed</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="method">
+<dt id="aleph.crypto.threshold_signatures.VerificationKey.lagrange">
+<code class="sig-name descname">lagrange</code><span class="sig-paren">(</span><em class="sig-param">S</em>, <em class="sig-param">i</em><span class="sig-paren">)</span><a class="headerlink" href="#aleph.crypto.threshold_signatures.VerificationKey.lagrange" title="Permalink to this definition">¶</a></dt>
+<dd><p>Lagrange approximation.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>S</strong> (<em>list</em>) – list of values for numerator</p></li>
+<li><p><strong>i</strong> (<em>int</em>) – special value for denumerator</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="method">
+<dt id="aleph.crypto.threshold_signatures.VerificationKey.verify_share">
+<code class="sig-name descname">verify_share</code><span class="sig-paren">(</span><em class="sig-param">share</em>, <em class="sig-param">i</em>, <em class="sig-param">msg_hash</em><span class="sig-paren">)</span><a class="headerlink" href="#aleph.crypto.threshold_signatures.VerificationKey.verify_share" title="Permalink to this definition">¶</a></dt>
+<dd><p>Verifies if a share generated by i-th party is valid.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>share</strong> (<em>int</em>) – share of a signature of a hash of a message</p></li>
+<li><p><strong>i</strong> (<em>int</em>) – index number of a party</p></li>
+<li><p><strong>msg_hash</strong> (<em>int</em>) – hash of a message that is signed</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="method">
+<dt id="aleph.crypto.threshold_signatures.VerificationKey.verify_signature">
+<code class="sig-name descname">verify_signature</code><span class="sig-paren">(</span><em class="sig-param">signature</em>, <em class="sig-param">msg_hash</em><span class="sig-paren">)</span><a class="headerlink" href="#aleph.crypto.threshold_signatures.VerificationKey.verify_signature" title="Permalink to this definition">¶</a></dt>
+<dd><p>Verifies if signature is valid.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>signature</strong> (<em>int</em>) – signature of msg_hash to be chacked</p></li>
+<li><p><strong>msg_hash</strong> (<em>int</em>) – hash of a message corresponding to signature.</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="function">
+<dt id="aleph.crypto.threshold_signatures.generate_keys">
+<code class="sig-prename descclassname">aleph.crypto.threshold_signatures.</code><code class="sig-name descname">generate_keys</code><span class="sig-paren">(</span><em class="sig-param">n_parties</em>, <em class="sig-param">threshold</em><span class="sig-paren">)</span><a class="headerlink" href="#aleph.crypto.threshold_signatures.generate_keys" title="Permalink to this definition">¶</a></dt>
+<dd><p>Generates one verification key and n_parties secret keys.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>n_parties</strong> (<em>int</em>) – number of parties that need secret keys</p></li>
+<li><p><strong>threshold</strong> (<em>int</em>) – number of signature shares required for generating a signature</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+</div>
+
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+  <h4>Previous topic</h4>
+  <p class="topless"><a href="keys.html"
+                        title="previous chapter">6.2. Signing Keys</a></p>
+  <h4>Next topic</h4>
+  <p class="topless"><a href="threshold_coin.html"
+                        title="next chapter">6.4. Threshold Coin</a></p>
+  <div role="note" aria-label="source link">
+    <h3>This Page</h3>
+    <ul class="this-page-menu">
+      <li><a href="../_sources/crypto/threshold_signatures.rst.txt"
+            rel="nofollow">Show Source</a></li>
+    </ul>
+   </div>
+<div id="searchbox" style="display: none" role="search">
+  <h3 id="searchlabel">Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="../search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" />
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="threshold_coin.html" title="6.4. Threshold Coin"
+             >next</a> |</li>
+        <li class="right" >
+          <a href="keys.html" title="6.2. Signing Keys"
+             >previous</a> |</li>
+        <li class="nav-item nav-item-0"><a href="../index.html">AlephZero 0.1 documentation</a> &#187;</li>
+          <li class="nav-item nav-item-1"><a href="crypto.html" >6. Crypto</a> &#187;</li> 
+      </ul>
+    </div>
+    <div class="footer" role="contentinfo">
+        &#169; Copyright 2019, Michal Swietek.
+      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 2.1.2.
+    </div>
+  </body>
+</html>

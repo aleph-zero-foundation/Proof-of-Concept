@@ -1,0 +1,147 @@
+
+<!DOCTYPE html>
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta charset="utf-8" />
+    <title>4.2. Network &#8212; AlephZero 0.1 documentation</title>
+    <link rel="stylesheet" href="../_static/classic.css" type="text/css" />
+    <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript" id="documentation_options" data-url_root="../" src="../_static/documentation_options.js"></script>
+    <script type="text/javascript" src="../_static/jquery.js"></script>
+    <script type="text/javascript" src="../_static/underscore.js"></script>
+    <script type="text/javascript" src="../_static/doctools.js"></script>
+    <script type="text/javascript" src="../_static/language_data.js"></script>
+    
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="5. Actions" href="../actions/actions.html" />
+    <link rel="prev" title="4.1. Channel" href="channel.html" /> 
+  </head><body>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="../actions/actions.html" title="5. Actions"
+             accesskey="N">next</a> |</li>
+        <li class="right" >
+          <a href="channel.html" title="4.1. Channel"
+             accesskey="P">previous</a> |</li>
+        <li class="nav-item nav-item-0"><a href="../index.html">AlephZero 0.1 documentation</a> &#187;</li>
+          <li class="nav-item nav-item-1"><a href="net.html" accesskey="U">4. Network</a> &#187;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <div class="section" id="module-aleph.network.network">
+<span id="network"></span><h1>4.2. Network<a class="headerlink" href="#module-aleph.network.network" title="Permalink to this headline">¶</a></h1>
+<dl class="class">
+<dt id="aleph.network.network.Network">
+<em class="property">class </em><code class="sig-prename descclassname">aleph.network.network.</code><code class="sig-name descname">Network</code><span class="sig-paren">(</span><em class="sig-param">process</em>, <em class="sig-param">addresses</em>, <em class="sig-param">public_key_list</em>, <em class="sig-param">logger</em>, <em class="sig-param">keep_connection=True</em><span class="sig-paren">)</span><a class="headerlink" href="#aleph.network.network.Network" title="Permalink to this definition">¶</a></dt>
+<dd><p>Class that takes care of handling network connections with other processes.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>process</strong> (<a class="reference internal" href="../process.html#aleph.process.Process" title="aleph.process.Process"><em>Process</em></a>) – process who uses this network to communicate with others</p></li>
+<li><p><strong>addresses</strong> (<em>list</em>) – list of addresses of all committee members, ordered by their process_id. Each address is a pair (IP, port)</p></li>
+<li><p><strong>public_key_list</strong> (<em>list</em>) – the list of public keys of all committee members</p></li>
+<li><p><strong>logger</strong> (<em>Logger</em>) – where to write all the log messages</p></li>
+<li><p><strong>keep_connection</strong> (<em>bool</em>) – Don’t close network connection after every sync</p></li>
+</ul>
+</dd>
+</dl>
+<dl class="method">
+<dt id="aleph.network.network.Network.listener">
+<em class="property">async </em><code class="sig-name descname">listener</code><span class="sig-paren">(</span><em class="sig-param">peer_id</em><span class="sig-paren">)</span><a class="headerlink" href="#aleph.network.network.Network.listener" title="Permalink to this definition">¶</a></dt>
+<dd><p>Listen indefinitely for incoming syncs from process peer_id.
+This version is a counterpart for sync, follows the same 3-exchange protocol.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="aleph.network.network.Network.start_server">
+<em class="property">async </em><code class="sig-name descname">start_server</code><span class="sig-paren">(</span><em class="sig-param">server_started</em><span class="sig-paren">)</span><a class="headerlink" href="#aleph.network.network.Network.start_server" title="Permalink to this definition">¶</a></dt>
+<dd><p>Start a server that waits for incoming connections and activates corresponding listen_channels
+:param asyncio.Event server_started: main Event used to synchronize initialization of the whole process.run. This method sets it if successful.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="aleph.network.network.Network.sync">
+<em class="property">async </em><code class="sig-name descname">sync</code><span class="sig-paren">(</span><em class="sig-param">peer_id</em><span class="sig-paren">)</span><a class="headerlink" href="#aleph.network.network.Network.sync" title="Permalink to this definition">¶</a></dt>
+<dd><p>Sync with process peer_id.
+This version uses 3-exchange “pullpush” protocol: send heights, receive heights, units and requests, send units and requests.
+If we sent some requests there is a 4th exchange where we once again get units. This should only happen due to forks.</p>
+</dd></dl>
+
+</dd></dl>
+
+</div>
+
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+  <h4>Previous topic</h4>
+  <p class="topless"><a href="channel.html"
+                        title="previous chapter">4.1. Channel</a></p>
+  <h4>Next topic</h4>
+  <p class="topless"><a href="../actions/actions.html"
+                        title="next chapter">5. Actions</a></p>
+  <div role="note" aria-label="source link">
+    <h3>This Page</h3>
+    <ul class="this-page-menu">
+      <li><a href="../_sources/network/network.rst.txt"
+            rel="nofollow">Show Source</a></li>
+    </ul>
+   </div>
+<div id="searchbox" style="display: none" role="search">
+  <h3 id="searchlabel">Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="../search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" />
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="../actions/actions.html" title="5. Actions"
+             >next</a> |</li>
+        <li class="right" >
+          <a href="channel.html" title="4.1. Channel"
+             >previous</a> |</li>
+        <li class="nav-item nav-item-0"><a href="../index.html">AlephZero 0.1 documentation</a> &#187;</li>
+          <li class="nav-item nav-item-1"><a href="net.html" >4. Network</a> &#187;</li> 
+      </ul>
+    </div>
+    <div class="footer" role="contentinfo">
+        &#169; Copyright 2019, Michal Swietek.
+      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 2.1.2.
+    </div>
+  </body>
+</html>

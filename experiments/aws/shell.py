@@ -1,10 +1,12 @@
-'''This is a shell for orchestrating experiments on AWS EC 2'''
-import configparser
+'''This is a shell for orchestrating experiments on AWS EC2'''
+import json
 import os
+import shutil
 
 from fabric import Connection
 from functools import partial
-from subprocess import call, check_output
+from glob import glob
+from subprocess import call, check_output, DEVNULL
 from time import sleep, time
 from joblib import Parallel, delayed
 
@@ -16,9 +18,9 @@ from aleph.crypto.keys import SigningKey, VerifyKey
 import aleph.const as consts
 
 from fabfile import zip_repo
-from utils import image_id_in_region, default_region_name, init_key_pair, security_group_id_by_region, available_regions, badger_regions, generate_signing_keys, n_processes_per_regions, eu_regions, all_regions
+from utils import image_id_in_region, default_region_name, init_key_pair, security_group_id_by_region, available_regions, badger_regions, generate_keys, n_processes_per_regions, color_print
 
-N_JOBS = 8
+N_JOBS = 4
 
 #======================================================================================
 #                              routines for ips
@@ -33,7 +35,7 @@ def run_task_for_ip(task='test', ip_list=[], parallel=False, output=False):
     :param bool output: indicates whether output of task is needed
     '''
 
-    print(f'    running task {task} in {ip_list}')
+    print(f'running task {task} in {ip_list}')
 
     if parallel:
         hosts = " ".join(["ubuntu@"+ip for ip in ip_list])
@@ -41,23 +43,20 @@ def run_task_for_ip(task='test', ip_list=[], parallel=False, output=False):
     else:
         hosts = ",".join(["ubuntu@"+ip for ip in ip_list])
         cmd = f'fab -i key_pairs/aleph.pem -H {hosts} {task}'
-
     try:
         if output:
             return check_output(cmd.split())
         return call(cmd.split())
     except Exception as e:
-        print('    paramiko troubles')
+        print('paramiko troubles')
 
 #======================================================================================
 #                              routines for some region
 #======================================================================================
 
-def latency_in_region(region_name):
-    if region_name == default_region_name():
-        region_name = default_region_name()
-
-    print('    finding latency', region_name)
+def latency_in_region(region_name=default_region_name()):
+    ''' Calculates latency in a given region '''
+    print('finding latency', region_name)
 
     ip_list = instances_ip_in_region(region_name)
     assert ip_list, 'there are no instances running!'
@@ -81,7 +80,7 @@ def latency_in_region(region_name):
 def launch_new_instances_in_region(n_processes=1, region_name=default_region_name(), instance_type='t2.micro'):
     '''Launches n_processes in a given region.'''
 
-    print('    launching instances in', region_name)
+    print('launching instances in', region_name)
 
     key_name = 'aleph'
     init_key_pair(region_name, key_name)
@@ -115,7 +114,7 @@ def all_instances_in_region(region_name=default_region_name(), states=['running'
 
     ec2 = boto3.resource('ec2', region_name)
     instances = []
-    print('   ', region_name, 'collecting instances')
+    print(region_name, 'collecting instances')
     for instance in ec2.instances.all():
         if instance.state['Name'] in states:
             instances.append(instance)
@@ -126,7 +125,7 @@ def all_instances_in_region(region_name=default_region_name(), states=['running'
 def terminate_instances_in_region(region_name=default_region_name()):
     '''Terminates all running instances in a given regions.'''
 
-    print('   ', region_name, 'terminating instances')
+    print(region_name, 'terminating instances')
     for instance in all_instances_in_region(region_name):
         instance.terminate()
 
@@ -145,7 +144,7 @@ def instances_ip_in_region(region_name=default_region_name()):
 def instances_state_in_region(region_name=default_region_name()):
     '''Returns states of all instances in a given regions.'''
 
-    print('   ', region_name, 'collecting instances states')
+    print(region_name, 'collecting instances states')
     states = []
     possible_states = ['running', 'pending', 'shutting-down', 'terminated']
     for instance in all_instances_in_region(region_name, possible_states):
@@ -163,12 +162,12 @@ def run_task_in_region(task='test', region_name=default_region_name(), parallel=
     :param bool output: indicates whether output of task is needed
     '''
 
-    print(f'    running task {task} in {region_name}')
+    print(f'running task {task} in {region_name}')
 
     ip_list = instances_ip_in_region(region_name)
     if parallel:
         hosts = " ".join(["ubuntu@"+ip for ip in ip_list])
-        cmd = 'parallel fab -i key_pairs/aleph.pem -H {} '+task+' ::: '+hosts
+        cmd = 'parallel fab -i key_pairs/aleph.pem -H' + ' {} ' + task + ' ::: ' + hosts
     else:
         hosts = ",".join(["ubuntu@"+ip for ip in ip_list])
         cmd = f'fab -i key_pairs/aleph.pem -H {hosts} {task}'
@@ -178,7 +177,7 @@ def run_task_in_region(task='test', region_name=default_region_name(), parallel=
             return check_output(cmd.split())
         return call(cmd.split())
     except Exception as e:
-        print('    paramiko troubles')
+        print('paramiko troubles')
 
 
 def run_cmd_in_region(cmd='tail -f proof-of-concept/experiments/aleph.log', region_name=default_region_name(), output=False):
@@ -189,7 +188,7 @@ def run_cmd_in_region(cmd='tail -f proof-of-concept/experiments/aleph.log', regi
     :param bool output: indicates whether output of cmd is needed
     '''
 
-    print(f'    running command {cmd} in {region_name}')
+    print(f'running command {cmd} in {region_name}')
 
     ip_list = instances_ip_in_region(region_name)
     results = []
@@ -203,23 +202,27 @@ def run_cmd_in_region(cmd='tail -f proof-of-concept/experiments/aleph.log', regi
     return results
 
 
-def wait_in_region(target_state, region_name):
+def wait_in_region(target_state, region_name=default_region_name()):
     '''Waits until all machines in a given region reach a given state.'''
 
     if region_name == default_region_name():
         region_name = default_region_name()
 
-    print('    waiting in', region_name)
+    print('waiting in', region_name)
 
     instances = all_instances_in_region(region_name)
     if target_state == 'running':
         for i in instances: i.wait_until_running()
-    if target_state == 'terminated':
+    elif target_state == 'terminated':
         for i in instances: i.wait_until_terminated()
+    elif target_state == 'open 22':
+        for i in instances:
+            cmd = f'fab -i key_pairs/aleph.pem -H ubuntu@{i.public_ip_address} test'
+            while call(cmd.split(), stderr=DEVNULL):
+                pass
     if target_state == 'ssh ready':
         ids = [instance.id for instance in instances]
         initializing = True
-        print('    ', end='')
         while initializing:
             responses = boto3.client('ec2', region_name).describe_instance_status(InstanceIds=ids)
             statuses = responses['InstanceStatuses']
@@ -234,14 +237,14 @@ def wait_in_region(target_state, region_name):
             if all_initialized:
                 initializing = False
             else:
-                print(end='.')
+                print('.', end='')
                 import sys
                 sys.stdout.flush()
                 sleep(5)
         print()
 
 
-def installation_finished_in_region(region_name):
+def installation_finished_in_region(region_name=default_region_name()):
     '''Checks if installation has finished on all instances in a given region.'''
 
     results = []
@@ -251,18 +254,20 @@ def installation_finished_in_region(region_name):
         if len(result) < 4 or result[:4] != b'done':
             return False
 
-    print(f'    installation in {region_name} finished')
+    print(f'installation in {region_name} finished')
     return True
+
 
 #======================================================================================
 #                              routines for all regions
 #======================================================================================
 
-def exec_for_regions(func, regions='all', parallel=True):
+
+def exec_for_regions(func, regions='badger regions', parallel=True):
     '''A helper function for running routines in all regions.'''
 
     if regions == 'all':
-        regions = all_regions()
+        regions = available_regions()
     if regions == 'badger regions':
         regions = badger_regions()
 
@@ -293,6 +298,7 @@ def launch_new_instances(nppr, instance_type='t2.micro'):
     failed = []
     print('launching instances')
     for region_name in regions:
+        print(region_name, '', end='')
         instances = launch_new_instances_in_region(nppr[region_name], region_name, instance_type)
         if not instances:
             failed.append(region_name)
@@ -312,31 +318,31 @@ def launch_new_instances(nppr, instance_type='t2.micro'):
         print('reporting complete failure in regions', failed)
 
 
-def terminate_instances(regions='all', parallel=True):
+def terminate_instances(regions='badger regions', parallel=True):
     '''Terminates all instances in ever region from given regions.'''
 
     return exec_for_regions(terminate_instances_in_region, regions, parallel)
 
 
-def all_instances(regions='all', states=['running','pending'], parallel=True):
+def all_instances(regions='badger regions', states=['running','pending'], parallel=True):
     '''Returns all running or pending instances from given regions.'''
 
     return exec_for_regions(partial(all_instances_in_region, states=states), regions, parallel)
 
 
-def instances_ip(regions='all', parallel=True):
+def instances_ip(regions='badger regions', parallel=True):
     '''Returns ip addresses of all running or pending instances from given regions.'''
 
     return exec_for_regions(instances_ip_in_region, regions, parallel)
 
 
-def instances_state(regions='all', parallel=True):
+def instances_state(regions='badger regions', parallel=True):
     '''Returns states of all instances in given regions.'''
 
     return exec_for_regions(instances_state_in_region, regions, parallel)
 
 
-def run_task(task='test', regions='all', parallel=True, output=False):
+def run_task(task='test', regions='badger regions', parallel=True, output=False):
     '''
     Runs a task from fabfile.py on all instances in all given regions.
     :param string task: name of a task defined in fabfile.py
@@ -348,7 +354,7 @@ def run_task(task='test', regions='all', parallel=True, output=False):
     return exec_for_regions(partial(run_task_in_region, task, parallel=parallel, output=output), regions, parallel)
 
 
-def run_cmd(cmd='ls', regions='all', output=False, parallel=True):
+def run_cmd(cmd='ls', regions='badger regions', parallel=True, output=False):
     '''
     Runs a shell command cmd on all instances in all given regions.
     :param string cmd: a shell command that is run on instances
@@ -360,19 +366,21 @@ def run_cmd(cmd='ls', regions='all', output=False, parallel=True):
     return exec_for_regions(partial(run_cmd_in_region, cmd, output=output), regions, parallel)
 
 
-def wait(target_state, regions='all'):
+def wait(target_state, regions='badger regions'):
     '''Waits until all machines in all given regions reach a given state.'''
 
     exec_for_regions(partial(wait_in_region, target_state), regions)
 
 
-def wait_install(regions='all'):
+def wait_install(regions='badger regions'):
     '''Waits till installation finishes in all given regions.'''
 
     if regions == 'all':
         regions = available_regions()
     if regions == 'badger regions':
         regions = badger_regions()
+
+    sleep(60)
 
     wait_for_regions = regions.copy()
     while wait_for_regions:
@@ -386,6 +394,7 @@ def wait_install(regions='all'):
 #                               aggregates
 #======================================================================================
 
+
 def run_protocol(n_processes, regions, restricted, instance_type):
     '''Runs the protocol.'''
 
@@ -397,55 +406,54 @@ def run_protocol(n_processes, regions, restricted, instance_type):
         regions = available_regions()
 
     # note: there are only 5 t2.micro machines in 'sa-east-1', 'ap-southeast-2' each
-    print('launching machines')
+    color_print('launching machines')
     nhpr = n_processes_per_regions(n_processes, regions, restricted)
     launch_new_instances(nhpr, instance_type)
 
-    print('waiting for transition from pending to running')
+    color_print('waiting for transition from pending to running')
     wait('running', regions)
 
-    print('generating keys')
+    color_print('generating keys')
     # generate signing and keys
-    generate_signing_keys(n_processes)
+    generate_keys(n_processes)
 
-    print('generating addresses file')
+    color_print('generating addresses file')
     # prepare address file
     ip_list = instances_ip(regions)
     with open('ip_addresses', 'w') as f:
         f.writelines([ip+'\n' for ip in ip_list])
 
-    print('waiting till ports are open on machines')
-    # this is really slow, and actually machines are ready earlier! refactor
-    #wait('ssh ready', regions)
-    sleep(120)
+    color_print('waiting till ports are open on machines')
+    wait('open 22', regions)
 
-    print('installing dependencies')
+    color_print('installing dependencies')
     # install dependencies on hosts
     run_task('inst-dep', regions, parallel)
 
-    print('wait till installation finishes')
-    # wait till installing finishes
-    sleep(60)
-    wait_install(regions)
-
-    print('packing local repo')
+    color_print('packing local repo')
     # pack testing repo
     with Connection('localhost') as c:
         zip_repo(c)
 
-    print('sending testing repo')
+    color_print('wait till installation finishes')
+    # wait till installing finishes
+    wait_install(regions)
+
+    color_print('sending testing repo')
     # send testing repo
     run_task('send-testing-repo', regions, parallel)
 
-    print('syncing files')
+    color_print('syncing files')
     # send files: addresses, signing_keys, light_nodes_public_keys
     run_task('sync-files', regions, parallel)
 
-    print('sending parameters')
+    color_print('sending parameters')
     # send parameters
     run_task('send-params', regions, parallel)
 
-    print(f'establishing the environment took {round(time()-start, 2)}s')
+    color_print(f'establishing the environment took {round(time()-start, 2)}s')
+
+    color_print('running the experiment')
     # run the experiment
     run_task('run-protocol', regions, parallel)
 
@@ -458,24 +466,24 @@ def get_logs(n_processes, regions, n_parents, adaptive, create_delay, sync_init_
 
     l = len(os.listdir('../results'))
     if l:
-        print('sth is in dir ../results; aborting')
+        color_print('sth is in dir ../results; aborting')
         return
 
     for rn in regions:
-        print('collecting logs in ', rn)
+        color_print(f'collecting logs in {rn}')
         for ip in instances_ip_in_region(rn):
             run_task_for_ip('get-logs', [ip], parallel=0)
             if len(os.listdir('../results')) > l:
                 l = len(os.listdir('../results'))
                 break
+ 
+    color_print(f'{len(os.listdir("../results"))} files in ../results')
 
-    print(len(os.listdir('../results')), 'files in ../results')
-
-    print('reading addresses')
+    color_print('reading addresses')
     with open('ip_addresses', 'r') as f:
         ip_addresses = [line[:-1] for line in f]
 
-    print('reading signing keys')
+    color_print('reading signing keys')
     with open('signing_keys', 'r') as f:
         hexes = [line[:-1].encode() for line in f]
         signing_keys = [SigningKey(hexed) for hexed in hexes]
@@ -486,17 +494,17 @@ def get_logs(n_processes, regions, n_parents, adaptive, create_delay, sync_init_
     signing_keys = [signing_keys[i] for i in arg_sort]
     ip_addresses= [ip_addresses[i] for i in arg_sort]
 
-    print('writing addresses')
+    color_print('writing addresses')
     with open('ip_addresses_sorted', 'w') as f:
         for ip in ip_addresses:
             f.write(ip+'\n')
 
-    print('writing signing keys')
+    color_print('writing signing keys')
     with open('signing_keys_sorted', 'w') as f:
         for sk in signing_keys:
             f.write(sk.to_hex().decode()+'\n')
 
-    print('generating pid->region mapping')
+    color_print('generating pid->region mapping')
     with open('host_locations', 'w') as f:
         for rn in regions:
             f.write(rn+' ')
@@ -504,7 +512,7 @@ def get_logs(n_processes, regions, n_parents, adaptive, create_delay, sync_init_
                 f.write(str(ip_addresses.index(ip))+' ')
             f.write('\n')
 
-    print('renaming logs')
+    color_print('renaming logs')
     for fp in os.listdir('../results'):
         name = fp[-13:-8] # other | aleph
         pid = ip_addresses.index(fp.split(f'-{name}.log')[0].replace('-', '.'))
@@ -512,10 +520,10 @@ def get_logs(n_processes, regions, n_parents, adaptive, create_delay, sync_init_
 
     result_path = f'../{n_processes}_{n_parents}_{adaptive}_{create_delay}_{sync_init_delay}_{txpu}'
 
-    print('renaming dir')
+    color_print('renaming dir')
     os.rename('../results', result_path)
 
-    print('unzipping downloaded logs')
+    color_print('unzipping downloaded logs')
     for path in os.listdir(result_path):
         index = path.split('.')[0]
         path = os.path.join(result_path, path)
@@ -524,23 +532,24 @@ def get_logs(n_processes, regions, n_parents, adaptive, create_delay, sync_init_
         os.rename(f'{result_path}/aleph.log', f'{result_path}/{index}.aleph.log')
         os.remove(path)
 
-    print('zipping logs')
+    color_print('zipping logs')
     with zipfile.ZipFile(result_path+'.zip', 'w') as zf:
         for path in os.listdir(result_path):
             path = os.path.join(result_path, path)
             zf.write(path)
             os.remove(path)
 
-    print('removing empty dir')
+    color_print('removing empty dir')
     os.rmdir(result_path)
 
-    print('getting dag')
+    color_print('getting dag')
     run_task_for_ip('get-dag', [ip_addresses[0]])
 
-    print('done')
+    color_print('done')
 
 
 def memory_usage(regions=badger_regions()):
+    ''' Checks current memory usage on hosts in specified regions '''
     cmd = 'grep memory proof-of-concept/aleph/aleph.log | tail -1'
     output = run_cmd(cmd, regions, True)
     results = [float(line.split()[7]) for line in output]
@@ -548,6 +557,7 @@ def memory_usage(regions=badger_regions()):
 
 
 def reached_max_level(regions=available_regions()):
+    ''' Checks if posets have reached max level in specified regions '''
     cmd = 'grep max_level proof-of-concept/aleph/aleph.log'
     output = run_cmd(cmd, regions, True, True)
     n_protocol_stopped = 0
@@ -561,7 +571,7 @@ def reached_max_level(regions=available_regions()):
 def cut_instances(new_n_proc, regions=available_regions(), restricted={}):
     ''' Cuts current number of processes to new_n_proc. '''
 
-    print('collecting running instances')
+    color_print('collecting running instances')
     ihpr = {region:all_instances_in_region(region) for region in regions}
     nhpr = {region:len(ihpr[region]) for region in regions}
 
@@ -572,10 +582,10 @@ def cut_instances(new_n_proc, regions=available_regions(), restricted={}):
 
     new_nhpr = n_processes_per_regions(new_n_proc, regions, restricted)
 
-    print('terminating spare instances')
+    color_print('terminating spare instances')
     for region in regions:
         diff = nhpr[region] - new_nhpr[region]
-        print(region, diff)
+        color_print(region, diff)
         for instance in ihpr[region]:
             if diff <= 0:
                 continue
@@ -585,10 +595,10 @@ def cut_instances(new_n_proc, regions=available_regions(), restricted={}):
     assert sum(new_nhpr.values()) == new_n_proc
 
 
-
 #======================================================================================
 #                                        shortcuts
 #======================================================================================
+
 
 tr = run_task_in_region
 t = run_task
@@ -597,6 +607,7 @@ cmr = run_cmd_in_region
 cm = run_cmd
 
 ti = terminate_instances
+tir = terminate_instances_in_region
 
 restricted = {
     't2.medium': {  'ap-south-1':     10,  # Mumbai

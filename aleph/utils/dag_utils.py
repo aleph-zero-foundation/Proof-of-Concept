@@ -131,8 +131,8 @@ def generate_random_forking(n_processes, n_units, n_forkers, file_name = None):
     There are no "diamonds" within forking processes, in other words the forking processes can only create trees.
     :param int n_processes: the number of processes in poset
     :param int n_forkers: the number of forking processes
-    :param int n_units: the number of units in the process beyond genesis + n_processes initial units,
-                        hence the total number of units is (1 + n_processes + n_units)
+    :param int n_units: the number of units in the process beyond the n_processes initial units,
+                        hence the total number of units is (n_processes + n_units)
     :returns: a DAG instance
     '''
     forkers = random.sample(range(n_processes), n_forkers)

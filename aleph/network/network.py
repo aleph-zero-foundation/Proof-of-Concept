@@ -10,16 +10,17 @@ import aleph.const as consts
 
 
 class Network:
+    ''' Class that takes care of handling network connections with other processes.
+
+        :param Process process: process who uses this network to communicate with others.
+        :param list addresses: list of addresses of all committee members, ordered by their process_id.
+          Each address is a pair (IP, port).
+        :param list public_key_list: the list of public keys of all committee members.
+        :param Logger logger: where to write all the log messages.
+        :param bool keep_connection: Don't close network connection after every sync.
+    '''
 
     def __init__(self, process, addresses, public_key_list, logger, keep_connection=True):
-        '''Class that takes care of handling network connections with other processes.
-
-        :param Process process: process who uses this network to communicate with others
-        :param list addresses: list of addresses of all committee members, ordered by their process_id. Each address is a pair (IP, port)
-        :param list public_key_list: the list of public keys of all committee members
-        :param Logger logger: where to write all the log messages
-        :param bool keep_connection: Don't close network connection after every sync
-        '''
 
         self.process = process
         self.addresses = addresses
@@ -36,7 +37,8 @@ class Network:
     async def start_server(self, server_started):
         '''
         Start a server that waits for incoming connections and activates corresponding listen_channels
-        :param asyncio.Event server_started: main Event used to synchronize initialization of the whole process.run. This method sets it if successful.
+        :param asyncio.Event server_started: main Event used to synchronize initialization of the whole process.run. This method
+          sets it if successful.
         '''
 
         async def channel_handler(reader, writer):
@@ -47,7 +49,10 @@ class Network:
             channel = self.listen_channels[peer_id]
 
             if channel.is_active():
-                self.logger.error(f'channel_handler {self.process.process_id} | Channel with {peer_id} already open, received another connection')
+                self.logger.error(
+                    f'channel_handler {self.process.process_id} | Channel with {peer_id} already open, received another'
+                    f'connection'
+                )
                 return
 
             channel.connect(reader, writer)
@@ -63,7 +68,6 @@ class Network:
         async with server:
             await server.serve_forever()
 
-
     def _new_sync_id(self, peer_id):
         '''
         Increase sync_id counter in the parent process and register the current sync as a sync with process peer_id.
@@ -74,11 +78,12 @@ class Network:
         self.process.sync_id += 1
         return s
 
-
     async def maybe_close(self, channel):
+        '''
+        Closes a given channel if not in keep_connection mode.
+        '''
         if not self.keep_connection:
             await channel.close()
-
 
     async def _send_poset_info(self, channel, mode, ids):
         self.logger.info(f'send_poset_{mode} {ids} | sending info about heights to {channel.peer_id}')
@@ -89,7 +94,6 @@ class Network:
         printable_heights = [[(h, pretty_hash(H)) for (h, H) in local_info] for local_info in to_send]
         self.logger.info(f'send_poset_done_{mode} {ids} | sent heights {printable_heights} ({len(data)} bytes) '
                          f'to {channel.peer_id}')
-
 
     async def _receive_poset_info(self, channel, mode, ids):
         data = await channel.read()
@@ -102,7 +106,6 @@ class Network:
                          f'from {channel.peer_id}')
         return info, ids
 
-
     async def _send_requests(self, to_send, channel, mode, ids):
         self.logger.info(f'send_requests_start_{mode} {ids} | Sending requests to {channel.peer_id}')
         data = pickle.dumps(to_send)
@@ -111,7 +114,6 @@ class Network:
         printable_requests = [[pretty_hash(H) for H in local_info] for local_info in to_send]
         self.logger.info(f'send_requests_done_{mode} {ids} | sent requests {printable_requests} ({len(data)} bytes) '
                          f'to {channel.peer_id}')
-
 
     async def _receive_requests(self, channel, mode, ids):
         self.logger.info(f'receive_requests_start_{mode} {ids} | receiving requests from {channel.peer_id}')
@@ -122,16 +124,16 @@ class Network:
                          f'from {channel.peer_id}')
         return requests_received
 
-
     async def _send_units(self, to_send, channel, mode, ids):
         self.logger.info(f'send_units_start_{mode} {ids} | Sending units to {channel.peer_id}')
         with timer(ids, 'pickle_units'):
             data = pickle.dumps(to_send)
-        self.logger.info(f'send_units_wait_{mode} {ids} | Sending {len(to_send)} units and {len(data)} bytes to {channel.peer_id}')
+        self.logger.info(
+            f'send_units_wait_{mode} {ids} | Sending {len(to_send)} units and {len(data)} bytes to {channel.peer_id}'
+        )
         await channel.write(data)
         self.logger.info(f'send_units_sent_{mode} {ids} | Sent {len(to_send)} units and {len(data)} bytes to {channel.peer_id}')
         self.logger.info(f'send_units_done_{mode} {ids} | Units sent {channel.peer_id}')
-
 
     async def _receive_units(self, channel, mode, ids):
         self.logger.info(f'receive_units_start_{mode} {ids} | Receiving units from {channel.peer_id}')
@@ -143,7 +145,6 @@ class Network:
         self.logger.info(f'receive_units_done_{mode} {ids} | Received {n_bytes} bytes and {len(units_received)} units')
         return units_received
 
-
     def _verify_signatures(self, units_received, mode, ids):
         self.logger.info(f'verify_sign_{mode} {ids} | Verifying signatures')
 
@@ -153,7 +154,6 @@ class Network:
 
         self.logger.info(f'verify_sign_{mode} {ids} | Signatures verified')
         return True
-
 
     def _add_units(self, units_received, peer_id, mode, ids):
         self.logger.info(f'add_received_{mode} {ids} | trying to add {len(units_received)} units from {peer_id} to poset')
@@ -166,9 +166,10 @@ class Network:
                 self.logger.error(f'add_received_fail_{mode} {ids} | unit {unit.short_name()} from {peer_id} was rejected')
                 return False
 
-        self.logger.info(f'add_received_done_{mode} {ids} | units from {peer_id} were added succesfully {printable_unit_hashes} ')
+        self.logger.info(
+            f'add_received_done_{mode} {ids} | units from {peer_id} were added succesfully {printable_unit_hashes} '
+        )
         return True
-
 
     def _verify_signatures_and_add_units(self, units_received, peer_id, mode, ids):
         with timer(ids, 'verify_signatures'):
@@ -180,21 +181,23 @@ class Network:
         with timer(ids, 'add_units'):
             succesful = self._add_units(units_received, peer_id, mode, ids)
         if not succesful:
-            self.logger.error(f'{mode}_not_compliant {ids} | Got unit from {peer_id} that does not comply to the rules; aborting')
+            self.logger.error(
+                f'{mode}_not_compliant {ids} | Got unit from {peer_id} that does not comply to the rules; aborting'
+            )
             return False
         return True
 
-
-#===============================================================================================================================
+# ===============================================================================================================================
 # SYNCING PROTOCOLS
-#===============================================================================================================================
+# ===============================================================================================================================
 
     async def sync(self, peer_id):
         '''
-        Sync with process peer_id.
-        This version uses 3-exchange "pullpush" protocol: send heights, receive heights, units and requests, send units and requests.
-        If we sent some requests there is a 4th exchange where we once again get units. This should only happen due to forks.
+        Sync with process peer_id. This version uses 3-exchange "pullpush" protocol: send heights, receive heights, units and
+        requests, send units and requests. If we sent some requests there is a 4th exchange where we once again get units. This
+        should only happen due to forks.
         '''
+
         self.n_init_syncs += 1
         self.logger.info(f'sync_sync_no | Number of syncs is {self.n_init_syncs}')
         if self.n_init_syncs > consts.N_INIT_SYNC:
@@ -212,10 +215,10 @@ class Network:
             self.logger.info(f'sync_establish_try {ids} | Establishing connection to {peer_id}')
             self.logger.info(f'sync_establish {ids} | Established connection to {peer_id}')
 
-            #step 1
+            # step 1
             await self._send_poset_info(channel, 'sync', ids)
 
-            #step 2
+            # step 2
             try:
                 their_poset_info, _ = await self._receive_poset_info(channel, 'sync', ids)
                 units_received = await self._receive_units(channel, 'sync', ids)
@@ -226,7 +229,7 @@ class Network:
                 await self.maybe_close(channel)
                 return
 
-            #step 3
+            # step 3
             with timer(ids, 'prepare_units'):
                 to_send, to_request = units_to_send(self.process.poset, their_poset_info, their_requests)
             await self._send_units(to_send, channel, 'sync', ids)
@@ -234,7 +237,7 @@ class Network:
             to_request = [[r for r in reqs if r not in received_hashes] for reqs in to_request]
             await self._send_requests(to_request, channel, 'sync', ids)
 
-            #step 4 (only if we requested something)
+            # step 4 (only if we requested something)
             if any(to_request):
                 self.logger.info(f'sync_extended {ids} | Sync with {peer_id} extended due to forks')
                 units_received = await self._receive_units(channel, 'sync', ids)
@@ -248,7 +251,6 @@ class Network:
             self.logger.info(f'sync_fail {ids} | Syncing with {peer_id} failed')
         self.n_init_syncs -= 1
 
-
     async def listener(self, peer_id):
         '''
         Listen indefinitely for incoming syncs from process peer_id.
@@ -256,7 +258,7 @@ class Network:
         '''
         channel = self.listen_channels[peer_id]
         while True:
-            #step 1
+            # step 1
             their_poset_info, ids = await self._receive_poset_info(channel, 'listener', None)
 
             self.n_recv_syncs += 1
@@ -271,18 +273,18 @@ class Network:
 
             self.logger.info(f'listener_establish {ids} | Connection established with {peer_id}')
 
-            #step 2
+            # step 2
             await self._send_poset_info(channel, 'listener', ids)
             with timer(ids, 'prepare_units'):
                 to_send, to_request = units_to_send(self.process.poset, their_poset_info)
             await self._send_units(to_send, channel, 'listener', ids)
             await self._send_requests(to_request, channel, 'listener', ids)
 
-            #step 3
+            # step 3
             units_received = await self._receive_units(channel, 'listener', ids)
             their_requests = await self._receive_requests(channel, 'listener', ids)
 
-            #step 4 (only if they requested something)
+            # step 4 (only if they requested something)
             if any(their_requests):
                 self.logger.info(f'listener_extended {ids} | Sync with {peer_id} extended due to forks')
                 with timer(ids, 'prepare_units'):

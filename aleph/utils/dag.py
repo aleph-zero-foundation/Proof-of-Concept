@@ -212,6 +212,7 @@ class DAG:
         '''
         Computes the self predecessor of a node. Because the node might not yet be in the poset, only its creator_id and its parents are provided.
         The self_predecessor of U is defined as the unique maximal element in the set of all units below U creater by the same process as U.
+        NOTE: currently all implementations only create units with their first parent as the self predecessor.
         :param int pid: the creator_id of the node
         :param list parent_nodes: the list of parents of the node
         :returns: the self_predecessor of the node, or None if it does not exist
@@ -221,8 +222,6 @@ class DAG:
                 return parent_nodes[0]
             else:
                 return None
-
-        # TODO: this might be possibly simplified for our current version of parent selection (when the first parent is always the self_predecessor)
 
         parent_nodes = list(parent_nodes)
         below_within_process = [node_below for node_below in self.nodes_below(parent_nodes) if self.pid(node_below) == pid]

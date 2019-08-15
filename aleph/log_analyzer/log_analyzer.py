@@ -367,7 +367,6 @@ class LogAnalyzer:
                 U_dict = self.units[U]
                 if 'created' in U_dict:
                     continue
-                #assert 'created' not in U_dict, f"Unit created by {self.read_process_id} later also received from another process."
                 if 'received' not in U_dict:
                     U_dict['received'] = [event['date']]
                 else:
@@ -1026,7 +1025,6 @@ class LogAnalyzer:
             recv_bars = ax_recv.bar(x_series, n_recv_list, width, color = 'blue')
 
             plt.setp((ax_sent, ax_recv), xticks=x_ticks, xticklabels=time_ticks)
-            #ax_recv.xticks(x_ticks, time_ticks)
 
             ax_sent.legend([sent_bars[0]], ['units sent'])
             ax_recv.legend([recv_bars[0]], ['units received'])
@@ -1267,8 +1265,6 @@ class LogAnalyzer:
                     break
 
             if not enclosing_event:
-                # import sys
-                # print(f'Missing enclosing event for the first phase of a sync {sync_id:d}', file=sys.stderr)
                 continue
 
             end_date = enclosing_event['stop_date']
@@ -1282,8 +1278,6 @@ class LogAnalyzer:
                 phase_1_times_listener.append(phase_1_time)
 
             if 'stop_date' not in sync:
-                # import sys
-                # print(f'Missing enclosing event for the second phase of a sync {sync_id:d}', file=sys.stderr)
                 continue
 
             start_date = end_date
@@ -1589,7 +1583,6 @@ def compute_basic_stats(list_of_numbers):
     summ = {}
     summ['n_samples'] = len(list_of_numbers)
     summ['avg'] = np.mean(np_array)
-    #summ['stdev'] = np.std(np_array)
     summ['min'] = np.min(np_array)
     summ['max'] = np.max(np_array)
 
