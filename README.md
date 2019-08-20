@@ -1,4 +1,4 @@
-# Aleph Proof-of-Concept
+# Aleph Zero: Aleph Protocol Proof-of-Concept
 
 ![aleph logo](docs/source/aleph_1920x1080.jpg "Aleph logo")
 
